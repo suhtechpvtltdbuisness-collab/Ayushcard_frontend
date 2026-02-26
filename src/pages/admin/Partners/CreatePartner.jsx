@@ -498,7 +498,7 @@ const CreatePartner = () => {
                 placeholder="Search doctor..." 
                 value={doctorSearch}
                 onChange={(e) => setDoctorSearch(e.target.value)}
-                className="pl-9 pr-4 py-2 border border-[#E5E7EB] rounded-lg text-sm w-[300px] focus:outline-none focus:border-[#F68E5F]"
+                className="pl-9 pr-4 py-2 border border-[#E5E7EB] rounded-lg text-sm w-75 focus:outline-none focus:border-[#F68E5F]"
               />
             </div>
             <button 

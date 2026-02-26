@@ -77,7 +77,7 @@ const StatusBadge = ({ status }) => {
 const ActionButtons = ({ item, navigate, onDelete }) => {
   return (
     <div className="flex items-center gap-4">
-      <div className="w-[84px] flex justify-center">
+      <div className="w-21 flex justify-center">
         <button 
           onClick={() => navigate(`/admin/partners/${item.id}`, { state: { editMode: true } })}
           className="flex items-center justify-center gap-1.5 px-2 py-1 bg-[#2C2C2C] text-white rounded-lg text-sm font-normal hover:bg-[#1F2937]"
@@ -253,7 +253,7 @@ const Partners = () => {
       <div className="flex items-center justify-between mb-4 shrink-0 flex-wrap gap-4">
         <div className="flex items-center gap-4 flex-wrap flex-1">
           {/* Search */}
-          <div className="relative w-[280px]">
+          <div className="relative w-70">
             <input 
               type="text" 
               placeholder="Search by name, id, phone" 
@@ -306,14 +306,14 @@ const Partners = () => {
                       className="w-4 h-4 rounded border-[#D1D5DB] border text-[#111827] focus:ring-[#111827]" 
                     />
                   </th>
-                  <th className="py-3 px-4 text-sm font-semibold text-[#1B2128] w-[70px]">Sr.no</th>
+                  <th className="py-3 px-4 text-sm font-semibold text-[#1B2128] w-17.5">Sr.no</th>
                   {renderSortableHeader('Partner ID', 'id', 'left', 'w-[130px]')}
                   {renderSortableHeader('Type', 'type', 'left', 'w-[160px]')}
                   {renderSortableHeader('Org Name', 'orgName', 'left', 'min-w-[180px]')}
                   {renderSortableHeader('Primary Contact', 'primaryContact', 'left', 'w-[150px]')}
                   {renderSortableHeader('Location', 'location', 'left', 'w-[150px]')}
                   {renderSortableHeader('Status', 'status', 'left', 'w-[140px]')}
-                  <th className="py-3 px-4 text-sm font-semibold text-[#1B2128] w-[130px]">Actions</th>
+                  <th className="py-3 px-4 text-sm font-semibold text-[#1B2128] w-32.5">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -385,7 +385,7 @@ const Partners = () => {
       {/* Delete Confirmation Modal */}
       {itemToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl p-6 w-[400px] shadow-lg animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-xl p-6 w-100 shadow-lg animate-in fade-in zoom-in duration-200">
             <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
                     <Trash2 size={20} className="text-red-600" />

@@ -426,7 +426,7 @@ const PartnerDetails = () => {
                 placeholder="Search doctor..." 
                 value={doctorSearch}
                 onChange={(e) => setDoctorSearch(e.target.value)}
-                className="pl-9 pr-4 py-2 border border-[#E5E7EB] rounded-lg text-sm w-[260px] focus:outline-none focus:border-[#F68E5F]"
+                className="pl-9 pr-4 py-2 border border-[#E5E7EB] rounded-lg text-sm w-65 focus:outline-none focus:border-[#F68E5F]"
               />
             </div>
             {isEditing && (

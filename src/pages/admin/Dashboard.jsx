@@ -118,7 +118,7 @@ const Dashboard = () => {
             <div className="flex items-start gap-4">
               <div className="relative">
                 <div className="w-10 h-10 rounded-full bg-[#FFF7ED] flex items-center justify-center">
-                  <img src="/admin_images/new_card.svg" alt="New Card" className="w-[18px] h-[18px]" />
+                  <img src="/admin_images/new_card.svg" alt="New Card" className="w-4.5 h-4.5" />
                 </div>
                 <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
               </div>
@@ -134,7 +134,7 @@ const Dashboard = () => {
             {/* Activity Item 2 */}
             <div className="flex items-start gap-4">
                <div className="w-10 h-10 rounded-full bg-[#EFF6FF] flex items-center justify-center">
-                  <img src="/admin_images/hospital.svg" alt="Hospital" className="w-[18px] h-[18px]" />
+                  <img src="/admin_images/hospital.svg" alt="Hospital" className="w-4.5 h-4.5" />
                 </div>
               <div className="flex-1">
                 <div className="flex justify-between items-start">
@@ -195,7 +195,7 @@ const Dashboard = () => {
             </button>
             <button className="w-full flex items-center justify-between p-4 bg-[#F2F4F3] text-[#22333B] rounded-lg hover:bg-[#e6e9e7] transition-colors shadow-sm border border-transparent hover:border-gray-200">
               <div className="flex items-center gap-3">
-                <img src="/admin_images/hr_payroll.svg" alt="New Card" className="w-[18px] h-[18px]" />
+                <img src="/admin_images/hr_payroll.svg" alt="New Card" className="w-4.5 h-4.5" />
                 <span className="font-semibold text-sm">Add Staff Member</span>
               </div>
               <ChevronRight size={20} className="text-gray-400" />

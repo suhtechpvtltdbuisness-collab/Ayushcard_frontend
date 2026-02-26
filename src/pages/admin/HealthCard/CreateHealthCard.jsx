@@ -250,7 +250,7 @@ const CreateHealthCard = () => {
                 </button>
             </div>
             
-            <div className="overflow-x-auto flex-1 h-full min-h-[30px]">
+            <div className="overflow-x-auto flex-1 h-full min-h-7.5">
                 {formData.members.length > 0 ? (
                 <table className="w-full text-left border-collapse">
                     <thead className="bg-[#F9FAFB]">

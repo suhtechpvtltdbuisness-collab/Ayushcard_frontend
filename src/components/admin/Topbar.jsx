@@ -3,7 +3,7 @@ import { Bell } from 'lucide-react';
 
 const Topbar = () => {
   return (
-    <div className="flex justify-between items-center h-[90px] px-8 border-b border-[#F3F4F6] bg-[#FFFFFF]">
+    <div className="flex justify-between items-center h-22.5 px-8 border-b border-[#F3F4F6] bg-[#FFFFFF]">
       <h1 className="text-[22px] font-bold text-[#22333B]">Good Morning Vivek!</h1>
       
       <div className="flex items-center gap-4">
