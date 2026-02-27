@@ -30,6 +30,16 @@ import NearbyHospitals from "./components/pages/about-dedi/hospitaldedipages/Nea
 import ContactInfo from "./components/pages/about-dedi/hospitaldedipages/ContactInfo";
 import HospitalMap from "./components/pages/about-dedi/hospitaldedipages/HospitalMap";
 
+// Admin Interface
+import AdminLayout from "./layouts/AdminLayout";
+import Dashboard from "./pages/admin/Dashboard";
+import HealthCard from "./pages/admin/HealthCard/HealthCard";
+import HealthCardDetails from "./pages/admin/HealthCard/HealthCardDetails";
+import CreateHealthCard from "./pages/admin/HealthCard/CreateHealthCard";
+import Partners from "./pages/admin/Partners/Partners";
+import PartnerDetails from "./pages/admin/Partners/PartnerDetails";
+import CreatePartner from "./pages/admin/Partners/CreatePartner";
+
 function App() {
   return (
     <Router>
@@ -112,6 +122,18 @@ function App() {
             </>
           }
         />
+
+        {/* Admin Dashboard */}
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<Dashboard />} />
+          <Route path="health-card" element={<HealthCard />} />
+          <Route path="health-card/create" element={<CreateHealthCard />} />
+          <Route path="health-card/:id" element={<HealthCardDetails />} />
+          <Route path="partners" element={<Partners />} />
+          <Route path="partners/create" element={<CreatePartner />} />
+          <Route path="partners/:id" element={<PartnerDetails />} />
+          {/* Add admin sub-routes*/}
+        </Route>
 
       </Routes>
     </Router>
