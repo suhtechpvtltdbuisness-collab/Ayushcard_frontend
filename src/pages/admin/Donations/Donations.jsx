@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Plus, Eye, Trash2, Download, ArrowUpDown } from 'lucide-react';
+import { Search, Eye, Trash2, Download, ArrowUpDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { exportToCSV } from '../../../utils/exportUtils';
 
-export const getPartners = () => {
-  const stored = localStorage.getItem('partners_data');
+export const getDonations = () => {
+  const stored = localStorage.getItem('donations_data');
   if (stored) {
     const parsed = JSON.parse(stored);
     // If it has too many items from previous test, regenerate it
@@ -12,108 +12,51 @@ export const getPartners = () => {
   }
   
   const initialData = Array.from({ length: 14 }).map((_, i) => {
-    const types = ['Hospital', 'Pathology Lab', 'Clinic', 'Nursing Home'];
-    const statuses = ['Not verified', 'Verified', 'Inactive'];
+    const names = ['Vibha Singh', 'Renu Verma', 'Amit Kumar', 'Sneha Sharma', 'Rahul Gupta', 'Priya Desai', 'Anil Mehta', 'Sunita Rao'];
+    const locations = ['Kanpur,UP', 'Noida,UP', 'Delhi', 'Lucknow,UP', 'Kanpur,UP', 'Delhi'];
+    const dates = ['10-02-2026', '12-02-2026', '15-02-2026', '18-02-2026', '20-02-2026'];
+    const times = ['10:30 AM', '11:15 AM', '02:00 PM', '04:45 PM', '09:00 AM'];
+    
     return {
       id: `P-${1001456 + i}`,
-      type: types[i % types.length],
-      orgName: 'Care Hospital',
-      primaryContact: '8373849574',
-      location: 'Kanpur,UP',
-      status: statuses[i % statuses.length],
-      rating: (4.0 + (i % 10) / 10).toFixed(1),
-      members: 850 + i * 10,
-      details: {
-        registrationNumber: `HOSP/2020/00${(i % 9) + 1}`,
-        partnerId: `PTE-00${(i % 9) + 1}`,
-        establishmentYear: '2005-01-01',
-        bedCapacity: 1200 + i * 10,
-        staffCount: 420 + i * 5,
-        ambulanceService: '5 Ambulances Available',
-        emergencyServices: 'available 24/7'
-      },
-      specializations: ['Cardiology', 'Neurology', 'Orthopedics', 'Pediatrics', 'Oncology', 'Gynecology'],
-      doctors: [
-        { id: 1, name: 'Dr. Sarah Wilson', specialty: 'CARDIOLOGIST', days: ['Mon', 'Wed', 'Fri'], timeFrom: '09:00 AM', timeTo: '01:00 PM', image: 'female' },
-        { id: 2, name: 'Dr. James Miller', specialty: 'NEUROLOGIST', days: ['Tue', 'Thu', 'Sat'], timeFrom: '10:00 AM', timeTo: '04:00 PM', image: 'male' },
-        { id: 3, name: 'Dr. Elena Petrova', specialty: 'PEDIATRICIAN', days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], timeFrom: '08:00 AM', timeTo: '12:00 PM', image: 'female' },
-      ]
+      name: names[i % names.length],
+      contact: `98${Math.floor(10000000 + Math.random() * 90000000)}`,
+      email: `${names[i % names.length].split(' ')[0].toLowerCase()}@example.com`,
+      date: dates[i % dates.length],
+      time: times[i % times.length],
+      location: locations[i % locations.length],
+      message: 'Lorem ipsum dolor sit amet consectetur. Scelerisque quis nullam sagittis diam eu at est scelerisque. Facilisis ipsum augue ante quam. Consectetur aenean sit condimentum senectus lacus placerat. Condimentum volutpat dolor egestas id imperdiet sagittis nulla vel.'
     };
   });
-  localStorage.setItem('partners_data', JSON.stringify(initialData));
+  localStorage.setItem('donations_data', JSON.stringify(initialData));
   return initialData;
-};
-
-const StatusBadge = ({ status }) => {
-  let bg = '';
-  let dot = '';
-  let text = '';
-
-  switch (status) {
-    case 'Not verified':
-      bg = 'bg-[#FFA10033]';
-      dot = 'bg-[#FFA100]';
-      text = 'text-[#FFA100]';
-      break;
-    case 'Verified':
-      bg = 'bg-[#76DB1E33]';
-      dot = 'bg-[#76DB1E]';
-      text = 'text-[#76DB1E]';
-      break;
-    case 'Inactive':
-      bg = 'bg-[#FF383C33]';
-      dot = 'bg-[#FF383C]';
-      text = 'text-[#FF383C]';
-      break;
-    default:
-      bg = 'bg-gray-100';
-      dot = 'bg-gray-400';
-      text = 'text-gray-600';
-  }
-
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-normal ${bg} ${text}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${dot}`}></span>
-      {status}
-    </span>
-  );
 };
 
 const ActionButtons = ({ item, navigate, onDelete }) => {
   return (
-    <div className="flex items-center gap-4">
-      <div className="w-21 flex justify-center">
-        <button 
-          onClick={() => navigate(`/admin/partners/${item.id}`, { state: { editMode: true } })}
-          className="flex items-center justify-center gap-1.5 px-2 py-1 bg-[#2C2C2C] text-[#FFFCFB] rounded-lg text-sm font-normal hover:bg-[#1F2937]"
-        >
-          Edit 
-          <img src="/admin_images/Edit 3.svg" alt="edit" />
-        </button>
-      </div>
-      <div className="flex items-center gap-2">
-        <button 
-          onClick={() => navigate(`/admin/partners/${item.id}`)}
-          className="text-[#F68E5F] hover:text-[#ff6e2b] cursor-pointer transition-colors p-1.5"
-        >
-          <Eye size={20} />
-        </button>
-        <button 
-          onClick={() => onDelete(item)}
-          className="text-[#F68E5F] hover:text-[#ff6e2b] transition-colors p-1.5"
-        >
-          <Trash2 size={20} />
-        </button>
-      </div>
+    <div className="flex items-center gap-2">
+      <button 
+        onClick={() => navigate(`/admin/donations/${item.id}`)}
+        className="text-[#F68E5F] hover:text-[#ff7535] cursor-pointer transition-colors p-1.5"
+      >
+        <Eye size={20} />
+      </button>
+      <button 
+        onClick={() => onDelete(item)}
+        className="text-[#F68E5F] hover:text-[#ff7535] transition-colors p-1.5"
+      >
+        <Trash2 size={20} />
+      </button>
     </div>
   );
 };
 
-const Partners = () => {
+const Donations = () => {
   const navigate = useNavigate();
-  const [partners, setPartners] = useState(getPartners());
-  const [activeFilter, setActiveFilter] = useState('All');
+  const [donations, setDonations] = useState(getDonations());
   const [searchQuery, setSearchQuery] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
+  const [dateRangeFilter, setDateRangeFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [itemToDelete, setItemToDelete] = useState(null);
@@ -122,9 +65,9 @@ const Partners = () => {
 
   const handleDeleteConfirm = () => {
     if (itemToDelete) {
-      const updatedData = partners.filter(p => p.id !== itemToDelete.id);
-      setPartners(updatedData);
-      localStorage.setItem('partners_data', JSON.stringify(updatedData));
+      const updatedData = donations.filter(d => d.id !== itemToDelete.id);
+      setDonations(updatedData);
+      localStorage.setItem('donations_data', JSON.stringify(updatedData));
       setSelectedRows([]);
       setItemToDelete(null);
     }
@@ -139,14 +82,25 @@ const Partners = () => {
   };
 
   const processedData = useMemo(() => {
-    let result = [...partners].filter(item => {
-      const matchesSearch = item.orgName.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    let result = [...donations].filter(item => {
+      const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                             item.id.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                            item.primaryContact.includes(searchQuery);
+                            item.contact.includes(searchQuery);
+                            
+      const matchesLocation = locationFilter ? item.location === locationFilter : true;
       
-      if (activeFilter === 'All') return matchesSearch;
-      if (activeFilter === 'Not Verified') return matchesSearch && item.status === 'Not verified';
-      return matchesSearch && item.status.toLowerCase() === activeFilter.toLowerCase();
+      // Basic mock date logic for dateRangeFilter
+      // For a real app, you would parse the dates natively. Here we mock it based on selection
+      let matchesDate = true;
+      if (dateRangeFilter === 'today') {
+        matchesDate = item.date === '20-02-2026'; // Mocking today's date based on sample data
+      } else if (dateRangeFilter === 'week') {
+        matchesDate = ['15-02-2026', '18-02-2026', '20-02-2026'].includes(item.date);
+      } else if (dateRangeFilter === 'month') {
+        matchesDate = item.date.includes('-02-2026');
+      }
+
+      return matchesSearch && matchesLocation && matchesDate;
     });
 
     if (sortConfig.key) {
@@ -170,7 +124,7 @@ const Partners = () => {
     }
 
     return result;
-  }, [partners, searchQuery, activeFilter, sortConfig]);
+  }, [donations, searchQuery, sortConfig, locationFilter, dateRangeFilter]);
 
   const totalPages = Math.ceil(processedData.length / ITEMS_PER_PAGE) || 1;
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -221,7 +175,7 @@ const Partners = () => {
       return;
     }
     const dataToExport = selectedRows.map(index => processedData[index]);
-    exportToCSV(dataToExport, 'Partners_Export.csv');
+    exportToCSV(dataToExport, 'Donations_Export.csv');
   };
 
   const handleSelectRow = (globalIndex) => {
@@ -248,22 +202,13 @@ const Partners = () => {
     <div className="flex flex-col h-[calc(100vh-170px)]" style={{ fontFamily: 'Inter, sans-serif' }}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 shrink-0 gap-4 sm:gap-0">
-        <h2 className="text-xl font-bold text-[#22333B]">Partners</h2>
-        <div className="flex items-center gap-4">
-          <button 
-            onClick={handleExport}
-            className="px-4 py-1.5 border border-[#F68E5F] bg-[#FFFCFB] rounded-lg text-[15px] font-medium text-[#F68E5F] hover:bg-[#F68E5F] hover:text-[#FFFCFB] flex items-center gap-2 transition-colors"
-          >
-            Export <Download size={16} /> 
-          </button>
-          {/* Create Button (Tablet/Mobile Only) */}
-          <button 
-            onClick={() => navigate('/admin/partners/create')}
-            className="flex lg:hidden px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff7535] transition-colors items-center gap-2"
-          >
-            Add New Partner <Plus size={16} />
-          </button>
-        </div>
+        <h2 className="text-xl font-bold text-[#22333B]">Donation Enquiries</h2>
+        <button 
+          onClick={handleExport}
+          className="px-4 py-1.5 border border-[#F68E5F] bg-[#FFFCFB] rounded-lg text-[15px] font-medium text-[#F68E5F] hover:bg-[#F68E5F] hover:text-[#FFFCFB] flex items-center gap-2 transition-colors"
+        >
+          Export <Download size={16} /> 
+        </button>
       </div>
 
       {/* Filters Bar */}
@@ -281,31 +226,31 @@ const Partners = () => {
             <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1E1E1E]" />
           </div>
 
-          {/* Status Tabs */}
-          <div className="flex p-1 bg-[#F7F7F7] rounded-xl shrink-0" style={{ fontFamily: 'ABeeZee, sans-serif' }}>
-            {['All', 'Verified', 'Not Verified', 'Inactive'].map(filter => (
-              <button
-                key={filter}
-                onClick={() => { setActiveFilter(filter); setCurrentPage(1); }}
-                className={`px-4 py-1.5 text-[15px] rounded-lg text-sm font-medium transition-colors ${
-                  activeFilter === filter 
-                    ? 'bg-[#F68E5F] text-[#FFFCFB] shadow-sm' 
-                    : 'text-[#6B7280] hover:text-[#22333B]'
-                }`}
-              >
-                {filter}
-              </button>
-            ))}
-          </div>
-        </div>
+          {/* Location Dropdown */}
+          <select 
+            value={locationFilter}
+            onChange={(e) => { setLocationFilter(e.target.value); setCurrentPage(1); }}
+            className="px-4 py-2 border border-[#ff7535] rounded-lg text-[16px] bg-[#F68E5F] text-[#FFFCFB] focus:outline-none focus:border-[#F68E5F]"
+          >
+            <option value="">Location</option>
+            <option value="Kanpur,UP">Kanpur,UP</option>
+            <option value="Noida,UP">Noida,UP</option>
+            <option value="Delhi">Delhi</option>
+            <option value="Lucknow,UP">Lucknow,UP</option>
+          </select>
 
-        {/* Create Button (Desktop only) */}
-        <button 
-          onClick={() => navigate('/admin/partners/create')}
-          className="hidden lg:flex px-5 py-2.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[16px] font-medium hover:bg-[#ff6e2b] transition-colors items-center gap-2"
-        >
-          Add New Partner <Plus size={16} />
-        </button>
+          {/* Date Range Dropdown */}
+          <select 
+            value={dateRangeFilter}
+            onChange={(e) => { setDateRangeFilter(e.target.value); setCurrentPage(1); }}
+            className="px-4 py-2 border border-[#ff7535] rounded-lg text-[16px] bg-[#F68E5F] text-[#FFFCFB] focus:outline-none focus:border-[#F68E5F]"
+          >
+            <option value="">Select Date range</option>
+            <option value="today">Today</option>
+            <option value="week">This Week</option>
+            <option value="month">This Month</option>
+          </select>
+        </div>
       </div>
 
       {/* Table */}
@@ -323,14 +268,14 @@ const Partners = () => {
                       className="w-4 h-4 rounded border-[#D1D5DB] border text-[#22333B] focus:ring-[#111827]" 
                     />
                   </th>
-                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-17.5">Sr.no</th>
-                  {renderSortableHeader('Partner ID', 'id', 'left', 'w-[130px]')}
-                  {renderSortableHeader('Type', 'type', 'left', 'w-[160px]')}
-                  {renderSortableHeader('Org Name', 'orgName', 'left', 'min-w-[180px]')}
-                  {renderSortableHeader('Primary Contact', 'primaryContact', 'left', 'w-[150px]')}
-                  {renderSortableHeader('Location', 'location', 'left', 'w-[150px]')}
-                  {renderSortableHeader('Status', 'status', 'left', 'w-[140px]')}
-                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-32.5">Actions</th>
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-17.5 text-center">Sr.no</th>
+                  {renderSortableHeader('Enquiry ID', 'id', 'left', 'w-[130px]')}
+                  {renderSortableHeader('Name', 'name', 'left', 'min-w-[150px]')}
+                  {renderSortableHeader('Contact', 'contact', 'left', 'w-[140px]')}
+                  {renderSortableHeader('Date', 'date', 'left', 'w-[120px]')}
+                  {renderSortableHeader('Time', 'time', 'left', 'w-[110px]')}
+                  {renderSortableHeader('Location', 'location', 'left', 'w-[140px]')}
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-24">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -339,7 +284,7 @@ const Partners = () => {
                   const isChecked = selectedRows.includes(globalIndex);
                   return (
                     <tr key={index} className="border-b border-[#F3F4F6] hover:bg-[#F9FAFB] transition-colors">
-                      <td className="py-3 px-4 text-center">
+                      <td className="py-4 px-4 text-center">
                         <input 
                           type="checkbox" 
                           checked={isChecked}
@@ -347,15 +292,13 @@ const Partners = () => {
                           className="w-4 h-4 rounded border-[#D1D5DB] text-[#22333B] focus:ring-[#111827]" 
                         />
                       </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B]">{globalIndex + 1}</td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] text-center">{globalIndex + 1}</td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.id}</td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.type}</td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.orgName}</td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.primaryContact}</td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.name}</td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.contact}</td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.date}</td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.time}</td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.location}</td>
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        <StatusBadge status={row.status} />
-                      </td>
                       <td className="py-3 px-4 whitespace-nowrap">
                         <ActionButtons item={row} navigate={navigate} onDelete={setItemToDelete} />
                       </td>
@@ -368,19 +311,19 @@ const Partners = () => {
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center py-12 text-[#6B7280]">
             <div className="w-24 h-24 bg-[#F8FAFC] rounded-full flex items-center justify-center mb-6">
-            <img src="/admin_images/partner.svg" alt="not record found" className="w-20 h-20"/>
+            <img src="/admin_images/donations.svg" alt="not record found" className="w-14 h-14"/>
             </div>
-            <p className="text-lg font-bold text-[#22333B] mb-1">No such partner found</p>
+            <p className="text-lg font-bold text-[#22333B] mb-1">No enquiry found</p>
           </div>
         )}
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-center px-2 py-4 relative mt-2 shrink-0">
-        <span className="absolute left-0 text-sm font-medium text-[#4B5563]">
+      <div className="flex items-center justify-between px-2 py-4 relative mt-2 shrink-0">
+        <span className="text-sm font-medium text-[#4B5563]">
           Showing {processedData.length > 0 ? startIndex + 1 : 0} - {Math.min(startIndex + ITEMS_PER_PAGE, processedData.length)} of {processedData.length}
         </span>
-        <div className="flex items-center gap-1 text-sm font-medium">
+        <div className="flex items-center gap-1 text-sm font-medium absolute left-1/2 -translate-x-1/2">
           <button 
             onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
             disabled={currentPage === 1}
@@ -401,7 +344,7 @@ const Partners = () => {
 
       {/* Delete Confirmation Modal */}
       {itemToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-xl p-6 w-100 shadow-lg animate-in fade-in zoom-in duration-200">
             <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
@@ -410,7 +353,7 @@ const Partners = () => {
                 <h3 className="text-lg font-bold text-[#22333B]">Are you sure?</h3>
             </div>
             <p className="text-[#4B5563] text-sm mb-6 pl-12 line-clamp-3">
-              Do you really want to delete the partner <strong>{itemToDelete.orgName}</strong> ({itemToDelete.id})? This process cannot be undone.
+              Do you really want to delete the enquiry from <strong>{itemToDelete.name}</strong> ({itemToDelete.id})? This process cannot be undone.
             </p>
             <div className="flex justify-end gap-3">
               <button 
@@ -433,4 +376,4 @@ const Partners = () => {
   );
 };
 
-export default Partners;
+export default Donations;

@@ -40,7 +40,7 @@ const Sidebar = () => {
         className={({ isActive }) =>
           `flex items-center gap-3 px-4 py-3 mx-4 rounded-lg text-sm font-medium transition-colors ${
             isActive
-              ? 'bg-[#F68E5F] text-white shadow-sm'
+              ? 'bg-[#F68E5F] text-[#FFFCFB] shadow-sm'
               : 'text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]'
           }`
         }
@@ -55,7 +55,7 @@ const Sidebar = () => {
                 style={isActive ? { filter: 'brightness(0) invert(1)' } : { filter: 'brightness(0)' }}
               />
             ) : (
-              item.icon && <item.icon size={20} className={isActive ? 'text-white' : 'text-[#000000]'} />
+              item.icon && <item.icon size={20} className={isActive ? 'text-[#FFFCFB]' : 'text-[#22333B]'} />
             )}
             {item.name}
           </>
@@ -91,9 +91,9 @@ const Sidebar = () => {
       </div>
 
       {/* Logout Button */}
-      <div className="mb-8 pl-4">
-        <button className="flex items-center gap-3 px-4 py-3 rounded-lg text-[16px] font-medium text-[#000000] hover:bg-gray-100 transition-colors w-[calc(100%-1rem)]">
-          <LogOut size={20} strokeWidth={2} className="text-[#000000]" />
+      <div className="mb-8 pl-4 ">
+        <button className="flex items-center gap-3 px-4 py-3 rounded-lg text-[16px] font-medium text-[#22333B] hover:bg-gray-100 transition-colors w-[calc(100%-1rem)]">
+          <LogOut size={20} strokeWidth={2} className="text-[#22333B]" />
           Logout
         </button>
       </div>
@@ -129,7 +129,7 @@ const Sidebar = () => {
                     className={({ isActive }) =>
                       `flex justify-center items-center w-10 h-10 rounded-lg transition-colors ${
                         isActive
-                          ? 'bg-[#F68E5F] text-white shadow-sm'
+                          ? 'bg-[#F68E5F] text-[#FFFCFB] shadow-sm'
                           : 'text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]'
                       }`
                     }
@@ -144,7 +144,7 @@ const Sidebar = () => {
                             style={isActive ? { filter: 'brightness(0) invert(1)' } : { filter: 'brightness(0)' }}
                           />
                         ) : (
-                          item.icon && <item.icon size={20} className={isActive ? 'text-white' : 'text-[#000000]'} />
+                          item.icon && <item.icon size={20} className={isActive ? 'text-[#FFFCFB]' : 'text-[#22333B]'} />
                         )}
                       </>
                     )}
@@ -163,7 +163,7 @@ const Sidebar = () => {
                     className={({ isActive }) =>
                       `flex justify-center items-center w-10 h-10 rounded-lg transition-colors ${
                         isActive
-                          ? 'bg-[#F68E5F] text-white shadow-sm'
+                          ? 'bg-[#F68E5F] text-[#FFFCFB] shadow-sm'
                           : 'text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]'
                       }`
                     }
@@ -178,7 +178,7 @@ const Sidebar = () => {
                             style={isActive ? { filter: 'brightness(0) invert(1)' } : { filter: 'brightness(0)' }}
                           />
                         ) : (
-                          item.icon && <item.icon size={20} className={isActive ? 'text-white' : 'text-[#000000]'} />
+                          item.icon && <item.icon size={20} className={isActive ? 'text-[#FFFCFB]' : 'text-[#22333B]'} />
                         )}
                       </>
                     )}

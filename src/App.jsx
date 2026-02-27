@@ -39,6 +39,8 @@ import CreateHealthCard from "./pages/admin/HealthCard/CreateHealthCard";
 import Partners from "./pages/admin/Partners/Partners";
 import PartnerDetails from "./pages/admin/Partners/PartnerDetails";
 import CreatePartner from "./pages/admin/Partners/CreatePartner";
+import Donations from "./pages/admin/Donations/Donations";
+import DonationDetails from "./pages/admin/Donations/DonationDetails";
 
 function App() {
   return (
@@ -132,6 +134,8 @@ function App() {
           <Route path="partners" element={<Partners />} />
           <Route path="partners/create" element={<CreatePartner />} />
           <Route path="partners/:id" element={<PartnerDetails />} />
+          <Route path="donations" element={<Donations />} />
+          <Route path="donations/:id" element={<DonationDetails />} />
           {/* Add admin sub-routes*/}
         </Route>
 

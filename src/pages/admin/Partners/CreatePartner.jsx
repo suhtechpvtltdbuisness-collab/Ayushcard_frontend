@@ -59,10 +59,10 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd }) => {
       <div className="bg-white rounded-xl w-full max-w-lg animate-in zoom-in-95 duration-200" style={{ fontFamily: 'Inter, sans-serif' }}>
         <div className="flex justify-between items-center p-6 border-b border-gray-100">
           <div>
-            <h3 className="text-lg font-bold text-[#111827]">Add Doctor</h3>
+            <h3 className="text-lg font-bold text-[#22333B]">Add Doctor</h3>
             <p className="text-sm text-[#6B7280]">Add new Doctor Details</p>
           </div>
-          <button onClick={onClose} className="text-[#9CA3AF] hover:text-[#111827] transition-colors"><X size={20} /></button>
+          <button onClick={onClose} className="text-[#9CA3AF] hover:text-[#22333B] transition-colors"><X size={20} /></button>
         </div>
 
         <div className="p-6">
@@ -83,7 +83,7 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd }) => {
             />
             <button 
               onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-1.5 border border-gray-200 rounded-md text-xs font-medium text-[#111827] hover:bg-gray-50"
+              className="px-4 py-1.5 border border-gray-200 rounded-md text-xs font-medium text-[#22333B] hover:bg-gray-50"
             >
               Upload Profile Picture
             </button>
@@ -91,7 +91,7 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd }) => {
 
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
-              <label className="block text-xs font-medium text-[#111827] mb-1.5">Name <span className="text-red-500">*</span></label>
+              <label className="block text-xs font-medium text-[#22333B] mb-1.5">Name <span className="text-red-500">*</span></label>
               <input 
                 type="text" 
                 value={formData.name}
@@ -100,7 +100,7 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd }) => {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-[#111827] mb-1.5">Specialty <span className="text-red-500">*</span></label>
+              <label className="block text-xs font-medium text-[#22333B] mb-1.5">Specialty <span className="text-red-500">*</span></label>
               <input 
                 type="text" 
                 value={formData.specialty}
@@ -112,7 +112,7 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd }) => {
 
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-[#111827] mb-1.5">Timing <span className="text-red-500">*</span></label>
+              <label className="block text-xs font-medium text-[#22333B] mb-1.5">Timing <span className="text-red-500">*</span></label>
               <div className="flex items-center gap-3">
                 <input 
                   type="time" 
@@ -132,7 +132,7 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd }) => {
           </div>
 
           <div className="mb-4">
-            <label className="block text-xs font-medium text-[#111827] mb-1.5">Location <span className="text-red-500">*</span></label>
+            <label className="block text-xs font-medium text-[#22333B] mb-1.5">Location <span className="text-red-500">*</span></label>
             <select 
               value={formData.location}
               onChange={(e) => setFormData({...formData, location: e.target.value})}
@@ -145,7 +145,7 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd }) => {
           </div>
 
           <div className="mb-6">
-            <label className="block text-xs font-medium text-[#111827] mb-1.5">Days <span className="text-red-500">*</span></label>
+            <label className="block text-xs font-medium text-[#22333B] mb-1.5">Days <span className="text-red-500">*</span></label>
             <div className="flex gap-2">
               {daysList.map(day => (
                 <button
@@ -153,7 +153,7 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd }) => {
                   onClick={() => handleDayToggle(day)}
                   className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors border ${
                     formData.days.includes(day) 
-                      ? 'bg-[#F68E5F] border-[#ff6e2b] text-white' 
+                      ? 'bg-[#F68E5F] border-[#ff6e2b] text-[#FFFCFB]' 
                       : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                   }`}
                 >
@@ -166,13 +166,13 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd }) => {
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
             <button 
               onClick={onClose}
-              className="px-6 py-2 border border-gray-200 rounded-lg text-sm font-medium text-[#111827] hover:bg-gray-50"
+              className="px-6 py-2 border border-gray-200 rounded-lg text-sm font-medium text-[#22333B] hover:bg-gray-50"
             >
               Cancel
             </button>
             <button 
               onClick={handleSubmit}
-              className="px-6 py-2 bg-[#F68E5F] text-white rounded-lg text-sm font-medium hover:bg-[#ff6e2b] transition-colors"
+              className="px-6 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff6e2b] transition-colors"
             >
               Add
             </button>
@@ -284,7 +284,7 @@ const CreatePartner = () => {
           >
             <ArrowLeft size={20} />
           </button>
-          <h2 className="text-xl font-bold text-[#111827]">Add New Partner</h2>
+          <h2 className="text-xl font-bold text-[#22333B]">Add New Partner</h2>
         </div>
         <div className="flex gap-3">
           <button 
@@ -295,7 +295,7 @@ const CreatePartner = () => {
           </button>
           <button 
             onClick={handleSave}
-            className="px-6 py-2 bg-[#F68E5F] text-white rounded-lg text-[15px] font-medium hover:bg-[#ff702d] transition-colors"
+            className="px-6 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff702d] transition-colors"
           >
             Save Partner
           </button>
@@ -306,7 +306,7 @@ const CreatePartner = () => {
         {/* Left Side Profile Card (Basic Info during creation) */}
         <div className="w-full lg:w-[320px] shrink-0">
           <div className="bg-white border border-[#E5E7EB] rounded-2xl p-6 flex flex-col shadow-[0_4px_20px_0px_#0000000D] h-full">
-            <h3 className="text-[16px] font-bold text-[#111827] mb-5">Basic Info</h3>
+            <h3 className="text-[16px] font-bold text-[#22333B] mb-5">Basic Info</h3>
             <div className="relative mb-6 self-center">
               <div 
                 className="w-24 h-24 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 overflow-hidden cursor-pointer"
@@ -341,7 +341,7 @@ const CreatePartner = () => {
                   name="orgName"
                   value={basicInfo.orgName} 
                   onChange={handleBasicInfoChange}
-                  className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#F68E5F]" 
+                  className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#22333B] focus:outline-none focus:border-[#F68E5F]" 
                   placeholder="e.g. Care Hospital"
                 />
               </div>
@@ -351,7 +351,7 @@ const CreatePartner = () => {
                   name="type"
                   value={basicInfo.type}
                   onChange={handleBasicInfoChange}
-                  className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#F68E5F]"
+                  className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#22333B] focus:outline-none focus:border-[#F68E5F]"
                 >
                   <option value="Hospital">Hospital</option>
                   <option value="Clinic">Clinic</option>
@@ -366,7 +366,7 @@ const CreatePartner = () => {
                   name="primaryContact"
                   value={basicInfo.primaryContact} 
                   onChange={handleBasicInfoChange}
-                  className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#F68E5F]" 
+                  className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#22333B] focus:outline-none focus:border-[#F68E5F]" 
                   placeholder="e.g. 9876543210"
                 />
               </div>
@@ -377,7 +377,7 @@ const CreatePartner = () => {
                   name="location"
                   value={basicInfo.location} 
                   onChange={handleBasicInfoChange}
-                  className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#F68E5F]" 
+                  className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#22333B] focus:outline-none focus:border-[#F68E5F]" 
                   placeholder="e.g. Kanpur, UP"
                 />
               </div>
@@ -389,7 +389,7 @@ const CreatePartner = () => {
         <div className="flex-1 flex flex-col gap-6">
           {/* Organization Details */}
           <div className="bg-white border border-[#E5E7EB] rounded-2xl p-6 shadow-[0_4px_20px_0px_#0000000D]">
-            <h3 className="text-[16px] font-bold text-[#111827] mb-5">Organization Details</h3>
+            <h3 className="text-[16px] font-bold text-[#22333B] mb-5">Organization Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div>
                 <label className="block text-sm text-[#374151] mb-1.5">Registration Number</label>
@@ -398,7 +398,7 @@ const CreatePartner = () => {
                   name="registrationNumber"
                   value={details.registrationNumber} 
                   onChange={handleDetailChange}
-                  className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#F68E5F]" 
+                  className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#22333B] focus:outline-none focus:border-[#F68E5F]" 
                   placeholder="e.g. HOSP/2020/001"
                 />
               </div>
@@ -409,7 +409,7 @@ const CreatePartner = () => {
                   name="partnerId"
                   value={details.partnerId} 
                   onChange={handleDetailChange}
-                  className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#F68E5F]" 
+                  className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#22333B] focus:outline-none focus:border-[#F68E5F]" 
                   placeholder="e.g. PTE-001"
                 />
               </div>
@@ -420,7 +420,7 @@ const CreatePartner = () => {
                   name="establishmentYear"
                   value={details.establishmentYear} 
                   onChange={handleDetailChange}
-                  className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#F68E5F]" 
+                  className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#22333B] focus:outline-none focus:border-[#F68E5F]" 
                 />
               </div>
               <div>
@@ -430,7 +430,7 @@ const CreatePartner = () => {
                   name="bedCapacity"
                   value={details.bedCapacity} 
                   onChange={handleDetailChange}
-                  className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#F68E5F]" 
+                  className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#22333B] focus:outline-none focus:border-[#F68E5F]" 
                   placeholder="e.g. 1200"
                 />
               </div>
@@ -441,7 +441,7 @@ const CreatePartner = () => {
                   name="staffCount"
                   value={details.staffCount} 
                   onChange={handleDetailChange}
-                  className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#F68E5F]" 
+                  className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#22333B] focus:outline-none focus:border-[#F68E5F]" 
                   placeholder="e.g. 420"
                 />
               </div>
@@ -452,7 +452,7 @@ const CreatePartner = () => {
                   name="ambulanceService"
                   value={details.ambulanceService} 
                   onChange={handleDetailChange}
-                  className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#F68E5F]" 
+                  className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#22333B] focus:outline-none focus:border-[#F68E5F]" 
                   placeholder="e.g. 5 Ambulances Available"
                 />
               </div>
@@ -462,7 +462,7 @@ const CreatePartner = () => {
                   name="emergencyServices"
                   value={details.emergencyServices}
                   onChange={handleDetailChange}
-                  className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#F68E5F]"
+                  className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#22333B] focus:outline-none focus:border-[#F68E5F]"
                 >
                   <option value="available 24/7">available 24/7</option>
                   <option value="Not available">Not available</option>
@@ -474,13 +474,13 @@ const CreatePartner = () => {
 
           {/* Specializations */}
           <div className="bg-white border border-[#E5E7EB] rounded-2xl p-6 shadow-[0_4px_20px_0px_#0000000D]">
-            <h3 className="text-[16px] font-bold text-[#111827] mb-5">Specializations</h3>
+            <h3 className="text-[16px] font-bold text-[#22333B] mb-5">Specializations</h3>
             <input 
               type="text" 
               value={specializations} 
               onChange={(e) => setSpecializations(e.target.value)}
               placeholder="Comma separated: Cardiology, Neurology, Orthopedics..."
-              className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#F68E5F]" 
+              className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#22333B] focus:outline-none focus:border-[#F68E5F]" 
             />
           </div>
         </div>
@@ -489,7 +489,7 @@ const CreatePartner = () => {
       {/* Available Doctors (Full Width) */}
       <div className="bg-white border border-[#E5E7EB] rounded-2xl p-6 mb-6 shadow-[0_4px_20px_0px_#0000000D]">
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-bold text-[#111827]">Available Doctors</h3>
+          <h3 className="text-lg font-bold text-[#22333B]">Available Doctors</h3>
           <div className="flex gap-3">
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]" />
@@ -503,7 +503,7 @@ const CreatePartner = () => {
             </div>
             <button 
               onClick={() => setIsDoctorModalOpen(true)}
-              className="flex justify-center items-center gap-1.5 px-4 py-2 bg-[#F68E5F] text-white rounded-lg text-sm font-medium hover:bg-[#ff702d] transition-colors whitespace-nowrap"
+              className="flex justify-center items-center gap-1.5 px-4 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff702d] transition-colors whitespace-nowrap"
             >
               <Plus size={16} /> Add Doctor
             </button>
@@ -525,7 +525,7 @@ const CreatePartner = () => {
                 </div>
                 <div className="flex-1">
                   <div className="flex justify-between items-start">
-                    <h4 className="text-[15px] font-bold text-[#111827] mb-0.5">{doc.name}</h4>
+                    <h4 className="text-[15px] font-bold text-[#22333B] mb-0.5">{doc.name}</h4>
                     <button 
                       onClick={() => setDoctors(docs => docs.filter(d => d.id !== doc.id))}
                       className="text-[#9CA3AF] hover:text-red-500"
