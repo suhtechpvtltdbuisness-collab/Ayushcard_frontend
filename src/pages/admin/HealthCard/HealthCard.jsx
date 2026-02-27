@@ -72,18 +72,19 @@ const StatusBadge = ({ status }) => {
 };
 
 import { useNavigate } from 'react-router-dom';
+import { exportToCSV } from '../../../utils/exportUtils';
 
 const ActionButtons = ({ status, item, navigate, onDelete }) => {
   return (
     <div className="flex items-center gap-4">
       <div className="w-21 flex justify-center">
         {status === 'Not verified' && (
-          <span className="w-full text-center text-[#111827] font-bold">—</span>
+          <span className="w-full text-center text-[#22333B] font-bold">—</span>
         )}
         {status === 'Verified' && (
           <button 
             onClick={() => navigate(`/admin/health-card/${item.id}`, { state: { editMode: true } })}
-            className="flex items-center justify-center gap-1.5 px-2 py-1 bg-[#2C2C2C] text-white rounded-lg text-sm font-normal hover:bg-[#1F2937]"
+            className="flex items-center justify-center gap-1.5 px-2 py-1 bg-[#2C2C2C] text-[#FFFCFB] rounded-lg text-sm font-normal hover:bg-[#1F2937]"
           >
             Edit 
             <img src="/admin_images/Edit 3.svg" alt="edit" />
@@ -92,7 +93,7 @@ const ActionButtons = ({ status, item, navigate, onDelete }) => {
         {status === 'Expired' && (
           <button 
             onClick={() => navigate(`/admin/health-card/${item.id}`, { state: { editMode: true } })}
-            className="flex items-center justify-center gap-1.5 px-2 py-1 bg-[#2C2C2C] text-white rounded-lg text-sm font-normal hover:bg-[#1F2937]"
+            className="flex items-center justify-center gap-1.5 px-2 py-1 bg-[#2C2C2C] text-[#FFFCFB] rounded-lg text-sm font-normal hover:bg-[#1F2937]"
           >
             Renew 
             <img src="/admin_images/Edit 3.svg" alt="edit" />
@@ -214,7 +215,7 @@ const HealthCard = () => {
           key={idx}
           onClick={() => setCurrentPage(page)}
           className={`w-7 h-7 flex items-center justify-center rounded-md text-sm font-medium ${
-            currentPage === page ? 'bg-[#374151] text-white' : 'text-[#4B5563] hover:bg-gray-100'
+            currentPage === page ? 'bg-[#374151] text-[#FFFCFB]' : 'text-[#4B5563] hover:bg-gray-100'
           }`}
         >
           {page}
@@ -229,10 +230,19 @@ const HealthCard = () => {
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      setSelectedRows(paginatedData.map((_, idx) => startIndex + idx));
+      setSelectedRows(processedData.map((_, idx) => idx));
     } else {
       setSelectedRows([]);
     }
+  };
+
+  const handleExport = () => {
+    if (selectedRows.length === 0) {
+      alert("Please select at least one item to export.");
+      return;
+    }
+    const dataToExport = selectedRows.map(index => processedData[index]);
+    exportToCSV(dataToExport, 'HealthCard_Export.csv');
   };
 
   const handleSelectRow = (globalIndex) => {
@@ -244,7 +254,7 @@ const HealthCard = () => {
   };
 
   const renderSortableHeader = (title, sortKey, align = 'left', className = '') => (
-    <th className={`py-3 px-4 text-sm font-semibold text-[#1B2128] whitespace-nowrap ${className}`}>
+    <th className={`py-3 px-4 text-sm font-semibold text-[#22333B] whitespace-nowrap ${className}`}>
       <div 
         className={`flex items-center gap-1 cursor-pointer hover:text-gray-600 ${align === 'center' ? 'justify-center' : align === 'right' ? 'justify-end' : 'justify-start'}`}
         onClick={() => handleSort(sortKey)}
@@ -261,13 +271,16 @@ const HealthCard = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 shrink-0 gap-4 sm:gap-0">
         <h2 className="text-xl font-bold text-[#22333B]">Health Card Applications</h2>
         <div className="flex items-center gap-4">
-          <button className="px-4 py-1.5 border border-[#767676] bg-[#E3E3E3] rounded-lg text-[15px] font-medium text-[#374151] hover:bg-[#D1D5DB] flex items-center gap-2">
+          <button 
+            onClick={handleExport}
+            className="px-4 py-1.5 border border-[#F68E5F] bg-[#FFFCFB] rounded-lg text-[15px] font-medium text-[#F68E5F] hover:bg-[#F68E5F] hover:text-[#FFFCFB] flex items-center gap-2"
+          >
             Export <Download size={16} /> 
           </button>
           {/* Create Button (Tablet/Mobile Only) */}
           <button 
             onClick={() => navigate('/admin/health-card/create')}
-            className="flex lg:hidden px-4 py-1.5 bg-[#F68E5F] text-white rounded-lg text-[15px] font-medium hover:bg-[#ff7535] transition-colors items-center gap-2"
+            className="flex lg:hidden px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff7535] transition-colors items-center gap-2"
           >
             Create New 
             <span className="hidden sm:inline">application</span> 
@@ -299,8 +312,8 @@ const HealthCard = () => {
                 onClick={() => { setActiveFilter(filter); setCurrentPage(1); }}
                 className={`px-4 py-1.5 text-[15px] rounded-lg text-sm font-medium transition-colors ${
                   activeFilter === filter 
-                    ? 'bg-white text-[#111827] shadow-sm' 
-                    : 'text-[#6B7280] hover:text-[#111827]'
+                    ? 'bg-[#F68E5F] text-[#FFFCFB] shadow-sm' 
+                    : 'text-[#6B7280] hover:text-[#22333B]'
                 }`}
               >
                 {filter}
@@ -312,7 +325,7 @@ const HealthCard = () => {
         {/* Create Button (Desktop only) */}
         <button 
           onClick={() => navigate('/admin/health-card/create')}
-          className="hidden lg:flex px-5 py-2.5 bg-[#F68E5F] text-white rounded-lg text-[16px] font-medium hover:bg-[#ff6e2b] transition-colors items-center gap-2"
+          className="hidden lg:flex px-5 py-2.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[16px] font-medium hover:bg-[#ff6e2b] transition-colors items-center gap-2"
         >
           Create New application <Plus size={16} />
         </button>
@@ -329,18 +342,18 @@ const HealthCard = () => {
                     <input 
                       type="checkbox" 
                       onChange={handleSelectAll}
-                      checked={paginatedData.length > 0 && selectedRows.length === paginatedData.length && selectedRows.every(idx => paginatedData.some((_, i) => startIndex + i === idx))}
-                      className="w-4 h-4 rounded border-[#D1D5DB] border text-[#111827] focus:ring-[#111827]" 
+                      checked={processedData.length > 0 && selectedRows.length === processedData.length}
+                      className="w-4 h-4 rounded border-[#D1D5DB] border text-[#22333B] focus:ring-[#111827]" 
                     />
                   </th>
-                  <th className="py-3 px-4 text-sm font-semibold text-[#1B2128] w-17.5">Sr.no</th>
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-17.5">Sr.no</th>
                   {renderSortableHeader('Card ID', 'id', 'left', 'w-[130px]')}
                   {renderSortableHeader('Applicant', 'applicant', 'left', 'min-w-[180px]')}
                   {renderSortableHeader('Phone', 'phone', 'left', 'w-[140px]')}
                   {renderSortableHeader('Members', 'members', 'center', 'w-[120px]')}
                   {renderSortableHeader('Amount', 'amount', 'right', 'w-[120px]')}
                   {renderSortableHeader('Status', 'status', 'left', 'w-[140px]')}
-                  <th className="py-3 px-4 text-sm font-semibold text-[#1B2128] w-32.5">Actions</th>
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-32.5">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -353,15 +366,15 @@ const HealthCard = () => {
                           type="checkbox" 
                           checked={selectedRows.includes(globalIndex)}
                           onChange={() => handleSelectRow(globalIndex)}
-                          className="w-4 h-4 rounded border-[#D1D5DB] text-[#111827] focus:ring-[#111827]" 
+                          className="w-4 h-4 rounded border-[#D1D5DB] text-[#22333B] focus:ring-[#111827]" 
                         />
                       </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#1B2128]">{globalIndex + 1}</td>
-                    <td className="py-3 px-4 text-sm font-normal text-[#1B2128] whitespace-nowrap">{row.id}</td>
-                    <td className="py-3 px-4 text-sm font-normal text-[#1B2128] whitespace-nowrap">{row.applicant}</td>
-                    <td className="py-3 px-4 text-sm font-normal text-[#1B2128] whitespace-nowrap">{row.phone}</td>
-                    <td className="py-3 px-4 text-sm font-normal text-[#1B2128] text-center">{row.members?.length || 0}</td>
-                    <td className="py-3 px-4 text-sm font-normal text-[#1B2128] text-right whitespace-nowrap">₹{(row.payment?.totalPaid || 0).toFixed(2)}</td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#22333B]">{globalIndex + 1}</td>
+                    <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.id}</td>
+                    <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.applicant}</td>
+                    <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.phone}</td>
+                    <td className="py-3 px-4 text-sm font-normal text-[#22333B] text-center">{row.members?.length || 0}</td>
+                    <td className="py-3 px-4 text-sm font-normal text-[#22333B] text-right whitespace-nowrap">₹{(row.payment?.totalPaid || 0).toFixed(2)}</td>
                     <td className="py-3 px-4 whitespace-nowrap">
                       <StatusBadge status={row.status} />
                     </td>
@@ -383,7 +396,7 @@ const HealthCard = () => {
             {!isFiltered && (
               <button 
                 onClick={() => navigate('/admin/health-card/create')}
-                className="flex items-center gap-2 px-6 py-2.5 bg-[#F68E5F] hover:bg-[#ff7535] text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+                className="flex items-center gap-2 px-6 py-2.5 bg-[#F68E5F] hover:bg-[#ff7535] text-[#FFFCFB] rounded-lg text-sm font-medium transition-colors shadow-sm"
               >
                 <PlusCircle size={18} />
                 Create New Application
@@ -402,7 +415,7 @@ const HealthCard = () => {
           <button 
             onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
             disabled={currentPage === 1}
-            className={`px-2 py-1 flex items-center gap-1 ${currentPage === 1 ? 'text-[#D1D5DB] cursor-not-allowed' : 'text-[#4B5563] hover:text-[#111827]'}`}
+            className={`px-2 py-1 flex items-center gap-1 ${currentPage === 1 ? 'text-[#D1D5DB] cursor-not-allowed' : 'text-[#4B5563] hover:text-[#22333B]'}`}
           >
              &larr; Previous
           </button>
@@ -410,7 +423,7 @@ const HealthCard = () => {
           <button 
             onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
             disabled={currentPage === totalPages}
-            className={`px-2 py-1 flex items-center gap-1 ${currentPage === totalPages ? 'text-[#D1D5DB] cursor-not-allowed' : 'text-[#4B5563] hover:text-[#111827]'}`}
+            className={`px-2 py-1 flex items-center gap-1 ${currentPage === totalPages ? 'text-[#D1D5DB] cursor-not-allowed' : 'text-[#4B5563] hover:text-[#22333B]'}`}
           >
              Next &rarr;
           </button>
@@ -424,7 +437,7 @@ const HealthCard = () => {
                 <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
                     <Trash2 size={20} className="text-red-600" />
                 </div>
-                <h3 className="text-lg font-bold text-[#111827]">Are you sure?</h3>
+                <h3 className="text-lg font-bold text-[#22333B]">Are you sure?</h3>
             </div>
             <p className="text-[#4B5563] text-sm mb-6 pl-12 line-clamp-3">
               Do you really want to delete the health card application for <strong>{itemToDelete.applicant}</strong> ({itemToDelete.id})? 
@@ -439,7 +452,7 @@ const HealthCard = () => {
               </button>
               <button 
                 onClick={handleDeleteConfirm}
-                className="px-4 py-2 bg-[#F68E5F] text-white rounded-lg text-sm font-medium hover:bg-[#ff702d] transition-colors shadow-sm"
+                className="px-4 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff702d] transition-colors shadow-sm"
               >
                 Confirm Delete
               </button>

@@ -87,7 +87,7 @@ const HealthCardDetails = () => {
           >
             <ArrowLeft size={20} />
           </button>
-          <h2 className="text-xl font-bold text-[#111827]">Application Details</h2>
+          <h2 className="text-xl font-bold text-[#22333B]">Application Details</h2>
         </div>
         <div className="flex gap-3">
           {isEditing ? (
@@ -100,7 +100,7 @@ const HealthCardDetails = () => {
               </button>
               <button 
                 onClick={handleSave}
-                className="px-6 py-2 bg-[#F68E5F] text-white rounded-lg text-sm font-medium hover:bg-[#ff702d] transition-colors"
+                className="px-6 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff702d] transition-colors"
               >
                 Save Changes
               </button>
@@ -108,10 +108,10 @@ const HealthCardDetails = () => {
           ) : (
             <button 
               onClick={() => setIsEditing(true)}
-              className="px-4 py-2 border border-gray-200 bg-[#F68E5F] rounded-lg text-sm font-medium text-white hover:bg-[#ff702d] flex items-center gap-2"
+              className="px-4 py-2 border border-gray-200 bg-[#F68E5F] rounded-lg text-sm font-medium text-[#FFFCFB] hover:bg-[#ff702d] flex items-center gap-2"
             >
               Edit
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#FFFCFB]"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
             </button>
           )}
         </div>
@@ -128,15 +128,15 @@ const HealthCardDetails = () => {
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-[#94A3B8] uppercase mb-1.5">FULL NAME</label>
-              <input type="text" defaultValue={data.applicant} readOnly={!isEditing} className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#111827] focus:outline-none ${!isEditing ? 'bg-[#F8FAFC] cursor-default' : 'bg-white'}`} />
+              <input type="text" defaultValue={data.applicant} readOnly={!isEditing} className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#22333B] focus:outline-none ${!isEditing ? 'bg-[#F8FAFC] cursor-default' : 'bg-white'}`} />
             </div>
             <div>
               <label className="block text-xs font-semibold text-[#94A3B8] uppercase mb-1.5">PHONE NUMBER</label>
-              <input type="text" defaultValue={data.phone} readOnly={!isEditing} className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#111827] focus:outline-none ${!isEditing ? 'bg-[#F8FAFC] cursor-default' : 'bg-white'}`} />
+              <input type="text" defaultValue={data.phone} readOnly={!isEditing} className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#22333B] focus:outline-none ${!isEditing ? 'bg-[#F8FAFC] cursor-default' : 'bg-white'}`} />
             </div>
             <div>
               <label className="block text-xs font-semibold text-[#94A3B8] uppercase mb-1.5">ADDRESS</label>
-              <textarea readOnly={!isEditing} rows={2} className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#111827] focus:outline-none resize-none ${!isEditing ? 'bg-[#F8FAFC] cursor-default' : 'bg-white'}`} defaultValue={data.address}></textarea>
+              <textarea readOnly={!isEditing} rows={2} className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#22333B] focus:outline-none resize-none ${!isEditing ? 'bg-[#F8FAFC] cursor-default' : 'bg-white'}`} defaultValue={data.address}></textarea>
             </div>
           </div>
         </div>
@@ -151,7 +151,7 @@ const HealthCardDetails = () => {
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-[#94A3B8] uppercase mb-1.5">CARD ID</label>
-              <input type="text" defaultValue={data.id} readOnly={!isEditing} className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#111827] focus:outline-none ${!isEditing ? 'bg-[#F8FAFC] cursor-default' : 'bg-white'}`} />
+              <input type="text" defaultValue={data.id} readOnly={!isEditing} className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#22333B] focus:outline-none ${!isEditing ? 'bg-[#F8FAFC] cursor-default' : 'bg-white'}`} />
             </div>
             <div>
               <label className="block text-xs font-semibold text-[#94A3B8] uppercase mb-1.5">Status</label>
@@ -160,7 +160,7 @@ const HealthCardDetails = () => {
                   <select 
                     value={status} 
                     onChange={handleStatusChange}
-                    className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2.5 text-sm text-[#111827] bg-white focus:outline-none appearance-none cursor-pointer"
+                    className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2.5 text-sm text-[#22333B] bg-white focus:outline-none appearance-none cursor-pointer"
                   >
                     <option value="Verified">Verified</option>
                     <option value="Not verified">Not verified</option>
@@ -189,15 +189,15 @@ const HealthCardDetails = () => {
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-[#94A3B8] uppercase mb-1.5">DATE APPLIED</label>
-              <input type="text" defaultValue={data.dateApplied} readOnly className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#111827] focus:outline-none bg-[#F8FAFC] cursor-default`} />
+              <input type="text" defaultValue={data.dateApplied} readOnly className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#22333B] focus:outline-none bg-[#F8FAFC] cursor-default`} />
             </div>
             <div>
               <label className="block text-xs font-semibold text-[#94A3B8] uppercase mb-1.5">VERIFICATION DATE</label>
-              <input type="text" value={verificationDate} readOnly className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#111827] bg-[#F8FAFC] focus:outline-none cursor-default" />
+              <input type="text" value={verificationDate} readOnly className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#22333B] bg-[#F8FAFC] focus:outline-none cursor-default" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-[#94A3B8] uppercase mb-1.5">EXPIRY DATE</label>
-              <input type="text" value={expiryDate} readOnly className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#111827] bg-[#F8FAFC] focus:outline-none cursor-default" />
+              <input type="text" value={expiryDate} readOnly className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#22333B] bg-[#F8FAFC] focus:outline-none cursor-default" />
               <p className="text-[10px] text-[#94A3B8] mt-1.5">Auto-calculates remaining days</p>
             </div>
           </div>
@@ -212,7 +212,7 @@ const HealthCardDetails = () => {
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               <h3 className="font-bold text-[16px] text-[#1E293B]">Included Members ({data.members.length})</h3>
             </div>
-            <button className="text-sm font-semibold text-[#475569] hover:text-[#111827]">Manage Members</button>
+            <button className="text-sm font-semibold text-[#475569] hover:text-[#22333B]">Manage Members</button>
           </div>
           
           <div className="overflow-x-auto flex-1 h-full">
@@ -229,7 +229,7 @@ const HealthCardDetails = () => {
                 {data.members.map((member, index) => (
                   <tr key={index}>
                     <td className="py-4 px-6 text-sm text-gray-500">{index + 1}</td>
-                    <td className="py-4 px-6 text-sm font-semibold text-[#111827]">{member.name}</td>
+                    <td className="py-4 px-6 text-sm font-semibold text-[#22333B]">{member.name}</td>
                     <td className="py-4 px-6 text-sm text-gray-600">{member.relation}</td>
                     <td className="py-4 px-6 text-sm text-gray-600">{member.age}</td>
                   </tr>
@@ -240,16 +240,16 @@ const HealthCardDetails = () => {
         </div>
 
         {/* Payment Summary */}
-        <div className="bg-[#F68E5F] rounded-xl text-white p-6 flex flex-col justify-center h-fit">
+        <div className="bg-[#F68E5F] rounded-xl text-[#FFFCFB] p-6 flex flex-col justify-center h-fit">
           <h3 className="font-semibold mb-6 shrink-0">Payment Summary</h3>
           
           <div className="space-y-4 mb-6 shrink-0">
             <div className="flex justify-between text-sm">
-              <span className="text-[#FFFFFF]">Application Fee</span>
+              <span className="text-[#FFFCFB]">Application Fee</span>
               <span>₹120.00</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-[#FFFFFF]">Member Add-ons ({data.members.length})</span>
+              <span className="text-[#FFFCFB]">Member Add-ons ({data.members.length})</span>
               <span>₹{(data.members.length * 10).toFixed(2)}</span>
             </div>
           </div>

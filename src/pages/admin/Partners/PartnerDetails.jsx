@@ -59,10 +59,10 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd }) => {
       <div className="bg-white rounded-xl w-full max-w-lg animate-in zoom-in-95 duration-200" style={{ fontFamily: 'Inter, sans-serif' }}>
         <div className="flex justify-between items-center p-6 border-b border-gray-100">
           <div>
-            <h3 className="text-lg font-bold text-[#111827]">Add Doctor</h3>
+            <h3 className="text-lg font-bold text-[#22333B]">Add Doctor</h3>
             <p className="text-sm text-[#6B7280]">Add new Doctor Details</p>
           </div>
-          <button onClick={onClose} className="text-[#9CA3AF] hover:text-[#111827] transition-colors"><X size={20} /></button>
+          <button onClick={onClose} className="text-[#9CA3AF] hover:text-[#22333B] transition-colors"><X size={20} /></button>
         </div>
 
         <div className="p-6">
@@ -83,7 +83,7 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd }) => {
             />
             <button 
               onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-1.5 border border-gray-200 rounded-md text-xs font-medium text-[#111827] hover:bg-gray-50"
+              className="px-4 py-1.5 border border-gray-200 rounded-md text-xs font-medium text-[#22333B] hover:bg-gray-50"
             >
               Upload Profile Picture
             </button>
@@ -91,7 +91,7 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd }) => {
 
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
-              <label className="block text-xs font-medium text-[#111827] mb-1.5">Name <span className="text-red-500">*</span></label>
+              <label className="block text-xs font-medium text-[#22333B] mb-1.5">Name <span className="text-red-500">*</span></label>
               <input 
                 type="text" 
                 value={formData.name}
@@ -100,7 +100,7 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd }) => {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-[#111827] mb-1.5">Specialty <span className="text-red-500">*</span></label>
+              <label className="block text-xs font-medium text-[#22333B] mb-1.5">Specialty <span className="text-red-500">*</span></label>
               <input 
                 type="text" 
                 value={formData.specialty}
@@ -112,7 +112,7 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd }) => {
 
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-[#111827] mb-1.5">Timing <span className="text-red-500">*</span></label>
+              <label className="block text-xs font-medium text-[#22333B] mb-1.5">Timing <span className="text-red-500">*</span></label>
               <div className="flex items-center gap-3">
                 <input 
                   type="time" 
@@ -132,7 +132,7 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd }) => {
           </div>
 
           <div className="mb-4">
-            <label className="block text-xs font-medium text-[#111827] mb-1.5">Location <span className="text-red-500">*</span></label>
+            <label className="block text-xs font-medium text-[#22333B] mb-1.5">Location <span className="text-red-500">*</span></label>
             <select 
               value={formData.location}
               onChange={(e) => setFormData({...formData, location: e.target.value})}
@@ -145,7 +145,7 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd }) => {
           </div>
 
           <div className="mb-6">
-            <label className="block text-xs font-medium text-[#111827] mb-1.5">Days <span className="text-red-500">*</span></label>
+            <label className="block text-xs font-medium text-[#22333B] mb-1.5">Days <span className="text-red-500">*</span></label>
             <div className="flex gap-2">
               {daysList.map(day => (
                 <button
@@ -153,7 +153,7 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd }) => {
                   onClick={() => handleDayToggle(day)}
                   className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors border ${
                     formData.days.includes(day) 
-                      ? 'bg-[#F68E5F] border-[#ff6e2b] text-white' 
+                      ? 'bg-[#F68E5F] border-[#ff6e2b] text-[#FFFCFB]' 
                       : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                   }`}
                 >
@@ -166,13 +166,13 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd }) => {
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
             <button 
               onClick={onClose}
-              className="px-6 py-2 border border-gray-200 rounded-lg text-sm font-medium text-[#111827] hover:bg-gray-50"
+              className="px-6 py-2 border border-gray-200 rounded-lg text-sm font-medium text-[#22333B] hover:bg-gray-50"
             >
               Cancel
             </button>
             <button 
               onClick={handleSubmit}
-              className="px-6 py-2 bg-[#F68E5F] text-white rounded-lg text-sm font-medium hover:bg-[#ff6e2b] transition-colors"
+              className="px-6 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff6e2b] transition-colors"
             >
               Add
             </button>
@@ -240,7 +240,7 @@ const PartnerDetails = () => {
           >
             <ArrowLeft size={20} />
           </button>
-          <h2 className="text-xl font-bold text-[#111827]">Partner Details</h2>
+          <h2 className="text-xl font-bold text-[#22333B]">Partner Details</h2>
         </div>
         <div className="flex gap-3">
           {isEditing ? (
@@ -253,7 +253,7 @@ const PartnerDetails = () => {
               </button>
               <button 
                 onClick={handleSave}
-                className="px-4 py-1.5 bg-[#F68E5F] text-white rounded-lg text-[15px] font-medium hover:bg-[#ff702d] transition-colors"
+                className="px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff702d] transition-colors"
               >
                 Save Changes
               </button>
@@ -261,7 +261,7 @@ const PartnerDetails = () => {
           ) : (
             <button 
               onClick={() => setIsEditing(true)}
-              className="px-4 py-1.5 bg-[#F68E5F] text-white rounded-lg text-[15px] font-medium hover:bg-[#ff6e2b] flex items-center gap-2 transition-colors"
+              className="px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff6e2b] flex items-center gap-2 transition-colors"
             >
               Edit
               <img src="/admin_images/Edit 3.svg" alt="" className="w-3.5 h-3.5" />
@@ -275,10 +275,10 @@ const PartnerDetails = () => {
         <div className="w-full lg:w-[320px] shrink-0 ">
           <div className="bg-white border border-[#E5E7EB] rounded-2xl p-8 flex flex-col items-center h-full justify-between" style={{ boxShadow: '0px 1px 2px 0px #0000000D' }}>
             <div className="flex flex-col items-center pt-4">
-              <div className="w-24 h-24 rounded-full bg-[#94A3B8] text-white flex items-center justify-center text-3xl font-serif mb-4 shadow-inner">
+              <div className="w-24 h-24 rounded-full bg-[#94A3B8] text-[#FFFCFB] flex items-center justify-center text-3xl font-serif mb-4 shadow-inner">
                 {data.orgName.split(' ').map(n => n[0]).join('').substring(0, 3)}
               </div>
-              <h3 className="text-2xl font-bold text-[#111827] text-center mb-3 font-serif leading-tight">
+              <h3 className="text-2xl font-bold text-[#22333B] text-center mb-3 font-serif leading-tight">
                 {data.orgName}
               </h3>
               <div className="px-4 py-1 bg-[#F8FAFC] text-[#4B5563] rounded-full text-sm font-medium flex items-center gap-1.5 mb-8">
@@ -305,7 +305,7 @@ const PartnerDetails = () => {
         <div className="flex-1 flex flex-col gap-6">
           {/* Organization Details */}
           <div className="bg-white border border-[#E5E7EB] rounded-2xl p-6" style={{ boxShadow: '0px 1px 2px 0px #0000000D' }}>
-            <h3 className="text-[16px] font-bold text-[#111827] mb-5">Organization Details</h3>
+            <h3 className="text-[16px] font-bold text-[#22333B] mb-5">Organization Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div>
                 <label className="block text-sm text-[#374151] mb-1.5">Registration Number</label>
@@ -315,7 +315,7 @@ const PartnerDetails = () => {
                   value={details.registrationNumber} 
                   onChange={handleDetailChange}
                   readOnly={!isEditing} 
-                  className={`w-full border border-[#D9D9D9] rounded-lg px-3 py-2.5 text-sm text-[#111827] focus:outline-none ${!isEditing ? 'bg-white cursor-default' : 'bg-white focus:border-[#F68E5F]'}`} 
+                  className={`w-full border border-[#D9D9D9] rounded-lg px-3 py-2.5 text-sm text-[#22333B] focus:outline-none ${!isEditing ? 'bg-white cursor-default' : 'bg-white focus:border-[#F68E5F]'}`} 
                 />
               </div>
               <div>
@@ -326,7 +326,7 @@ const PartnerDetails = () => {
                   value={details.partnerId} 
                   onChange={handleDetailChange}
                   readOnly={!isEditing} 
-                  className={`w-full border border-[#D9D9D9] rounded-lg px-3 py-2.5 text-sm text-[#111827] focus:outline-none ${!isEditing ? 'bg-white cursor-default' : 'bg-white focus:border-[#F68E5F]'}`} 
+                  className={`w-full border border-[#D9D9D9] rounded-lg px-3 py-2.5 text-sm text-[#22333B] focus:outline-none ${!isEditing ? 'bg-white cursor-default' : 'bg-white focus:border-[#F68E5F]'}`} 
                 />
               </div>
               <div>
@@ -337,7 +337,7 @@ const PartnerDetails = () => {
                   value={details.establishmentYear} 
                   onChange={handleDetailChange}
                   readOnly={!isEditing} 
-                  className={`w-full border border-[#D9D9D9] rounded-lg px-3 py-2.5 text-sm text-[#111827] focus:outline-none ${!isEditing ? 'bg-white cursor-default' : 'bg-white focus:border-[#F68E5F]'}`} 
+                  className={`w-full border border-[#D9D9D9] rounded-lg px-3 py-2.5 text-sm text-[#22333B] focus:outline-none ${!isEditing ? 'bg-white cursor-default' : 'bg-white focus:border-[#F68E5F]'}`} 
                 />
               </div>
               <div>
@@ -348,7 +348,7 @@ const PartnerDetails = () => {
                   value={details.bedCapacity} 
                   onChange={handleDetailChange}
                   readOnly={!isEditing} 
-                  className={`w-full border border-[#D9D9D9] rounded-lg px-3 py-2.5 text-sm text-[#111827] focus:outline-none ${!isEditing ? 'bg-white cursor-default' : 'bg-white focus:border-[#F68E5F]'}`} 
+                  className={`w-full border border-[#D9D9D9] rounded-lg px-3 py-2.5 text-sm text-[#22333B] focus:outline-none ${!isEditing ? 'bg-white cursor-default' : 'bg-white focus:border-[#F68E5F]'}`} 
                 />
               </div>
               <div>
@@ -359,7 +359,7 @@ const PartnerDetails = () => {
                   value={details.staffCount} 
                   onChange={handleDetailChange}
                   readOnly={!isEditing} 
-                  className={`w-full border border-[#D9D9D9] rounded-lg px-3 py-2.5 text-sm text-[#111827] focus:outline-none ${!isEditing ? 'bg-white cursor-default' : 'bg-white focus:border-[#F68E5F]'}`} 
+                  className={`w-full border border-[#D9D9D9] rounded-lg px-3 py-2.5 text-sm text-[#22333B] focus:outline-none ${!isEditing ? 'bg-white cursor-default' : 'bg-white focus:border-[#F68E5F]'}`} 
                 />
               </div>
               <div>
@@ -370,7 +370,7 @@ const PartnerDetails = () => {
                   value={details.ambulanceService} 
                   onChange={handleDetailChange}
                   readOnly={!isEditing} 
-                  className={`w-full border border-[#D9D9D9] rounded-lg px-3 py-2.5 text-sm text-[#111827] focus:outline-none ${!isEditing ? 'bg-white cursor-default' : 'bg-white focus:border-[#F68E5F]'}`} 
+                  className={`w-full border border-[#D9D9D9] rounded-lg px-3 py-2.5 text-sm text-[#22333B] focus:outline-none ${!isEditing ? 'bg-white cursor-default' : 'bg-white focus:border-[#F68E5F]'}`} 
                 />
               </div>
               <div>
@@ -380,7 +380,7 @@ const PartnerDetails = () => {
                   value={details.emergencyServices}
                   onChange={handleDetailChange}
                   disabled={!isEditing}
-                  className={`w-full border border-[#D9D9D9] rounded-lg px-3 py-2.5 text-sm focus:outline-none ${!isEditing ? 'bg-white text-[#111827] cursor-default appearance-none' : 'bg-white text-[#111827]'}`}
+                  className={`w-full border border-[#D9D9D9] rounded-lg px-3 py-2.5 text-sm focus:outline-none ${!isEditing ? 'bg-white text-[#22333B] cursor-default appearance-none' : 'bg-white text-[#22333B]'}`}
                 >
                   <option value="available 24/7">available 24/7</option>
                   <option value="Not available">Not available</option>
@@ -392,14 +392,14 @@ const PartnerDetails = () => {
 
           {/* Specializations */}
           <div className="bg-white border border-[#E5E7EB] rounded-2xl p-6" style={{ boxShadow: '0px 1px 2px 0px #0000000D' }}>
-            <h3 className="text-[16px] font-bold text-[#111827] mb-5">Specializations</h3>
+            <h3 className="text-[16px] font-bold text-[#22333B] mb-5">Specializations</h3>
             {isEditing ? (
               <input 
                 type="text" 
                 value={specializations} 
                 onChange={(e) => setSpecializations(e.target.value)}
                 placeholder="Comma separated: Cardiology, Neurology..."
-                className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#F68E5F]" 
+                className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#22333B] focus:outline-none focus:border-[#F68E5F]" 
               />
             ) : (
               <div className="flex flex-wrap gap-3">
@@ -417,7 +417,7 @@ const PartnerDetails = () => {
       {/* Available Doctors */}
       <div className="bg-white border border-[#E5E7EB] rounded-2xl p-6 mb-6" style={{ boxShadow: '0px 1px 2px 0px #0000000D' }}>
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-bold text-[#111827]">Available Doctors</h3>
+          <h3 className="text-lg font-bold text-[#22333B]">Available Doctors</h3>
           <div className="flex gap-3">
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]" />
@@ -432,7 +432,7 @@ const PartnerDetails = () => {
             {isEditing && (
               <button 
                 onClick={() => setIsDoctorModalOpen(true)}
-                className="flex justify-center items-center gap-1.5 px-4 py-2 bg-[#F68E5F] text-white rounded-lg text-sm font-medium hover:bg-[#ff6e2b] transition-colors whitespace-nowrap"
+                className="flex justify-center items-center gap-1.5 px-4 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff6e2b] transition-colors whitespace-nowrap"
               >
                 <Plus size={16} /> Add Doctor
               </button>
@@ -455,7 +455,7 @@ const PartnerDetails = () => {
                   )}
                 </div>
                 <div className="flex-1">
-                  <h4 className="text-[15px] font-bold text-[#111827] mb-0.5">{doc.name}</h4>
+                  <h4 className="text-[15px] font-bold text-[#22333B] mb-0.5">{doc.name}</h4>
                   <p className="text-[10px] font-bold text-[#94A3B8] tracking-wider uppercase mb-3">{doc.specialty}</p>
                   
                   <div className="flex items-center gap-2 text-xs text-[#64748B] mb-1.5">

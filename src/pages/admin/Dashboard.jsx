@@ -179,7 +179,7 @@ const Dashboard = () => {
         <div className="bg-[#FFFFFF] rounded-xl p-6 border border-[#F3F4F6] shadow-[0_2px_10px_-3px_#0000000D] h-min">
           <h2 className="text-[16px] font-bold text-[#242D35] mb-6">Quick Actions</h2>
           <div className="flex flex-col gap-3">
-            <button className="w-full flex items-center justify-between p-4 bg-[#F68E5F] text-white rounded-lg hover:bg-[#e47b4d] transition-colors shadow-sm">
+            <button className="w-full flex items-center justify-between p-4 bg-[#F68E5F] text-[#FFFCFB] rounded-lg hover:bg-[#e47b4d] transition-colors shadow-sm">
               <div className="flex items-center gap-3">
                 <CreditCard size={20} />
                 <span className="font-semibold text-sm">Add New Card</span>

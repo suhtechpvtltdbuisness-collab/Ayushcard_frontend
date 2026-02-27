@@ -88,7 +88,7 @@ const CreateHealthCard = () => {
           >
             <ArrowLeft size={20} />
           </button>
-          <h2 className="text-2xl font-bold text-[#111827]">Create Application</h2>
+          <h2 className="text-2xl font-bold text-[#22333B]">Create Application</h2>
         </div>
         <div className="flex gap-3">
           <button 
@@ -100,7 +100,7 @@ const CreateHealthCard = () => {
           <button 
             onClick={handleSave}
             disabled={!formData.applicant || !formData.phone}
-            className="px-6 py-2 bg-[#F68E5F] text-white rounded-lg text-sm font-medium hover:bg-[#ff7535] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-6 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff7535] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Save Changes
           </button>
@@ -112,7 +112,7 @@ const CreateHealthCard = () => {
         <div className="border border-gray-200 rounded-xl p-6 bg-white">
           <div className="flex items-center gap-2 mb-6 text-[#4B5563]">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            <h3 className="font-semibold text-[#111827]">Applicant Information</h3>
+            <h3 className="font-semibold text-[#22333B]">Applicant Information</h3>
           </div>
           
           <div className="space-y-4">
@@ -124,7 +124,7 @@ const CreateHealthCard = () => {
                 value={formData.applicant}
                 onChange={handleInputChange}
                 placeholder="Enter full name"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-[#111827] bg-white focus:outline-none focus:border-[#F68E5F]" 
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F]" 
               />
             </div>
             <div>
@@ -135,7 +135,7 @@ const CreateHealthCard = () => {
                 value={formData.phone}
                 onChange={handleInputChange}
                 placeholder="Enter phone number"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-[#111827] bg-white focus:outline-none focus:border-[#F68E5F]" 
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F]" 
               />
             </div>
             <div>
@@ -146,7 +146,7 @@ const CreateHealthCard = () => {
                 onChange={handleInputChange}
                 placeholder="Enter complete address"
                 rows={3} 
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-[#111827] bg-white focus:outline-none focus:border-[#F68E5F] resize-none"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] resize-none"
               ></textarea>
             </div>
           </div>
@@ -156,7 +156,7 @@ const CreateHealthCard = () => {
         <div className="border border-gray-200 rounded-xl p-6 bg-white">
           <div className="flex items-center gap-2 mb-6 text-[#4B5563]">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-            <h3 className="font-semibold text-[#111827]">Card Details</h3>
+            <h3 className="font-semibold text-[#22333B]">Card Details</h3>
           </div>
           
           <div className="space-y-4">
@@ -168,7 +168,7 @@ const CreateHealthCard = () => {
                 value={formData.cardId}
                 onChange={handleInputChange}
                 placeholder="e.g. ASS-1234"
-                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#111827] bg-white focus:outline-none focus:border-[#F68E5F]" 
+                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F]" 
               />
             </div>
             <div>
@@ -178,7 +178,7 @@ const CreateHealthCard = () => {
                   name="status"
                   value={formData.status}
                   onChange={handleInputChange}
-                  className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#111827] bg-white focus:outline-none focus:border-[#F68E5F] appearance-none cursor-pointer"
+                  className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] appearance-none cursor-pointer"
                 >
                   <option value="Verified">Verified</option>
                   <option value="Not verified">Not verified</option>
@@ -196,21 +196,21 @@ const CreateHealthCard = () => {
         <div className="border border-gray-200 rounded-xl p-6 bg-white">
           <div className="flex items-center gap-2 mb-6 text-[#4B5563]">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            <h3 className="font-semibold text-[#111827]">Validity & Timeline</h3>
+            <h3 className="font-semibold text-[#22333B]">Validity & Timeline</h3>
           </div>
           
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">DATE APPLIED</label>
-              <input type="text" value={todayStr} readOnly className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#111827] bg-[#F8FAFC] focus:outline-none cursor-default" />
+              <input type="text" value={todayStr} readOnly className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#22333B] bg-[#F8FAFC] focus:outline-none cursor-default" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">VERIFICATION DATE</label>
-              <input type="text" value={displayVerificationDate} readOnly className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm bg-[#F8FAFC] focus:outline-none cursor-default ${displayVerificationDate === 'Pending' ? 'text-gray-400' : 'text-[#111827]'}`} />
+              <input type="text" value={displayVerificationDate} readOnly className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm bg-[#F8FAFC] focus:outline-none cursor-default ${displayVerificationDate === 'Pending' ? 'text-gray-400' : 'text-[#22333B]'}`} />
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">EXPIRY DATE</label>
-              <input type="text" value={displayExpiryDate} readOnly className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm bg-[#F8FAFC] focus:outline-none cursor-default ${displayExpiryDate === 'Pending' ? 'text-gray-400' : 'text-[#111827]'}`} />
+              <input type="text" value={displayExpiryDate} readOnly className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm bg-[#F8FAFC] focus:outline-none cursor-default ${displayExpiryDate === 'Pending' ? 'text-gray-400' : 'text-[#22333B]'}`} />
             </div>
           </div>
         </div>
@@ -222,7 +222,7 @@ const CreateHealthCard = () => {
             <div className="flex justify-between items-center p-4 border-b border-gray-100">
                 <div className="flex items-center gap-2 text-[#4B5563]">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                    <h3 className="font-bold text-[#111827]">Included Members ({formData.members.length})</h3>
+                    <h3 className="font-bold text-[#22333B]">Included Members ({formData.members.length})</h3>
                 </div>
             </div>
 
@@ -244,7 +244,7 @@ const CreateHealthCard = () => {
                 <button 
                   onClick={addMember}
                   disabled={!newMember.name || !newMember.relation || !newMember.age || formData.members.length >= 6}
-                  className="w-full py-2 bg-[#2C3E50] text-white rounded-md text-sm font-medium hover:bg-[#1f2835] disabled:opacity-50"
+                  className="w-full py-2 bg-[#2C3E50] text-[#FFFCFB] rounded-md text-sm font-medium hover:bg-[#1f2835] disabled:opacity-50"
                 >
                     {formData.members.length >= 6 ? 'Maximum Members Reached (7/7)' : 'Add Member'}
                 </button>
@@ -265,7 +265,7 @@ const CreateHealthCard = () => {
                     {formData.members.map((member, index) => (
                         <tr key={member.id}>
                         <td className="py-3 px-4 text-sm text-gray-500">{index + 1}</td>
-                        <td className="py-3 px-4 text-sm font-semibold text-[#111827]">{member.name}</td>
+                        <td className="py-3 px-4 text-sm font-semibold text-[#22333B]">{member.name}</td>
                         <td className="py-3 px-4 text-sm text-gray-600">{member.relation}</td>
                         <td className="py-3 px-4 text-sm text-gray-600">{member.age}</td>
                         </tr>
@@ -281,7 +281,7 @@ const CreateHealthCard = () => {
         </div>
         
         {/* Payment Summary */}
-        <div className="bg-[#ffffff] rounded-xl text-black border border-gray-200 p-6 flex flex-col justify-center h-fit">
+        <div className="bg-[#ffffff] rounded-xl text-[#22333B] border border-gray-200 p-6 flex flex-col justify-center h-fit">
           <h3 className="font-semibold mb-6 shrink-0">Payment Summary</h3>
           
           <div className="space-y-4 mb-6 shrink-0">
