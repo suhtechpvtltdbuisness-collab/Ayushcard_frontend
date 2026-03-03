@@ -1,67 +1,133 @@
-import React, { useState } from 'react';
-import { NavLink } from 'react-router-dom';
-import { 
+import React, { useState } from "react";
+import { NavLink, useLocation } from "react-router-dom";
+import {
   Menu,
-  LayoutDashboard, 
-  CreditCard, 
-  Users, 
-  HandCoins, 
-  Briefcase, 
-  FileText, 
-  Settings, 
-  Bell, 
+  LayoutDashboard,
+  CreditCard,
+  Users,
+  HandCoins,
+  Briefcase,
+  FileText,
+  Settings,
+  Bell,
   HelpCircle,
   Stethoscope,
-  LogOut
-} from 'lucide-react';
+  LogOut,
+} from "lucide-react";
 
 const Sidebar = () => {
   const [isHovered, setIsHovered] = useState(false);
+  const location = useLocation();
   const mainMenuItems = [
-    { name: 'Dashboard', icon: LayoutDashboard, path: '/admin' },
-    { name: 'Health Card', icon: CreditCard, path: '/admin/health-card' },
-    { name: 'Partners', customIcon: '/admin_images/partner.svg', path: '/admin/partners' },
-    { name: 'Donations', customIcon: '/admin_images/donations.svg', path: '/admin/donations' },
-    { name: 'HR & Payroll', customIcon: '/admin_images/hr_payroll.svg', path: '/admin/hr-payroll' },
+    { name: "Dashboard", icon: LayoutDashboard, path: "/admin" },
+    { name: "Health Card", icon: CreditCard, path: "/admin/health-card" },
+    {
+      name: "Partners",
+      customIcon: "/admin_images/partner.svg",
+      path: "/admin/partners",
+    },
+    {
+      name: "Donations",
+      customIcon: "/admin_images/donations.svg",
+      path: "/admin/donations",
+    },
+    {
+      name: "HR & Payroll",
+      customIcon: "/admin_images/hr_payroll.svg",
+      path: "/admin/hr",
+      subItems: [
+        { name: "Employees", path: "/admin/hr/employees" },
+        { name: "Salary", path: "/admin/hr/salary" },
+      ],
+    },
   ];
 
   const systemItems = [
-    { name: 'Reports', customIcon: '/admin_images/reports.svg', path: '/admin/reports' },
-    { name: 'Settings', customIcon: '/admin_images/settings.svg', path: '/admin/settings' },
-    { name: 'Help & Support', icon: HelpCircle, path: '/admin/help' },
+    {
+      name: "Reports",
+      customIcon: "/admin_images/reports.svg",
+      path: "/admin/reports",
+    },
+    {
+      name: "Settings",
+      customIcon: "/admin_images/settings.svg",
+      path: "/admin/settings",
+    },
+    { name: "Help & Support", icon: HelpCircle, path: "/admin/help" },
   ];
 
   const renderNavLinks = (items) => {
-    return items.map((item) => (
-      <NavLink
-        key={item.name}
-        to={item.path}
-        end={item.path === '/admin'}
-        className={({ isActive }) =>
-          `flex items-center gap-3 px-4 py-3 mx-4 rounded-lg text-sm font-medium transition-colors ${
-            isActive
-              ? 'bg-[#F68E5F] text-[#FFFCFB] shadow-sm'
-              : 'text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]'
-          }`
-        }
-      >
-        {({ isActive }) => (
-          <>
-            {item.customIcon ? (
-              <img 
-                src={item.customIcon} 
-                alt={item.name} 
-                className="w-5 h-5"
-                style={isActive ? { filter: 'brightness(0) invert(1)' } : { filter: 'brightness(0)' }}
-              />
-            ) : (
-              item.icon && <item.icon size={20} className={isActive ? 'text-[#FFFCFB]' : 'text-[#22333B]'} />
+    return items.map((item) => {
+      const isParentActive =
+        item.subItems && location.pathname.startsWith(item.path);
+
+      return (
+        <div key={item.name} className="flex flex-col">
+          <NavLink
+            to={item.subItems ? item.subItems[0].path : item.path}
+            end={item.path === "/admin"}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-4 py-3 mx-4 rounded-lg text-sm font-medium transition-colors ${
+                isActive || isParentActive
+                  ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
+                  : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
+              }`
+            }
+          >
+            {({ isActive }) => (
+              <>
+                {item.customIcon ? (
+                  <img
+                    src={item.customIcon}
+                    alt={item.name}
+                    className="w-5 h-5"
+                    style={
+                      isActive || isParentActive
+                        ? { filter: "brightness(0) invert(1)" }
+                        : { filter: "brightness(0)" }
+                    }
+                  />
+                ) : (
+                  item.icon && (
+                    <item.icon
+                      size={20}
+                      className={
+                        isActive || isParentActive
+                          ? "text-[#FFFCFB]"
+                          : "text-[#22333B]"
+                      }
+                    />
+                  )
+                )}
+                {item.name}
+              </>
             )}
-            {item.name}
-          </>
-        )}
-      </NavLink>
-    ));
+          </NavLink>
+
+          {/* Render SubItems */}
+          {item.subItems && isParentActive && (
+            <div className="flex flex-col mt-1 mb-1 relative">
+              {item.subItems.map((subItem) => (
+                <div key={subItem.name} className="flex px-4 mx-4">
+                  <NavLink
+                    to={subItem.path}
+                    className={({ isActive }) =>
+                      `pl-20 py-1.5 text-sm font-medium transition-colors border-b-2 ${
+                        isActive
+                          ? "text-[#22333B] border-[#22333B]"
+                          : "text-[#6B7280] border-transparent hover:text-[#22333B]"
+                      }`
+                    }
+                  >
+                    {subItem.name}
+                  </NavLink>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    });
   };
 
   const sidebarContent = (
@@ -75,16 +141,20 @@ const Sidebar = () => {
         {/* Navigation Menus */}
         <nav className="flex flex-col gap-6 mt-4">
           <div>
-            <p className="px-8 text-[10px] font-semibold text-[#9CA3AF] mb-2 tracking-widest">MAIN MENU</p>
+            <p className="px-8 text-[10px] font-semibold text-[#9CA3AF] mb-2 tracking-widest">
+              MAIN MENU
+            </p>
             <div className="flex flex-col gap-1">
-               {renderNavLinks(mainMenuItems)}
+              {renderNavLinks(mainMenuItems)}
             </div>
           </div>
 
           <div>
-            <p className="px-8 text-[10px] font-semibold text-[#9CA3AF] mb-2 tracking-wider">SYSTEM</p>
+            <p className="px-8 text-[10px] font-semibold text-[#9CA3AF] mb-2 tracking-wider">
+              SYSTEM
+            </p>
             <div className="flex flex-col gap-1">
-               {renderNavLinks(systemItems)}
+              {renderNavLinks(systemItems)}
             </div>
           </div>
         </nav>
@@ -102,96 +172,137 @@ const Sidebar = () => {
 
   return (
     <>
-      <aside className="hidden lg:flex shrink-0 w-64 bg-[#FFFFFF] border-r border-gray-200 flex-col justify-between" style={{ fontFamily: 'Inter, sans-serif' }}>
+      <aside
+        className="hidden lg:flex shrink-0 w-64 bg-[#FFFFFF] border-r border-gray-200 flex-col justify-between"
+        style={{ fontFamily: "Inter, sans-serif" }}
+      >
         {sidebarContent}
       </aside>
 
       {/* iPad Mini / Mobile Collapsed Sidebar */}
-      <aside className="flex lg:hidden shrink-0 w-16 bg-[#FFFFFF] border-r border-gray-200 flex-col items-center relative z-50" style={{ fontFamily: 'Inter, sans-serif' }}>
-         <div 
-           className="h-full w-full absolute inset-0 cursor-pointer flex flex-col items-center"
-           onMouseEnter={() => setIsHovered(true)}
-           onMouseLeave={() => setIsHovered(false)}
-         >
-            {/* The trigger icon / Logo */}
-            <div className="flex justify-center pt-8 overflow-hidden w-full px-4">
-               <img src="/logo1.svg" alt="Logo" className="h-15 max-w-none ml-2 object-left object-cover" />
-            </div>
+      <aside
+        className="flex lg:hidden shrink-0 w-16 bg-[#FFFFFF] border-r border-gray-200 flex-col items-center relative z-50"
+        style={{ fontFamily: "Inter, sans-serif" }}
+      >
+        <div
+          className="h-full w-full absolute inset-0 cursor-pointer flex flex-col items-center"
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+        >
+          {/* The trigger icon / Logo */}
+          <div className="flex justify-center pt-8 overflow-hidden w-full px-4">
+            <img
+              src="/logo1.svg"
+              alt="Logo"
+              className="h-15 max-w-none ml-2 object-left object-cover"
+            />
+          </div>
 
-            {/* Collapsed Navigation Icons */}
-            <nav className="flex flex-col gap-6 w-full items-center mt-14">
-              <div className="flex flex-col gap-2 w-full px-3">
-                {mainMenuItems.map((item) => (
+          {/* Collapsed Navigation Icons */}
+          <nav className="flex flex-col gap-6 w-full items-center mt-14">
+            <div className="flex flex-col gap-2 w-full px-3">
+              {mainMenuItems.map((item) => {
+                const isParentActive =
+                  item.subItems && location.pathname.startsWith(item.path);
+
+                return (
                   <NavLink
                     key={item.name}
-                    to={item.path}
-                    end={item.path === '/admin'}
+                    to={item.subItems ? item.subItems[0].path : item.path}
+                    end={item.path === "/admin"}
                     className={({ isActive }) =>
                       `flex justify-center items-center w-10 h-10 rounded-lg transition-colors ${
-                        isActive
-                          ? 'bg-[#F68E5F] text-[#FFFCFB] shadow-sm'
-                          : 'text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]'
+                        isActive || isParentActive
+                          ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
+                          : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
                       }`
                     }
                   >
                     {({ isActive }) => (
                       <>
                         {item.customIcon ? (
-                          <img 
-                            src={item.customIcon} 
-                            alt={item.name} 
+                          <img
+                            src={item.customIcon}
+                            alt={item.name}
                             className="w-5 h-5"
-                            style={isActive ? { filter: 'brightness(0) invert(1)' } : { filter: 'brightness(0)' }}
+                            style={
+                              isActive || isParentActive
+                                ? { filter: "brightness(0) invert(1)" }
+                                : { filter: "brightness(0)" }
+                            }
                           />
                         ) : (
-                          item.icon && <item.icon size={20} className={isActive ? 'text-[#FFFCFB]' : 'text-[#22333B]'} />
+                          item.icon && (
+                            <item.icon
+                              size={20}
+                              className={
+                                isActive || isParentActive
+                                  ? "text-[#FFFCFB]"
+                                  : "text-[#22333B]"
+                              }
+                            />
+                          )
                         )}
                       </>
                     )}
                   </NavLink>
-                ))}
-              </div>
-
-              <div className="w-8 h-px bg-gray-200"></div>
-
-              <div className="flex flex-col gap-2 w-full px-3">
-                {systemItems.map((item) => (
-                  <NavLink
-                    key={item.name}
-                    to={item.path}
-                    end={item.path === '/admin'}
-                    className={({ isActive }) =>
-                      `flex justify-center items-center w-10 h-10 rounded-lg transition-colors ${
-                        isActive
-                          ? 'bg-[#F68E5F] text-[#FFFCFB] shadow-sm'
-                          : 'text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]'
-                      }`
-                    }
-                  >
-                    {({ isActive }) => (
-                      <>
-                        {item.customIcon ? (
-                          <img 
-                            src={item.customIcon} 
-                            alt={item.name} 
-                            className="w-5 h-5"
-                            style={isActive ? { filter: 'brightness(0) invert(1)' } : { filter: 'brightness(0)' }}
-                          />
-                        ) : (
-                          item.icon && <item.icon size={20} className={isActive ? 'text-[#FFFCFB]' : 'text-[#22333B]'} />
-                        )}
-                      </>
-                    )}
-                  </NavLink>
-                ))}
-              </div>
-            </nav>
-
-            {/* The Overlay Sidebar */}
-            <div className={`fixed left-0 top-0 h-screen w-64 bg-[#FFFFFF] shadow-[4px_0_24px_rgba(0,0,0,0.1)] border-r border-gray-200 transition-transform duration-300 ease-in-out flex flex-col justify-between cursor-default ${isHovered ? 'translate-x-0' : '-translate-x-full'}`}>
-               {sidebarContent}
+                );
+              })}
             </div>
-         </div>
+
+            <div className="w-8 h-px bg-gray-200"></div>
+
+            <div className="flex flex-col gap-2 w-full px-3">
+              {systemItems.map((item) => (
+                <NavLink
+                  key={item.name}
+                  to={item.path}
+                  end={item.path === "/admin"}
+                  className={({ isActive }) =>
+                    `flex justify-center items-center w-10 h-10 rounded-lg transition-colors ${
+                      isActive
+                        ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
+                        : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
+                    }`
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      {item.customIcon ? (
+                        <img
+                          src={item.customIcon}
+                          alt={item.name}
+                          className="w-5 h-5"
+                          style={
+                            isActive
+                              ? { filter: "brightness(0) invert(1)" }
+                              : { filter: "brightness(0)" }
+                          }
+                        />
+                      ) : (
+                        item.icon && (
+                          <item.icon
+                            size={20}
+                            className={
+                              isActive ? "text-[#FFFCFB]" : "text-[#22333B]"
+                            }
+                          />
+                        )
+                      )}
+                    </>
+                  )}
+                </NavLink>
+              ))}
+            </div>
+          </nav>
+
+          {/* The Overlay Sidebar */}
+          <div
+            className={`fixed left-0 top-0 h-screen w-64 bg-[#FFFFFF] shadow-[4px_0_24px_rgba(0,0,0,0.1)] border-r border-gray-200 transition-transform duration-300 ease-in-out flex flex-col justify-between cursor-default ${isHovered ? "translate-x-0" : "-translate-x-full"}`}
+          >
+            {sidebarContent}
+          </div>
+        </div>
       </aside>
     </>
   );
