@@ -1,0 +1,305 @@
+import React, { useState, useEffect } from "react";
+import { MapPin, Phone, Mail } from "lucide-react";
+
+const AyushCardPreview = ({ data, side = "front", onFlip }) => {
+  const [isFlipped, setIsFlipped] = useState(side === "back");
+
+  useEffect(() => {
+    setIsFlipped(side === "back");
+  }, [side]);
+
+  const handleFlip = () => {
+    const newState = !isFlipped;
+    setIsFlipped(newState);
+    if (onFlip) onFlip(newState ? "back" : "front");
+  };
+
+  /* ================= FRONT ================= */
+
+  const Front = () => (
+    <div className="absolute inset-0 backface-hidden">
+      {/* Golden Wrapper */}
+      <div className="h-full w-full bg-[#E5B556] rounded-[36px] py-4.5">
+        {/* Main Card (stops before the footer) */}
+        <div
+          className="absolute top-4.5 left-0 w-full h-[calc(100%-18px-45px)] bg-linear-to-r from-[#CC2B2B] to-[#F59E0B] px-6 py-5 text-white flex flex-col z-10"
+          style={{ borderTopLeftRadius: "28px", borderTopRightRadius: "28px" }}
+        >
+          {/* Header */}
+          <div className="flex justify-between mb-2">
+            <div className="flex gap-3 items-center">
+              <img src="/logo1.svg" alt="logo" className="w-14 h-14" />
+              <div>
+                <div className="border-t border-b border-white py-1 mb-1">
+                  <h2 className="text-[16px] font-bold">BAIJNAATH KESAR</h2>
+                  <h2 className="text-[16px] font-bold">BAI SEWA TRUST</h2>
+                </div>
+                <p className="text-[11px]">
+                  Card No: {data?.id || "AC-2962638"}
+                </p>
+              </div>
+            </div>
+
+            <div className="text-right">
+              <h1 className="text-[24px] font-bold">AYUSH CARD</h1>
+              <p className="text-[10px]">
+                सेहत का सुरक्षा कवच - आयुष्य कार्ड के साथ !
+              </p>
+              <p className="text-[10px]">Health Shield - With Ayush Card!</p>
+            </div>
+          </div>
+
+          {/* Body */}
+          <div className="flex gap-4 flex-1 h-2/3">
+            <div className="w-27.5 bg-white rounded-xl overflow-hidden border-2 border-black">
+              <img
+                src={data?.profileImage || "/gallery1.svg"}
+                alt="profile"
+                className="w-full h-full object-cover"
+              />
+            </div>
+
+            <div className="flex-1 bg-white text-black rounded-xl p-2 text-[13px] space-y-2 flex flex-col justify-center">
+              <Row
+                label="Name"
+                value={data?.applicant || "Rahul Madansingh Sharma"}
+              />
+              <Row label="W/o" value="—" muted />
+              <Row label="DOB" value="—" muted />
+              <Row label="Phone" value={data?.phone || "06 74459204"} />
+              <Row label="Reg Date" value={data?.dateApplied || "20-02-2026"} />
+            </div>
+
+            <div className="w-28.75 bg-white rounded-xl p-2 flex items-center justify-center">
+              <img
+                src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=AyushCard"
+                alt="qr"
+                className="w-full h-full border-2 border-black rounded"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="absolute bottom-1.5 left-0 w-full h-10 px-4 flex justify-between items-center text-[11px] text-white">
+          <span className="flex items-center gap-1">
+            <MapPin size={12} className="inline mr-1 shrink-0" />{" "}
+            <span className="truncate">
+              {data?.ngoLocation || "Mangla Vihar Kanpur - 208015"}
+            </span>
+          </span>
+          <span className="flex items-center gap-1">
+            <Phone size={12} className="inline mr-1 shrink-0" />{" "}
+            <span className="truncate">{data?.ngoPhone || "9927384859"}</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <Mail size={12} className="inline mr-1 shrink-0" />{" "}
+            <span className="truncate">
+              {data?.ngoEmail || "baijnaathkesarbaisewatrust9625@gmail.com"}
+            </span>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ================= BACK ================= */
+
+  const Back = () => (
+    <div
+      className="absolute inset-0 backface-hidden"
+      style={{ transform: "rotateY(180deg)" }}
+    >
+      {/* Golden Wrapper */}
+      <div className="h-full w-full bg-[#E5B556] rounded-[36px] relative shadow-lg">
+        {/* Main Card (Red Gradient) */}
+        <div
+          className="absolute top-2.5 left-2.5 w-[calc(100%-55px)] h-[calc(100%-10px-10px)] bg-linear-to-tr from-[#CC2B2B] to-[#F59E0B] text-white flex flex-col z-10 overflow-hidden"
+          style={{
+            borderTopLeftRadius: "28px",
+            borderBottomLeftRadius: "28px",
+          }}
+        >
+          {/* Rotated Wrapper */}
+          <div className="absolute top-1/2 left-1/2 w-71 h-137 -translate-x-1/2 -translate-y-1/2 -rotate-90 flex flex-col justify-end pt-5">
+            {/* Header */}
+            <div className="flex justify-between items-start w-full mb-4 ">
+              <div className="flex items-center gap-2">
+                <div className="w-12 h-12 bg-white rounded-full flex shrink-0 items-center justify-center">
+                  <img
+                    src="/logo1.svg"
+                    alt="logo"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <div>
+                  <div className="border-t-[1.5px] border-b-[1.5px] border-white py-0.5 mb-1 inline-block">
+                    <h2 className="text-[10px] font-bold m-0 leading-tight tracking-wide">
+                      BAIJNAATH KESAR
+                    </h2>
+                    <h2 className="text-[10px] font-bold m-0 leading-tight tracking-wide">
+                      BAI SEWA TRUST
+                    </h2>
+                  </div>
+                  <p className="text-[8px] m-0 font-medium">
+                    Card No: {data?.id || "AC-2962638"}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right flex flex-col justify-center">
+                <h1 className="text-[16px] font-bold m-0 text-white tracking-wide mb-1 leading-tight">
+                  AYUSH CARD
+                </h1>
+                <p className="text-[7px] m-0 font-normal">
+                  सेहत का सुरक्षा कवच - आयुष्य कार्ड के साथ !
+                </p>
+                <p className="text-[8px] m-0 font-normal mt-0.5">
+                  Health Shield - With Ayush Card!
+                </p>
+              </div>
+            </div>
+
+            {/* Body */}
+            {/* Table */}
+            <div className="text-white text-center font-bold py-1 text-[12px] tracking-wide">
+              Family Details
+            </div>
+
+            <div className="w-full bg-white mb-4 text-black shrink-0 border border-gray-300 rounded-xs overflow-hidden self-start">
+              <table className="w-full text-center border-collapse">
+                <thead>
+                  <tr className="bg-white text-[8px] font-bold border-b border-gray-200 text-[#1e293b]">
+                    <th className="py-1.5 px-1 border-r border-gray-200 w-8">
+                      Sr No
+                    </th>
+                    <th className="py-1.5 px-1 border-r border-gray-200">
+                      Name
+                    </th>
+                    <th className="py-1.5 px-1 border-r border-gray-200 w-8">
+                      Age
+                    </th>
+                    <th className="py-1.5 px-1">Relation</th>
+                  </tr>
+                </thead>
+                <tbody className="text-[8px] font-medium text-black">
+                  {(data?.members?.length > 0
+                    ? data.members
+                    : [
+                        { name: "Parmanand", age: 41, relation: "Spouse" },
+                        { name: "Ankit", age: 16, relation: "Son" },
+                        { name: "Ragini", age: 15, relation: "Daughter" },
+                        { name: "Shalini", age: 12, relation: "Daughter" },
+                        { name: "Nandini", age: 9, relation: "Daughter" },
+                      ]
+                  )
+                    .slice(0, 5)
+                    .map((m, i) => (
+                      <tr
+                        key={i}
+                        className="border-b border-gray-200 last:border-0 hover:bg-slate-50"
+                      >
+                        <td className="py-1.5 px-1 border-r border-gray-200">
+                          {i + 1}
+                        </td>
+                        <td className="py-1.5 px-1 border-r border-gray-200 text-left truncate max-w-13.75 font-semibold">
+                          {m.name}
+                        </td>
+                        <td className="py-1.5 px-1 border-r border-gray-200">
+                          {m.age}
+                        </td>
+                        <td className="py-1.5 px-1 truncate max-w-11.25">
+                          {m.relation}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+            {/* Instructions & Dates */}
+            <div className="flex-1 flex flex-col self-stretch pb-2">
+              <div>
+                <h3 className="font-semibold text-[11px] uppercase mb-1.5 text-center tracking-wide drop-shadow-sm">
+                  Important Information / Instructions
+                </h3>
+                <ol className="text-[10px] list-decimal list-inside ml-0.5 text-white/95 font-medium">
+                  <li>Carry this card during every hospital visit.</li>
+                  <li>Inform NGO staff if the card is lost.</li>
+                  <li>This card is non-transferable.</li>
+                  <li>Update your info yearly with coordinator.</li>
+                </ol>
+              </div>
+
+              <div className="gap-3 mt-4">
+                <span className="text-[8px] font-bold tracking-wider drop-shadow-sm">
+                  ISSUE DATE
+                </span>
+                <div className="bg-white text-black p-1.5 text-[8px] font-semibold flex-1 w-37.5 rounded border border-gray-300 shadow-sm leading-tight flex flex-col justify-center">
+                  <div className="flex items-center">
+                    <span className="w-16">Date</span>:{" "}
+                    <span className="ml-1 font-medium">
+                      {data?.issueDate || "14 Jan 2026"}
+                    </span>
+                  </div>
+                  <div className="flex items-center mt-1">
+                    <span className="w-16">Expiry Date</span>:{" "}
+                    <span className="ml-1 font-medium">
+                      {data?.expiryDate || "14 Jan 2027"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer in Golden right edge (rotated) */}
+        <div className="absolute right-1 top-0 h-full w-9 flex items-center justify-center">
+          <div className="transform -rotate-90 text-[11px] text-white font-bold flex gap-6 whitespace-nowrap origin-center">
+            <span className="flex items-center gap-1 drop-shadow-sm">
+              <MapPin size={12} strokeWidth={2.5} className="inline mb-0.5" />{" "}
+              {data?.ngoLocation || "Mangla Vihar Kanpur - 208015"}
+            </span>
+            <span className="flex items-center gap-1 drop-shadow-sm">
+              <Phone size={12} strokeWidth={2.5} className="inline mb-0.5" />{" "}
+              {data?.ngoPhone || "9927384859"}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ================= RETURN ================= */
+
+  return (
+    <div className="flex justify-center py-10">
+      <div
+        className="w-145 h-85 relative cursor-pointer"
+        onClick={handleFlip}
+        style={{ perspective: "1000px" }}
+      >
+        <div
+          className="w-full h-full relative transition-transform duration-700"
+          style={{
+            transformStyle: "preserve-3d",
+            transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
+          }}
+        >
+          <Front />
+          <Back />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* Row Component */
+const Row = ({ label, value, muted }) => (
+  <div className="flex">
+    <span className="w-20 font-bold">{label}</span>
+    <span className="mr-2 font-bold">:</span>
+    <span className={muted ? "text-gray-400" : "font-medium"}>{value}</span>
+  </div>
+);
+
+export default AyushCardPreview;

@@ -1,180 +1,82 @@
 import React, { useState, useMemo } from "react";
-import {
-  Search,
-  Plus,
-  MoreHorizontal,
-  Edit2,
-  RefreshCw,
-  Eye,
-  Trash2,
-  Download,
-  Folder,
-  PlusCircle,
-  ArrowUpDown,
-} from "lucide-react";
+import { Search, Eye, Trash2, Download, Plus, ArrowUpDown } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { exportToCSV } from "../../../../utils/exportUtils";
 
-const userNames = [
-  "Neeraj",
-  "Yuvraj",
-  "Gautam",
-  "Soumya Sindhu",
-  "Akriti Nanda",
-  "Samiksha Umbarje",
-  "Neeraj K",
-  "Gautam Kumar",
-  "Yuvraj Singh",
-  "Saurabh",
-  "Sindhu Soumya",
-];
+export const getEmployees = () => {
+  const stored = localStorage.getItem("employees_data");
+  if (stored) {
+    const parsed = JSON.parse(stored);
+    if (parsed.length <= 25) return parsed;
+  }
 
-export const getHealthCards = () => {
-  const stored = localStorage.getItem("health_cards_data");
-  if (stored) return JSON.parse(stored);
+  const initialData = Array.from({ length: 14 }).map((_, i) => {
+    const names = [
+      "Renu Verma",
+      "Amit Kumar",
+      "Sneha Sharma",
+      "Rahul Gupta",
+      "Priya Desai",
+      "Anil Mehta",
+      "Sunita Rao",
+    ];
+    const locations = ["Kanpur,UP", "Noida,UP", "Delhi", "Lucknow,UP"];
+    const statuses = ["Verified", "Not Verified", "Verified", "Expired"];
 
-  const initialData = Array.from({ length: 16 }).map((_, i) => {
-    const mockName = userNames[i % userNames.length];
     return {
-      id: `ASS-200${i + 1}`,
-      applicant: mockName,
-      phone: `987654321${i % 10}`,
-      address: "123, Sector 4, MG Road, Bangalore",
-      dateApplied: "10/12/2023",
-      verificationDate: "10/15/2023",
-      expiryDate: "10/15/2024",
-      status:
-        i % 3 === 0 ? "Not verified" : i % 3 === 1 ? "Verified" : "Expired",
-      members: [
-        { id: 1, name: mockName, relation: "Self", age: 42 },
-        { id: 2, name: "Suman Devi", relation: "Spouse", age: 38 },
-        { id: 3, name: "Aryan Kumar", relation: "Son", age: 14 },
-        { id: 4, name: "Ishita Kumar", relation: "Daughter", age: 11 },
-        { id: 5, name: "Om Prakash", relation: "Father", age: 70 },
-      ].slice(0, (i % 5) + 1),
-      payment: {
-        applicationFee: 120.0,
-        memberAddOns: ((i % 5) + 1) * 10,
-        totalPaid: 120.0 + ((i % 5) + 1) * 10,
-      },
+      id: `EMP-BK-100${i + 1}`,
+      name: names[i % names.length],
+      phone: `837384957${i % 10}`,
+      email: `${names[i % names.length].split(" ")[0].toLowerCase()}@gmail.com`,
+      dateOfJoining: "02-10-2026",
+      location: locations[i % locations.length],
+      status: statuses[i % statuses.length],
+      salary: "20,000",
+      workingHoursFrom: "10:00 AM",
+      workingHoursTo: "6:00 PM",
+      role: "Field Officer",
     };
   });
-  localStorage.setItem("health_cards_data", JSON.stringify(initialData));
+  localStorage.setItem("employees_data", JSON.stringify(initialData));
   return initialData;
 };
 
-const StatusBadge = ({ status }) => {
-  let bg = "";
-  let dot = "";
-  let text = "";
-
-  switch (status) {
-    case "Not verified":
-      bg = "bg-[#FFA10033]";
-      dot = "bg-[#FFA100]";
-      text = "text-[#FFA100]";
-      break;
-    case "Verified":
-      bg = "bg-[#76DB1E33]";
-      dot = "bg-[#76DB1E]";
-      text = "text-[#76DB1E]";
-      break;
-    case "Expired":
-      bg = "bg-[#FF383C33]";
-      dot = "bg-[#FF383C]";
-      text = "text-[#FF383C]";
-      break;
-    default:
-      bg = "bg-gray-100";
-      dot = "bg-gray-400";
-      text = "text-gray-600";
-  }
-
+const ActionButtons = ({ item, navigate, onDelete }) => {
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-normal ${bg} ${text}`}
-    >
-      <span className={`w-1.5 h-1.5 rounded-full ${dot}`}></span>
-      {status}
-    </span>
-  );
-};
-
-import { useNavigate } from "react-router-dom";
-import { exportToCSV } from "../../../utils/exportUtils";
-
-const ActionButtons = ({ status, item, navigate, onDelete }) => {
-  return (
-    <div className="flex items-center gap-4">
-      <div className="w-21 flex justify-center">
-        {status === "Not verified" && (
-          <span className="w-full text-center text-[#22333B] font-bold">—</span>
-        )}
-        {status === "Verified" && (
-          <button
-            onClick={() =>
-              navigate(`/admin/health-card/${item.id}`, {
-                state: { editMode: true },
-              })
-            }
-            className="flex items-center justify-center gap-1.5 px-2 py-1 bg-[#2C2C2C] text-[#FFFCFB] rounded-lg text-sm font-normal hover:bg-[#1F2937]"
-          >
-            Edit
-            <img src="/admin_images/Edit 3.svg" alt="edit" />
-          </button>
-        )}
-        {status === "Expired" && (
-          <button
-            onClick={() =>
-              navigate(`/admin/health-card/${item.id}`, {
-                state: { editMode: true },
-              })
-            }
-            className="flex items-center justify-center gap-1.5 px-2 py-1 bg-[#2C2C2C] text-[#FFFCFB] rounded-lg text-sm font-normal hover:bg-[#1F2937]"
-          >
-            Renew
-            <img src="/admin_images/Edit 3.svg" alt="edit" />
-          </button>
-        )}
-      </div>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => navigate(`/admin/health-card/${item.id}`)}
-          className="text-[#F68E5F] hover:text-[#ff6e2b] cursor-pointer transition-colors p-1.5"
-        >
-          <Eye size={20} />
-        </button>
-        <button
-          onClick={() => onDelete(item)}
-          className="text-[#F68E5F] hover:text-[#ff6e2b] transition-colors p-1.5"
-        >
-          <Trash2 size={20} />
-        </button>
-      </div>
+    <div className="flex items-center gap-2">
+      <button
+        onClick={() => navigate(`/admin/hr/employees/${item.id}`)}
+        className="text-[#F68E5F] hover:text-[#ff7535] cursor-pointer transition-colors p-1.5"
+      >
+        <Eye size={20} />
+      </button>
+      <button
+        onClick={() => onDelete(item)}
+        className="text-[#F68E5F] hover:text-[#ff7535] transition-colors p-1.5"
+      >
+        <Trash2 size={20} />
+      </button>
     </div>
   );
 };
 
-const HealthCard = () => {
+const Employees = () => {
   const navigate = useNavigate();
-  const [healthCards, setHealthCards] = useState(getHealthCards());
-  const [activeFilter, setActiveFilter] = useState("All");
+  const [employees, setEmployees] = useState(getEmployees());
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [itemToDelete, setItemToDelete] = useState(null);
+  const [selectedRows, setSelectedRows] = useState([]);
   const ITEMS_PER_PAGE = 10;
 
   const handleDeleteConfirm = () => {
     if (itemToDelete) {
-      const updatedData = healthCards.filter((c) => c.id !== itemToDelete.id);
-      setHealthCards(updatedData);
-      localStorage.setItem("health_cards_data", JSON.stringify(updatedData));
-      if (
-        selectedRows.some(
-          (rowIdx) => processedData[rowIdx]?.id === itemToDelete.id,
-        )
-      ) {
-        setSelectedRows([]);
-      }
+      const updatedData = employees.filter((d) => d.id !== itemToDelete.id);
+      setEmployees(updatedData);
+      localStorage.setItem("employees_data", JSON.stringify(updatedData));
+      setSelectedRows([]);
       setItemToDelete(null);
     }
   };
@@ -188,9 +90,9 @@ const HealthCard = () => {
   };
 
   const processedData = useMemo(() => {
-    let result = [...healthCards].filter((item) => {
+    let result = [...employees].filter((item) => {
       const matchesSearch =
-        item.applicant.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.phone.includes(searchQuery);
 
@@ -205,14 +107,6 @@ const HealthCard = () => {
       result.sort((a, b) => {
         let aValue = a[sortConfig.key];
         let bValue = b[sortConfig.key];
-
-        if (sortConfig.key === "members") {
-          aValue = a.members.length;
-          bValue = b.members.length;
-        } else if (sortConfig.key === "amount") {
-          aValue = a.payment.totalPaid;
-          bValue = b.payment.totalPaid;
-        }
 
         if (aValue === undefined) aValue = "";
         if (bValue === undefined) bValue = "";
@@ -233,7 +127,7 @@ const HealthCard = () => {
     }
 
     return result;
-  }, [healthCards, searchQuery, activeFilter, sortConfig]);
+  }, [employees, searchQuery, sortConfig, activeFilter]);
 
   const totalPages = Math.ceil(processedData.length / ITEMS_PER_PAGE) || 1;
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -284,7 +178,7 @@ const HealthCard = () => {
         <button
           key={idx}
           onClick={() => setCurrentPage(page)}
-          className={`w-7 h-7 flex items-center justify-center rounded-md text-sm font-medium ${
+          className={`w-7 h-7 flex items-center justify-center rounded-md text-sm font-medium transition-colors ${
             currentPage === page
               ? "bg-[#374151] text-[#FFFCFB]"
               : "text-[#4B5563] hover:bg-gray-100"
@@ -295,10 +189,6 @@ const HealthCard = () => {
       ),
     );
   };
-
-  const isFiltered = searchQuery !== "" || activeFilter !== "All";
-
-  const [selectedRows, setSelectedRows] = useState([]);
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
@@ -314,7 +204,7 @@ const HealthCard = () => {
       return;
     }
     const dataToExport = selectedRows.map((index) => processedData[index]);
-    exportToCSV(dataToExport, "HealthCard_Export.csv");
+    exportToCSV(dataToExport, "Employees_Export.csv");
   };
 
   const handleSelectRow = (globalIndex) => {
@@ -354,33 +244,29 @@ const HealthCard = () => {
     >
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 shrink-0 gap-4 sm:gap-0">
-        <h2 className="text-xl font-bold text-[#22333B]">
-          Health Card Applications
-        </h2>
+        <h2 className="text-xl font-bold text-[#22333B]">Employees</h2>
         <div className="flex items-center gap-4">
           <button
             onClick={handleExport}
-            className="px-4 py-1.5 border border-[#F68E5F] bg-[#FFFCFB] rounded-lg text-[15px] font-medium text-[#F68E5F] hover:bg-[#F68E5F] hover:text-[#FFFCFB] flex items-center gap-2"
+            className="px-4 py-1.5 border border-[#F68E5F] bg-[#FFFCFB] rounded-lg text-[15px] font-medium text-[#F68E5F] hover:bg-[#F68E5F] hover:text-[#FFFCFB] flex items-center gap-2 transition-colors"
           >
             Export <Download size={16} />
           </button>
-          {/* Create Button (Tablet/Mobile Only) */}
+
           <button
-            onClick={() => navigate("/admin/health-card/create")}
+            onClick={() => navigate("/admin/hr/employees/create")}
             className="flex lg:hidden px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff7535] transition-colors items-center gap-2"
           >
-            Create New
-            <span className="hidden sm:inline">application</span>
-            <Plus size={16} />
+            Add New Employee <Plus size={16} />
           </button>
         </div>
       </div>
 
       {/* Filters Bar */}
-      <div className="flex items-center justify-between mb-4 shrink-0">
-        <div className="flex items-center gap-4 flex-1">
+      <div className="flex items-center justify-between xl:flex-row flex-col gap-4 mb-4 shrink-0">
+        <div className="flex items-center gap-4 flex-wrap flex-1 xl:flex-nowrap">
           {/* Search */}
-          <div className="relative w-70">
+          <div className="relative w-full xl:w-70">
             <input
               type="text"
               placeholder="Search by name, id, phone"
@@ -399,7 +285,7 @@ const HealthCard = () => {
 
           {/* Status Tabs */}
           <div
-            className="flex p-1 bg-[#F7F7F7] rounded-xl shrink-0"
+            className="flex p-1 bg-[#F7F7F7] rounded-xl shrink-0 overflow-x-auto w-full xl:w-auto"
             style={{ fontFamily: "ABeeZee, sans-serif" }}
           >
             {["All", "Verified", "Not Verified", "Expired"].map((filter) => (
@@ -409,7 +295,7 @@ const HealthCard = () => {
                   setActiveFilter(filter);
                   setCurrentPage(1);
                 }}
-                className={`px-4 py-1.5 text-[15px] rounded-lg text-sm font-medium transition-colors ${
+                className={`px-4 py-1.5 whitespace-nowrap text-[15px] rounded-lg text-sm font-medium transition-colors ${
                   activeFilter === filter
                     ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
                     : "text-[#6B7280] hover:text-[#22333B]"
@@ -423,14 +309,14 @@ const HealthCard = () => {
 
         {/* Create Button (Desktop only) */}
         <button
-          onClick={() => navigate("/admin/health-card/create")}
-          className="hidden lg:flex px-5 py-2.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[16px] font-medium hover:bg-[#ff6e2b] transition-colors items-center gap-2"
+          onClick={() => navigate("/admin/hr/employees/create")}
+          className="hidden lg:flex px-5 py-2.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[16px] font-medium hover:bg-[#ff7535] transition-colors items-center gap-2 whitespace-nowrap"
         >
-          Create New application <Plus size={16} />
+          Add New Employee <Plus size={16} />
         </button>
       </div>
 
-      {/* Table & Fallbacks */}
+      {/* Table */}
       <div className="bg-white border border-[#D9D9D9] rounded-2xl overflow-hidden flex flex-col flex-1 min-h-0">
         {paginatedData.length > 0 ? (
           <div className="overflow-y-auto overflow-x-auto flex-1">
@@ -448,36 +334,31 @@ const HealthCard = () => {
                       className="w-4 h-4 rounded border-[#D1D5DB] border text-[#22333B] focus:ring-[#111827]"
                     />
                   </th>
-                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-17.5">
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-17.5 text-center">
                     Sr.no
                   </th>
-                  {renderSortableHeader("Card ID", "id", "left", "w-[130px]")}
+                  {renderSortableHeader("EMP ID", "id", "left", "w-[120px]")}
                   {renderSortableHeader(
-                    "Applicant",
-                    "applicant",
+                    "Name",
+                    "name",
                     "left",
-                    "min-w-[180px]",
+                    "min-w-[150px]",
                   )}
-                  {renderSortableHeader("Phone", "phone", "left", "w-[140px]")}
+                  {renderSortableHeader("Phone", "phone", "left", "w-[130px]")}
+                  {renderSortableHeader("Email", "email", "left", "w-[160px]")}
                   {renderSortableHeader(
-                    "Members",
-                    "members",
-                    "center",
-                    "w-[120px]",
-                  )}
-                  {renderSortableHeader(
-                    "Amount",
-                    "amount",
-                    "right",
-                    "w-[120px]",
+                    "Date of Joining",
+                    "dateOfJoining",
+                    "left",
+                    "w-[150px]",
                   )}
                   {renderSortableHeader(
-                    "Status",
-                    "status",
+                    "Location",
+                    "location",
                     "left",
                     "w-[140px]",
                   )}
-                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-32.5">
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-24">
                     Actions
                   </th>
                 </tr>
@@ -485,43 +366,43 @@ const HealthCard = () => {
               <tbody>
                 {paginatedData.map((row, index) => {
                   const globalIndex = startIndex + index;
+                  const isChecked = selectedRows.includes(globalIndex);
                   return (
                     <tr
-                      key={index}
+                      key={globalIndex}
                       className="border-b border-[#F3F4F6] hover:bg-[#F9FAFB] transition-colors"
                     >
-                      <td className="py-3 px-4 text-center">
+                      <td className="py-4 px-4 text-center">
                         <input
                           type="checkbox"
-                          checked={selectedRows.includes(globalIndex)}
+                          checked={isChecked}
                           onChange={() => handleSelectRow(globalIndex)}
                           className="w-4 h-4 rounded border-[#D1D5DB] text-[#22333B] focus:ring-[#111827]"
                         />
                       </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B]">
+                      <td className="py-3 px-4 text-sm font-normal text-[#4B5563] text-center">
                         {globalIndex + 1}
                       </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
+                      <td className="py-3 px-4 text-sm font-normal text-[#4B5563] whitespace-nowrap">
                         {row.id}
                       </td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
-                        {row.applicant}
+                        {row.name}
                       </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
+                      <td className="py-3 px-4 text-sm font-normal text-[#4B5563] whitespace-nowrap">
                         {row.phone}
                       </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] text-center">
-                        {row.members?.length || 0}
+                      <td className="py-3 px-4 text-sm font-normal text-[#4B5563] whitespace-nowrap">
+                        {row.email}
                       </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] text-right whitespace-nowrap">
-                        ₹{Number(row.payment?.totalPaid || 0).toFixed(2)}
+                      <td className="py-3 px-4 text-sm font-normal text-[#4B5563] whitespace-nowrap">
+                        {row.dateOfJoining}
+                      </td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#4B5563] whitespace-nowrap">
+                        {row.location}
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
-                        <StatusBadge status={row.status} />
-                      </td>
-                      <td className="py-3 px-4">
                         <ActionButtons
-                          status={row.status}
                           item={row}
                           navigate={navigate}
                           onDelete={setItemToDelete}
@@ -534,34 +415,22 @@ const HealthCard = () => {
             </table>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center flex-1 py-12 bg-white">
-            <div className="w-24 h-24 bg-[#F8FAFC] rounded-full flex items-center justify-center mb-6">
-              <img src="/admin_images/folder.svg" alt="no card found" />
-            </div>
-            <h3 className="text-[20px] font-bold text-[#0F172A] mb-3">
-              No Card Applications Found
-            </h3>
-            {!isFiltered && (
-              <button
-                onClick={() => navigate("/admin/health-card/create")}
-                className="flex items-center gap-2 px-6 py-2.5 bg-[#F68E5F] hover:bg-[#ff7535] text-[#FFFCFB] rounded-lg text-sm font-medium transition-colors shadow-sm"
-              >
-                <PlusCircle size={18} />
-                Create New Application
-              </button>
-            )}
+          <div className="flex-1 flex flex-col items-center justify-center py-12 text-[#6B7280]">
+            <p className="text-lg font-bold text-[#22333B] mb-1">
+              No employee found
+            </p>
           </div>
         )}
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-center px-2 py-4 relative mt-2 shrink-0">
-        <span className="absolute left-0 text-sm font-medium text-[#4B5563]">
+      <div className="flex items-center justify-between px-2 py-4 relative mt-2 shrink-0">
+        <span className="text-sm font-medium text-[#4B5563]">
           Showing {processedData.length > 0 ? startIndex + 1 : 0} -{" "}
           {Math.min(startIndex + ITEMS_PER_PAGE, processedData.length)} of{" "}
           {processedData.length}
         </span>
-        <div className="flex items-center gap-1 text-sm font-medium">
+        <div className="flex items-center gap-1 text-sm font-medium absolute left-1/2 -translate-x-1/2">
           <button
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage === 1}
@@ -579,6 +448,7 @@ const HealthCard = () => {
           </button>
         </div>
       </div>
+
       {/* Delete Confirmation Modal */}
       {itemToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -592,9 +462,9 @@ const HealthCard = () => {
               </h3>
             </div>
             <p className="text-[#4B5563] text-sm mb-6 pl-12 line-clamp-3">
-              Do you really want to delete the health card application for{" "}
-              <strong>{itemToDelete.applicant}</strong> ({itemToDelete.id})?
-              This process cannot be undone.
+              Do you really want to delete the employee{" "}
+              <strong>{itemToDelete.name}</strong> ({itemToDelete.id})? This
+              process cannot be undone.
             </p>
             <div className="flex justify-end gap-3">
               <button
@@ -617,4 +487,4 @@ const HealthCard = () => {
   );
 };
 
-export default HealthCard;
+export default Employees;
