@@ -41,13 +41,13 @@ const Login = () => {
         <div className="bg-white rounded-4xl shadow-xl p-8 pt-20 relative w-135 h-137.5 border border-gray-100 flex flex-col justify-center">
           
           {/* Tabs */}
-          <div className="flex w-full mb-6 border rounded-xl border-[#C90700] p-2"style={{fontFamily:"'Nunito Sans', sans-serif"}}>
+          <div className="flex w-full mb-6 border rounded-xl border-[#F68E5F] p-2"style={{fontFamily:"'Nunito Sans', sans-serif"}}>
             <button
               type="button"
               className={`flex-1 py-2 text-[16px] font-semibold font-['Nunito_Sans'] rounded-xl transition-colors duration-200 ${
                 activeTab === 'Admin'
-                  ? 'bg-[#C90700] text-white shadow-sm'
-                  : 'text-[#C90700] bg-transparent'
+                  ? 'bg-[#F68E5F] text-white shadow-sm'
+                  : 'text-[#F68E5F] bg-transparent'
               }`}
               onClick={() => setActiveTab('Admin')}
             >
@@ -57,8 +57,8 @@ const Login = () => {
               type="button"
               className={`flex-1 py-2 text-[16px] font-semibold font-['Nunito_Sans'] rounded-xl transition-colors duration-200 ${
                 activeTab === 'Employee'
-                  ? 'bg-[#C90700] text-white shadow-sm'
-                  : 'text-[#C90700] bg-transparent'
+                  ? 'bg-[#F68E5F] text-white shadow-sm'
+                  : 'text-[#F68E5F] bg-transparent'
               }`}
               onClick={() => setActiveTab('Employee')}
             >
@@ -75,7 +75,7 @@ const Login = () => {
                 placeholder="example123@gmail.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-full text-gray-800 font-['Inter'] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C90700]/30 transition-colors"
+                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-full text-gray-800 font-['Inter'] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F68E5F]/30 transition-colors"
                 required
               />
             </div>
@@ -88,7 +88,7 @@ const Login = () => {
                 placeholder="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-full text-gray-800 font-['Inter'] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C90700]/30 transition-colors"
+                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-full text-gray-800 font-['Inter'] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F68E5F]/30 transition-colors"
                 required
               />
             </div>
@@ -101,7 +101,7 @@ const Login = () => {
                     type="checkbox"
                     checked={keepLogged}
                     onChange={(e) => setKeepLogged(e.target.checked)}
-                    className="peer appearance-none w-5 h-5 border-2 border-gray-400 rounded bg-white checked:bg-gray-500 checked:border-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-1 transition-all"
+                    className="peer appearance-none w-5 h-5 border-2 border-gray-400 rounded bg-white checked:bg-[#F68E5F] checked:border-[#F68E5F] focus:outline-none focus:ring-2 focus:ring-[#F68E5F]/30 focus:ring-offset-1 transition-all"
                   />
                   <svg 
                     className="absolute w-3.5 h-3.5 pointer-events-none opacity-0 peer-checked:opacity-100 text-white" 
@@ -120,7 +120,7 @@ const Login = () => {
 
               <button 
                 type="button" 
-                className="text-[16px] font-normal font-['Inter'] text-[#C90700] mt-5 hover:text-[#ff0800] transition-colors underline-offset-4 hover:underline"
+                className="text-[16px] font-normal font-['Inter'] text-[#F68E5F] mt-5 hover:text-[#ff702d] transition-colors underline-offset-4 hover:underline"
               >
                 Forgot password?
               </button>
@@ -129,7 +129,7 @@ const Login = () => {
             {/* Submit Button */}
             <button
               type="submit"
-              className="w-full py-3 mt-14 text-white font-medium font-['Nunito_Sans'] rounded-full shadow-md transition-transform active:scale-[0.98] bg-linear-to-r from-[#C90700] to-[#E76705] hover:opacity-90 flex items-center justify-center gap-2"
+              className="w-full py-3 mt-14 text-white font-medium font-['Nunito_Sans'] rounded-full shadow-md transition-transform active:scale-[0.98] bg-[#F68E5F] hover:bg-[#ff702d] flex items-center justify-center gap-2"
             >
               Login
             </button>
