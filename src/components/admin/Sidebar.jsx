@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Menu,
   LayoutDashboard,
@@ -18,6 +18,19 @@ import {
 const Sidebar = () => {
   const [isHovered, setIsHovered] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const clearAuth = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
+  };
+
+  const handleLogout = () => {
+    clearAuth();
+    navigate('/login');
+  };
   const mainMenuItems = [
     { name: "Dashboard", icon: LayoutDashboard, path: "/admin" },
     { name: "Health Card", icon: CreditCard, path: "/admin/health-card" },
@@ -67,10 +80,9 @@ const Sidebar = () => {
             to={item.subItems ? item.subItems[0].path : item.path}
             end={item.path === "/admin"}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 mx-4 rounded-lg text-sm font-medium transition-colors ${
-                isActive || isParentActive
-                  ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
-                  : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
+              `flex items-center gap-3 px-4 py-3 mx-4 rounded-lg text-sm font-medium transition-colors ${isActive || isParentActive
+                ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
+                : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
               }`
             }
           >
@@ -112,10 +124,9 @@ const Sidebar = () => {
                   <NavLink
                     to={subItem.path}
                     className={({ isActive }) =>
-                      `pl-20 py-1.5 text-sm font-medium transition-colors border-b-2 ${
-                        isActive
-                          ? "text-[#22333B] border-[#22333B]"
-                          : "text-[#6B7280] border-transparent hover:text-[#22333B]"
+                      `pl-20 py-1.5 text-sm font-medium transition-colors border-b-2 ${isActive
+                        ? "text-[#22333B] border-[#22333B]"
+                        : "text-[#6B7280] border-transparent hover:text-[#22333B]"
                       }`
                     }
                   >
@@ -160,10 +171,12 @@ const Sidebar = () => {
         </nav>
       </div>
 
-      {/* Logout Button */}
-      <div className="mb-8 pl-4 ">
-        <button className="flex items-center gap-3 px-4 py-3 rounded-lg text-[16px] font-medium text-[#22333B] hover:bg-gray-100 transition-colors w-[calc(100%-1rem)]">
-          <LogOut size={20} strokeWidth={2} className="text-[#22333B]" />
+      <div className="mb-8 pl-4">
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-4 py-3 rounded-lg text-[16px] font-medium text-[#22333B] hover:bg-red-50 hover:text-red-500 transition-colors w-[calc(100%-1rem)] group"
+        >
+          <LogOut size={20} strokeWidth={2} className="text-[#22333B] group-hover:text-red-500 transition-colors" />
           Logout
         </button>
       </div>
@@ -211,10 +224,9 @@ const Sidebar = () => {
                     to={item.subItems ? item.subItems[0].path : item.path}
                     end={item.path === "/admin"}
                     className={({ isActive }) =>
-                      `flex justify-center items-center w-10 h-10 rounded-lg transition-colors ${
-                        isActive || isParentActive
-                          ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
-                          : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
+                      `flex justify-center items-center w-10 h-10 rounded-lg transition-colors ${isActive || isParentActive
+                        ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
+                        : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
                       }`
                     }
                   >
@@ -259,10 +271,9 @@ const Sidebar = () => {
                   to={item.path}
                   end={item.path === "/admin"}
                   className={({ isActive }) =>
-                    `flex justify-center items-center w-10 h-10 rounded-lg transition-colors ${
-                      isActive
-                        ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
-                        : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
+                    `flex justify-center items-center w-10 h-10 rounded-lg transition-colors ${isActive
+                      ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
+                      : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
                     }`
                   }
                 >
