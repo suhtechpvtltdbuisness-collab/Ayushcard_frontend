@@ -4,6 +4,9 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
 
+// Auth
+import Login from "./pages/auth/Login";
+
 // Home sections
 import HeroSection from "./components/sections/home/HeroSection";
 import About from "./components/sections/home/About";
@@ -55,6 +58,9 @@ function App() {
   return (
     <Router>
       <Routes>
+
+        {/* Auth routes */}
+        <Route path="/login" element={<Login />} />
 
         {/* Home Page */}
         <Route

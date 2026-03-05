@@ -34,14 +34,13 @@ const Navbar = () => {
             </Link>
           </div>
 
-          {/* Donate Button */}
+          {/* Login Button */}
           <div className="hidden md:block">
-            <button className="flex items-center gap-2 bg-[#F68E5F] active:scale-95 text-white text-sm font-semibold pl-5 pr-1 py-1 rounded-full transition-all duration-200 shadow-md">
-              Donate
-              <span className="flex items-center justify-center bg-white rounded-full w-7 h-7">
-                <img src="/donateicon.svg" alt="Donate Icon" className="w-4 h-4" />
-              </span>
-            </button>
+            <Link to="/login">
+              <button className="bg-[#F68E5F] hover:bg-[#E57A4B] active:scale-95 text-white text-[16px] font-semibold px-6 py-2 rounded-full transition-all duration-200 shadow-md">
+                Login
+              </button>
+            </Link>
           </div>
 
           {/* Mobile Hamburger */}
@@ -79,12 +78,11 @@ const Navbar = () => {
               Contact Us
             </Link>
 
-            <button className="flex items-center justify-between bg-[#F68E5F] text-white font-semibold pl-5 pr-1 py-1 rounded-full transition-all duration-200 w-full">
-              Donate
-              <span className="flex items-center justify-center bg-white rounded-full w-7 h-7">
-                <img src="/donateicon.svg" alt="Donate Icon" className="w-4 h-4" />
-              </span>
-            </button>
+            <Link to="/login" className="block w-full">
+              <button className="bg-[#F68E5F] hover:bg-[#E57A4B] text-white font-semibold px-6 py-2 rounded-full transition-all duration-200 w-full text-center text-sm">
+                Login
+              </button>
+            </Link>
           </div>
         )}
       </div>
