@@ -44,6 +44,8 @@ import PartnerDetails from "./pages/admin/Partners/PartnerDetails";
 import CreatePartner from "./pages/admin/Partners/CreatePartner";
 import Donations from "./pages/admin/Donations/Donations";
 import DonationDetails from "./pages/admin/Donations/DonationDetails";
+import HelpSupport from "./pages/admin/HelpSupport/HelpSupport";
+import Reports from "./pages/admin/Reports/Reports";
 
 // HR & Payroll
 import Employees from "./pages/admin/hr/employees/Employees";
@@ -159,6 +161,8 @@ function App() {
           <Route path="hr/salary/create" element={<CreateSalary />} />
           <Route path="hr/salary/:id" element={<SalaryDetails />} />
           {/* Add admin sub-routes*/}
+          <Route path="help" element={<HelpSupport />} />
+          <Route path="reports" element={<Reports />} />
         </Route>
 
       </Routes>

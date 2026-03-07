@@ -26,19 +26,19 @@ const HealthCardDetails = () => {
   const [cardSide, setCardSide] = useState("front");
 
   useEffect(() => {
-    const totalMembers =
-      formData.totalMembers !== undefined
-        ? Number(formData.totalMembers)
-        : formData.members?.length || 0;
-    const calculatedTotal = 120 + totalMembers * 10;
+    // Calculate total including base 120 (applicant) + (included configs up to 7) * 10
+    const includedMembersCount = Math.min(formData.members?.length || 0, 7);
+    const calculatedTotal = 120 + includedMembersCount * 10;
+
     setFormData((prev) => ({
       ...prev,
       payment: {
         ...prev.payment,
+        memberAddOns: includedMembersCount * 10,
         totalPaid: calculatedTotal.toFixed(2),
       },
     }));
-  }, [formData.members, formData.totalMembers]);
+  }, [formData.members]);
 
   const handleChange = (e, field) => {
     let value = e.target.value;
@@ -462,14 +462,9 @@ const HealthCardDetails = () => {
               </label>
               <input
                 type="text"
-                value={
-                  formData.totalMembers !== undefined
-                    ? formData.totalMembers
-                    : formData.members?.length || 0
-                }
-                onChange={(e) => handleChange(e, "totalMembers")}
-                disabled={!isEditing}
-                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
+                value={(formData.members?.length || 0) + 1}
+                readOnly
+                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none bg-gray-50`}
               />
             </div>
             <div>

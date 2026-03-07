@@ -14,7 +14,7 @@ const Navbar = () => {
             <img
               src="/logo.svg"
               alt="BKBS Trust Logo"
-              className="w-20 h-20 object-contain rounded-full cursor-pointer"
+              className="w-40 h-20 object-contain rounded-full cursor-pointer"
             />
           </Link>
 

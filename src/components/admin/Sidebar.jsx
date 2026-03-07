@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Menu,
   LayoutDashboard,
@@ -18,6 +18,12 @@ import {
 const Sidebar = () => {
   const [isHovered, setIsHovered] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    navigate("/login");
+  };
+
   const mainMenuItems = [
     { name: "Dashboard", icon: LayoutDashboard, path: "/admin" },
     { name: "Health Card", icon: CreditCard, path: "/admin/health-card" },
@@ -47,11 +53,6 @@ const Sidebar = () => {
       name: "Reports",
       customIcon: "/admin_images/reports.svg",
       path: "/admin/reports",
-    },
-    {
-      name: "Settings",
-      customIcon: "/admin_images/settings.svg",
-      path: "/admin/settings",
     },
     { name: "Help & Support", icon: HelpCircle, path: "/admin/help" },
   ];
@@ -162,7 +163,10 @@ const Sidebar = () => {
 
       {/* Logout Button */}
       <div className="mb-8 pl-4 ">
-        <button className="flex items-center gap-3 px-4 py-3 rounded-lg text-[16px] font-medium text-[#22333B] hover:bg-gray-100 transition-colors w-[calc(100%-1rem)]">
+        <button 
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-4 py-3 rounded-lg text-[16px] font-medium text-[#22333B] hover:bg-gray-100 transition-colors w-[calc(100%-1rem)]"
+        >
           <LogOut size={20} strokeWidth={2} className="text-[#22333B]" />
           Logout
         </button>
