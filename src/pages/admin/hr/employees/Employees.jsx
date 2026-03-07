@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from "react";
-import { Search, Eye, Trash2, Download, Plus, ArrowUpDown } from "lucide-react";
+import React, { useState, useMemo, useEffect } from "react";
+import { Search, Eye, Trash2, Download, Plus, ArrowUpDown, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { exportToCSV } from "../../../../utils/exportUtils";
+import apiService from "../../../../api/service";
 
 export const getEmployees = () => {
   const stored = localStorage.getItem("employees_data");
@@ -62,7 +63,8 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
 
 const Employees = () => {
   const navigate = useNavigate();
-  const [employees, setEmployees] = useState(getEmployees());
+  const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
@@ -71,13 +73,65 @@ const Employees = () => {
   const [selectedRows, setSelectedRows] = useState([]);
   const ITEMS_PER_PAGE = 10;
 
-  const handleDeleteConfirm = () => {
+  useEffect(() => {
+    fetchEmployees();
+  }, []);
+
+  const fetchEmployees = async () => {
+    try {
+      setLoading(true);
+      const res = await apiService.getEmployees();
+      const rawData = res.data || res;
+
+      let list = Array.isArray(rawData) ? rawData : [];
+      if (!list.length && rawData?.data && Array.isArray(rawData.data)) list = rawData.data;
+      if (!list.length && rawData?.users && Array.isArray(rawData.users)) list = rawData.users;
+      if (!list.length && rawData?.employees && Array.isArray(rawData.employees)) list = rawData.employees;
+
+      const mapped = list.map((u, i) => ({
+        id: u.employeeId || u._id || `EMP-${1000 + i}`,
+        name: u.name || "Unknown",
+        phone: u.contact || "N/A",
+        email: u.email || "N/A",
+        dateOfJoining: u.dateOfJoining ? new Date(u.dateOfJoining).toLocaleDateString() : "N/A",
+        location: u.location || "Unknown",
+        status: u.status || "Verified",
+        salary: u.salary ? u.salary.toString() : "0",
+        workingHoursFrom: u.workStartTime || "10:00 AM",
+        workingHoursTo: u.workEndTime || "6:00 PM",
+        role: u.role || "Employee",
+        _rawId: u._id // Keep original _id for operations
+      }));
+      setEmployees(mapped.reverse());
+    } catch (err) {
+      console.error("Fetch employees error:", err);
+      setEmployees(getEmployees()); // Fallback to mock data on error
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
     if (itemToDelete) {
-      const updatedData = employees.filter((d) => d.id !== itemToDelete.id);
-      setEmployees(updatedData);
-      localStorage.setItem("employees_data", JSON.stringify(updatedData));
-      setSelectedRows([]);
-      setItemToDelete(null);
+      try {
+        const targetId = itemToDelete._rawId || itemToDelete.id;
+        if (!targetId.startsWith("EMP-")) {
+          // If it's a real MongoDB _id, pass that
+          await apiService.deleteEmployee(targetId);
+        } else {
+          // Fallback if we accidentally try to delete a mock "EMP-100X" items
+          console.warn("Attempting to delete local mock employee", targetId);
+        }
+
+        const updatedData = employees.filter((d) => d.id !== itemToDelete.id);
+        setEmployees(updatedData);
+        localStorage.setItem("employees_data", JSON.stringify(updatedData));
+      } catch (err) {
+        console.error("Failed to delete employee:", err);
+      } finally {
+        setSelectedRows([]);
+        setItemToDelete(null);
+      }
     }
   };
 
@@ -178,11 +232,10 @@ const Employees = () => {
         <button
           key={idx}
           onClick={() => setCurrentPage(page)}
-          className={`w-7 h-7 flex items-center justify-center rounded-md text-sm font-medium transition-colors ${
-            currentPage === page
-              ? "bg-[#374151] text-[#FFFCFB]"
-              : "text-[#4B5563] hover:bg-gray-100"
-          }`}
+          className={`w-7 h-7 flex items-center justify-center rounded-md text-sm font-medium transition-colors ${currentPage === page
+            ? "bg-[#374151] text-[#FFFCFB]"
+            : "text-[#4B5563] hover:bg-gray-100"
+            }`}
         >
           {page}
         </button>
@@ -295,11 +348,10 @@ const Employees = () => {
                   setActiveFilter(filter);
                   setCurrentPage(1);
                 }}
-                className={`px-4 py-1.5 whitespace-nowrap text-[15px] rounded-lg text-sm font-medium transition-colors ${
-                  activeFilter === filter
-                    ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
-                    : "text-[#6B7280] hover:text-[#22333B]"
-                }`}
+                className={`px-4 py-1.5 whitespace-nowrap text-[15px] rounded-lg text-sm font-medium transition-colors ${activeFilter === filter
+                  ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
+                  : "text-[#6B7280] hover:text-[#22333B]"
+                  }`}
               >
                 {filter}
               </button>
@@ -318,7 +370,12 @@ const Employees = () => {
 
       {/* Table */}
       <div className="bg-white border border-[#D9D9D9] rounded-2xl overflow-hidden flex flex-col flex-1 min-h-0">
-        {paginatedData.length > 0 ? (
+        {loading ? (
+          <div className="flex-1 flex flex-col items-center justify-center py-12 text-[#6B7280]">
+            <Loader2 size={32} className="animate-spin text-[#F68E5F] mb-4" />
+            <p className="text-sm font-medium">Loading Employees...</p>
+          </div>
+        ) : paginatedData.length > 0 ? (
           <div className="overflow-y-auto overflow-x-auto flex-1">
             <table className="w-full text-left border-collapse relative">
               <thead className="sticky top-0 z-10 bg-[#FFFFFF]">

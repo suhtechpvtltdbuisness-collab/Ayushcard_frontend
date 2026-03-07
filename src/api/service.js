@@ -125,10 +125,11 @@ api.interceptors.response.use(
                 originalRequest.headers.Authorization = `Bearer ${newToken}`;
                 return api(originalRequest);
             } catch (refreshError) {
-                // Refresh failed → tokens are unusable → force logout
+                // Refresh failed → tokens are unusable → fire auth:logout event
+                // ProtectedRoute listens for this and navigates to /login via React Router.
                 processQueue(refreshError, null);
                 storage.clear();
-                window.location.href = '/login';
+                window.dispatchEvent(new CustomEvent('auth:logout'));
                 return Promise.reject(refreshError);
             } finally {
                 isRefreshing = false;
@@ -165,6 +166,119 @@ const apiService = {
         if (import.meta.env.DEV) {
             console.log('[getProfile] raw response:', response.data);
         }
+        return response.data;
+    },
+
+    // GET /api/users
+    getEmployees: async () => {
+        const response = await api.get('/api/users');
+        return response.data;
+    },
+
+    // POST /api/users
+    createEmployee: async (employeeData) => {
+        const response = await api.post('/api/users', employeeData);
+        return response.data;
+    },
+
+    // PUT /api/users/employee/:userId
+    updateEmployee: async (userId, employeeData) => {
+        const response = await api.put(`/api/users/employee/${userId}`, employeeData);
+        return response.data;
+    },
+
+    // DELETE /api/users/:id
+    deleteEmployee: async (id) => {
+        const response = await api.delete(`/api/users/${id}`);
+        return response.data;
+    },
+
+    // ─── HEALTH CARDS ─────────────────────────────────────────────────────
+
+    // POST /api/cards
+    createHealthCard: async (cardData, file = null) => {
+        if (file) {
+            const form = new FormData();
+            Object.keys(cardData).forEach((key) => {
+                if (key === 'members' && Array.isArray(cardData[key])) {
+                    // Backend expects form-data arrays explicitly formatted vs stringified
+                    cardData[key].forEach((member, index) => {
+                        if (member.name) form.append(`members[${index}][name]`, member.name);
+                        if (member.relation) form.append(`members[${index}][relation]`, member.relation);
+                        if (member.age) form.append(`members[${index}][age]`, member.age);
+                    });
+                } else if (typeof cardData[key] === 'object' && cardData[key] !== null) {
+                    form.append(key, JSON.stringify(cardData[key]));
+                } else {
+                    form.append(key, cardData[key]);
+                }
+            });
+            form.append('documents', file); // Append binary under 'documents' field to match array
+            const response = await api.post('/api/cards', form, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            return response.data;
+        }
+        const response = await api.post('/api/cards', cardData);
+        return response.data;
+    },
+
+    // GET /api/cards
+    getHealthCards: async () => {
+        const response = await api.get('/api/cards');
+        return response.data;
+    },
+
+    // GET /api/cards/:id
+    getHealthCardById: async (id) => {
+        const response = await api.get(`/api/cards/${id}`);
+        return response.data;
+    },
+
+    // PUT /api/cards/:id
+    updateHealthCard: async (id, cardData, file = null) => {
+        if (file) {
+            const form = new FormData();
+            Object.keys(cardData).forEach((key) => {
+                if (key === 'members' && Array.isArray(cardData[key])) {
+                    cardData[key].forEach((member, index) => {
+                        if (member.name) form.append(`members[${index}][name]`, member.name);
+                        if (member.relation) form.append(`members[${index}][relation]`, member.relation);
+                        if (member.age) form.append(`members[${index}][age]`, member.age);
+                    });
+                } else if (typeof cardData[key] === 'object' && cardData[key] !== null) {
+                    form.append(key, JSON.stringify(cardData[key]));
+                } else {
+                    form.append(key, cardData[key]);
+                }
+            });
+            form.append('documents', file); // Append binary under 'documents' field
+            const response = await api.put(`/api/cards/${id}`, form, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            return response.data;
+        }
+        const response = await api.put(`/api/cards/${id}`, cardData);
+        return response.data;
+    },
+
+    // PATCH /api/cards/:id/status  (status-only update)
+    updateHealthCardStatus: async (id, status) => {
+        const response = await api.patch(`/api/cards/${id}/status`, { status });
+        return response.data;
+    },
+
+    // DELETE /api/cards/:id
+    deleteHealthCard: async (id) => {
+        const response = await api.delete(`/api/cards/${id}`);
+        return response.data;
+    },
+
+    // ─── CARD MEMBERS ─────────────────────────────────────────────────────
+
+    // GET /api/card-members/card/:cardId
+    getCardMembers: async (cardId) => {
+        const response = await api.get(`/api/card-members/card/${cardId}`);
         return response.data;
     },
 

@@ -35,7 +35,7 @@ const AyushCardPreview = ({ data, side = "front", onFlip }) => {
                   <h2 className="text-[16px] font-bold">BAI SEWA TRUST</h2>
                 </div>
                 <p className="text-[11px]">
-                  Card No: {data?.id || "AC-2962638"}
+                  Card No: {data?.cardNo || data?.cardNumber || data?.id || "—"}
                 </p>
               </div>
             </div>
@@ -62,12 +62,17 @@ const AyushCardPreview = ({ data, side = "front", onFlip }) => {
             <div className="flex-1 bg-white text-black rounded-xl p-2 text-[13px] space-y-2 flex flex-col justify-center">
               <Row
                 label="Name"
-                value={data?.applicant || "Rahul Madansingh Sharma"}
+                value={
+                  data?.applicant ||
+                  [data?.applicantFirstName, data?.applicantMiddleName, data?.applicantLastName]
+                    .filter(Boolean).join(" ") ||
+                  "—"
+                }
               />
-              <Row label="W/o" value="—" muted />
-              <Row label="DOB" value="—" muted />
-              <Row label="Phone" value={data?.phone || "06 74459204"} />
-              <Row label="Reg Date" value={data?.dateApplied || "20-02-2026"} />
+              <Row label="W/o" value={data?.relatedPerson || "—"} muted={!data?.relatedPerson} />
+              <Row label="DOB" value={data?.dob || "—"} muted={!data?.dob} />
+              <Row label="Phone" value={data?.phone || "—"} />
+              <Row label="Reg Date" value={data?.dateApplied || "—"} />
             </div>
 
             <div className="w-28.75 bg-white rounded-xl p-2 flex items-center justify-center">
@@ -142,7 +147,7 @@ const AyushCardPreview = ({ data, side = "front", onFlip }) => {
                     </h2>
                   </div>
                   <p className="text-[8px] m-0 font-medium">
-                    Card No: {data?.id || "AC-2962638"}
+                    Card No: {data?.cardNo || data?.cardNumber || data?.id || "—"}
                   </p>
                 </div>
               </div>
@@ -185,12 +190,12 @@ const AyushCardPreview = ({ data, side = "front", onFlip }) => {
                   {(data?.members?.length > 0
                     ? data.members
                     : [
-                        { name: "Parmanand", age: 41, relation: "Spouse" },
-                        { name: "Ankit", age: 16, relation: "Son" },
-                        { name: "Ragini", age: 15, relation: "Daughter" },
-                        { name: "Shalini", age: 12, relation: "Daughter" },
-                        { name: "Nandini", age: 9, relation: "Daughter" },
-                      ]
+                      { name: "Parmanand", age: 41, relation: "Spouse" },
+                      { name: "Ankit", age: 16, relation: "Son" },
+                      { name: "Ragini", age: 15, relation: "Daughter" },
+                      { name: "Shalini", age: 12, relation: "Daughter" },
+                      { name: "Nandini", age: 9, relation: "Daughter" },
+                    ]
                   )
                     .slice(0, 5)
                     .map((m, i) => (
@@ -237,13 +242,13 @@ const AyushCardPreview = ({ data, side = "front", onFlip }) => {
                   <div className="flex items-center">
                     <span className="w-16">Date</span>:{" "}
                     <span className="ml-1 font-medium">
-                      {data?.issueDate || "14 Jan 2026"}
+                      {data?.issueDate || "—"}
                     </span>
                   </div>
                   <div className="flex items-center mt-1">
                     <span className="w-16">Expiry Date</span>:{" "}
                     <span className="ml-1 font-medium">
-                      {data?.expiryDate || "14 Jan 2027"}
+                      {data?.expiryDate || "—"}
                     </span>
                   </div>
                 </div>

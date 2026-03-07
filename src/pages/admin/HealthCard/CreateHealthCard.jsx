@@ -1,11 +1,20 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronDown, ArrowLeft } from "lucide-react";
+import { ChevronDown, ArrowLeft, Loader2 } from "lucide-react";
 import { getHealthCards } from "./HealthCard";
+import apiService from "../../../api/service";
+
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 const CreateHealthCard = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
+
+  // Save/API state
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [pendingFile, setPendingFile] = useState(null);
 
   const [formData, setFormData] = useState({
     id: "",
@@ -73,7 +82,7 @@ const CreateHealthCard = () => {
         "totalMembers",
       ].includes(field)
     ) {
-      value = value.replace(/[^0-9.]/g, ""); // allow numbers and dot for payment
+      value = value.replace(/[^0-9.]/g, "");
     }
 
     if (field === "totalMembers" && Number(value) > 7) {
@@ -123,28 +132,85 @@ const CreateHealthCard = () => {
     if (file && (file.type === "image/jpeg" || file.type === "image/png")) {
       const imageUrl = URL.createObjectURL(file);
       setFormData((prev) => ({ ...prev, profileImage: imageUrl }));
+      setPendingFile(file); // store actual file for FormData API POST
     } else {
       alert("Please upload a valid .jpg or .png image.");
     }
   };
 
-  const handleSave = () => {
-    const cards = getHealthCards();
+  // ── Save / Create Handler ──────────────────────────────────────────────────
+  const handleSave = async () => {
+    setSaveError("");
 
-    const newCard = {
-      ...formData,
-      id: `AC-${Math.floor(1000000 + Math.random() * 9000000)}`,
-      applicant:
-        `${formData.applicantFirstName || ""} ${formData.applicantMiddleName || ""} ${formData.applicantLastName || ""}`
-          .trim()
-          .replace(/\s+/g, " "),
+    // ── Client-side validation for backend required fields
+    if (!formData.applicantFirstName?.trim()) {
+      setSaveError("First name is required.");
+      return;
+    }
+    if (!formData.phone?.trim()) {
+      setSaveError("Phone number (Contact) is required.");
+      return;
+    }
+
+    // Map form fields → API payload
+    // NOTE: applicationId is NOT sent — backend auto-generates it
+    const payload = {
+      applicationDate: formData.dateApplied || "",
+      status: (() => {
+        const s = (formData.status || "").toLowerCase();
+        if (s.includes("not verified")) return "pending";
+        if (s.includes("pending")) return "pending";
+        if (s.includes("approved") || s.includes("verified")) return "approved";
+        if (s.includes("reject")) return "rejected";
+        if (s.includes("active")) return "active";
+        if (s.includes("expire")) return "expired";
+        return "pending";
+      })(),
+      firstName: formData.applicantFirstName.trim(),
+      middleName: formData.applicantMiddleName?.trim() || "",
+      lastName: formData.applicantLastName?.trim() || "",
+      contact: formData.phone.trim(),
+      alternateContact: formData.altPhone?.trim() || "",
+      email: formData.email?.trim() || "",
+      cardIssueDate: formData.issueDate || "",
+      cardExpiredDate: formData.expiryDate || "",
+      verificationDate: formData.verificationDate || "",
+      totalMember:
+        formData.totalMembers !== undefined
+          ? Number(formData.totalMembers)
+          : formData.members?.length || 0,
+      totalAmount: parseFloat(formData.payment?.totalPaid || "0"),
+      members: formData.members || [], // explicitly include members array
     };
 
-    cards.unshift(newCard); // Add to the top of the list
-    localStorage.setItem("health_cards_data", JSON.stringify(cards));
+    // Only include cardNo if the user actually filled it in
+    const cardNoVal = formData.cardNumber?.trim();
+    if (cardNoVal) payload.cardNo = cardNoVal;
 
-    navigate("/admin/health-card");
+    console.log("[CreateHealthCard] Sending payload to POST /api/cards:", payload);
+
+    setSaveLoading(true);
+    try {
+      // Send JSON fields + optional file
+      const result = await apiService.createHealthCard(payload, pendingFile);
+      console.log("[CreateHealthCard] API success:", result);
+      navigate("/admin/health-card");
+    } catch (err) {
+      const status = err?.response?.status;
+      const serverMsg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "Unknown error";
+      console.error("[CreateHealthCard] API error:", {
+        status, serverMsg, responseData: err?.response?.data, payload,
+      });
+      setSaveError(`API Error ${status ? `(${status})` : ""}: ${serverMsg}`);
+    } finally {
+      setSaveLoading(false);
+    }
   };
+
 
   return (
     <div
@@ -174,12 +240,26 @@ const CreateHealthCard = () => {
           </button>
           <button
             onClick={handleSave}
-            className="px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff702d] transition-colors"
+            disabled={saveLoading}
+            className="px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff702d] transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            Create
+            {saveLoading && <Loader2 size={14} className="animate-spin" />}
+            {saveLoading ? "Creating…" : "Create"}
           </button>
         </div>
       </div>
+
+      {/* API Error Banner */}
+      {saveError && (
+        <div className="mb-4 flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-[13px]">
+          <span className="font-semibold shrink-0">Error:</span>
+          <span>{saveError}</span>
+          <button
+            onClick={() => setSaveError("")}
+            className="ml-auto text-red-400 hover:text-red-600 shrink-0 text-[16px] leading-none"
+          >✕</button>
+        </div>
+      )}
 
       <div className="space-y-6">
         {/* Application Details Section */}
@@ -543,6 +623,7 @@ const CreateHealthCard = () => {
           <p className="text-[12px] text-[#6D6D6D] mt-3">
             Only supports .jpg, .png files
           </p>
+
         </div>
 
         {/* Members Table */}
@@ -590,7 +671,7 @@ const CreateHealthCard = () => {
                             const newMembers = [...formData.members];
                             newMembers[i].name = e.target.value.replace(
                               /[^a-zA-Z\s]/g,
-                              "",
+                              ""
                             );
                             setFormData({ ...formData, members: newMembers });
                           }}
@@ -612,7 +693,7 @@ const CreateHealthCard = () => {
                             const newMembers = [...formData.members];
                             newMembers[i].relation = e.target.value.replace(
                               /[^a-zA-Z\s]/g,
-                              "",
+                              ""
                             );
                             setFormData({ ...formData, members: newMembers });
                           }}
@@ -634,7 +715,7 @@ const CreateHealthCard = () => {
                             const newMembers = [...formData.members];
                             newMembers[i].age = e.target.value.replace(
                               /\D/g,
-                              "",
+                              ""
                             );
                             setFormData({ ...formData, members: newMembers });
                           }}
@@ -652,7 +733,7 @@ const CreateHealthCard = () => {
                         <button
                           onClick={() => {
                             const newMembers = formData.members.filter(
-                              (_, idx) => idx !== i,
+                              (_, idx) => idx !== i
                             );
                             setFormData({ ...formData, members: newMembers });
                           }}

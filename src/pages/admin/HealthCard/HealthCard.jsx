@@ -1,17 +1,15 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Search,
   Plus,
-  MoreHorizontal,
-  Edit2,
-  RefreshCw,
   Eye,
   Trash2,
   Download,
-  Folder,
   PlusCircle,
   ArrowUpDown,
+  Loader2,
 } from "lucide-react";
+import apiService from "../../../api/service";
 
 const userNames = [
   "Neeraj",
@@ -61,6 +59,42 @@ export const getHealthCards = () => {
   return initialData;
 };
 
+// Normalize an API card object to the shape the table expects
+const normalizeCard = (card) => ({
+  // keep original API fields
+  ...card,
+  // mapped display fields
+  id: card.applicationId || card._id || "",
+  applicant: [
+    card.firstName,
+    card.middleName,
+    card.lastName,
+  ]
+    .filter(Boolean)
+    .join(" ") || "",
+  phone: card.contact || "",
+  // Always ensure members is an array so .length is safe
+  members: Array.isArray(card.members)
+    ? card.members
+    : Array.from({ length: Number(card.totalMember) || 0 }, (_, i) => ({ id: i })),
+  payment: {
+    applicationFee: 120,
+    memberAddOns: (Number(card.totalMember) || 0) * 10,
+    totalPaid: card.totalAmount ?? 120,
+  },
+  // normalise status label for display
+  status: (() => {
+    switch ((card.status || "").toLowerCase()) {
+      case "approved": return "Verified";
+      case "active": return "Verified";
+      case "pending": return "Not verified";
+      case "rejected": return "Not verified";
+      case "expired": return "Expired";
+      default: return card.status || "Not verified";
+    }
+  })(),
+});
+
 const StatusBadge = ({ status }) => {
   let bg = "";
   let dot = "";
@@ -104,40 +138,22 @@ import { exportToCSV } from "../../../utils/exportUtils";
 const ActionButtons = ({ status, item, navigate, onDelete }) => {
   return (
     <div className="flex items-center gap-4">
-      <div className="w-21 flex justify-center">
-        {status === "Not verified" && (
-          <span className="w-full text-center text-[#22333B] font-bold">—</span>
-        )}
-        {status === "Verified" && (
-          <button
-            onClick={() =>
-              navigate(`/admin/health-card/${item.id}`, {
-                state: { editMode: true },
-              })
-            }
-            className="flex items-center justify-center gap-1.5 px-2 py-1 bg-[#2C2C2C] text-[#FFFCFB] rounded-lg text-sm font-normal hover:bg-[#1F2937]"
-          >
-            Edit
-            <img src="/admin_images/Edit 3.svg" alt="edit" />
-          </button>
-        )}
-        {status === "Expired" && (
-          <button
-            onClick={() =>
-              navigate(`/admin/health-card/${item.id}`, {
-                state: { editMode: true },
-              })
-            }
-            className="flex items-center justify-center gap-1.5 px-2 py-1 bg-[#2C2C2C] text-[#FFFCFB] rounded-lg text-sm font-normal hover:bg-[#1F2937]"
-          >
-            Renew
-            <img src="/admin_images/Edit 3.svg" alt="edit" />
-          </button>
-        )}
-      </div>
+      {/* Edit — always visible */}
+      <button
+        onClick={() =>
+          navigate(`/admin/health-card/${item._id}`, {
+            state: { editMode: true },
+          })
+        }
+        className="flex items-center justify-center gap-1.5 px-2 py-1 bg-[#2C2C2C] text-[#FFFCFB] rounded-lg text-sm font-normal hover:bg-[#1F2937]"
+      >
+        Edit
+        <img src="/admin_images/Edit 3.svg" alt="edit" />
+      </button>
+
       <div className="flex items-center gap-2">
         <button
-          onClick={() => navigate(`/admin/health-card/${item.id}`)}
+          onClick={() => navigate(`/admin/health-card/${item._id}`)}
           className="text-[#F68E5F] hover:text-[#ff6e2b] cursor-pointer transition-colors p-1.5"
         >
           <Eye size={20} />
@@ -155,7 +171,46 @@ const ActionButtons = ({ status, item, navigate, onDelete }) => {
 
 const HealthCard = () => {
   const navigate = useNavigate();
-  const [healthCards, setHealthCards] = useState(getHealthCards());
+
+  // ── Data state ─────────────────────────────────────────────────────────────
+  const [healthCards, setHealthCards] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState("");
+
+  // Fetch from GET /api/cards on mount
+  useEffect(() => {
+    const fetchCards = async () => {
+      try {
+        setLoading(true);
+        setFetchError("");
+        const res = await apiService.getHealthCards();
+        console.log("[HealthCard] raw API response:", res);
+
+        // API response shape: { success, data: { cards: [...], pagination: {...} } }
+        const raw = Array.isArray(res?.data?.cards)
+          ? res.data.cards
+          : Array.isArray(res?.data)
+            ? res.data
+            : Array.isArray(res)
+              ? res
+              : [];
+
+        console.log("[HealthCard] raw card count:", raw.length, "| first item:", raw[0]);
+        const normalized = raw.map(normalizeCard);
+        console.log("[HealthCard] normalized first card:", normalized[0]);
+        setHealthCards(normalized);
+      } catch (err) {
+        console.error("[HealthCard] GET /api/cards failed:", err?.response?.data || err?.message);
+        setFetchError("Could not load cards from server. Showing local data.");
+        // Fallback to localStorage mock data
+        setHealthCards(getHealthCards().map(normalizeCard));
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCards();
+  }, []);
+
   const [activeFilter, setActiveFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -163,19 +218,28 @@ const HealthCard = () => {
   const [itemToDelete, setItemToDelete] = useState(null);
   const ITEMS_PER_PAGE = 10;
 
-  const handleDeleteConfirm = () => {
-    if (itemToDelete) {
-      const updatedData = healthCards.filter((c) => c.id !== itemToDelete.id);
-      setHealthCards(updatedData);
-      localStorage.setItem("health_cards_data", JSON.stringify(updatedData));
-      if (
-        selectedRows.some(
-          (rowIdx) => processedData[rowIdx]?.id === itemToDelete.id,
-        )
-      ) {
-        setSelectedRows([]);
-      }
+  const [deleteError, setDeleteError] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const handleDeleteConfirm = async () => {
+    if (!itemToDelete) return;
+    setDeleteLoading(true);
+    setDeleteError("");
+    try {
+      // Use MongoDB _id for API, fall back to applicationId
+      const mongoId = itemToDelete._id || itemToDelete.id;
+      await apiService.deleteHealthCard(mongoId);
+      // Remove from local state
+      setHealthCards((prev) => prev.filter((c) => c._id !== itemToDelete._id && c.id !== itemToDelete.id));
+      setSelectedRows([]);
       setItemToDelete(null);
+    } catch (err) {
+      console.error("[HealthCard] DELETE failed:", err?.response?.data || err?.message);
+      setDeleteError(
+        err?.response?.data?.message || err?.message || "Delete failed. Please try again."
+      );
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -189,15 +253,22 @@ const HealthCard = () => {
 
   const processedData = useMemo(() => {
     let result = [...healthCards].filter((item) => {
+      // Guard against undefined/null fields so a bad card doesn't crash the whole list
+      const applicant = (item.applicant || "").toLowerCase();
+      const id = (item.id || "").toLowerCase();
+      const phone = (item.phone || "");
+      const status = (item.status || "");
+      const query = searchQuery.toLowerCase();
+
       const matchesSearch =
-        item.applicant.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.phone.includes(searchQuery);
+        applicant.includes(query) ||
+        id.includes(query) ||
+        phone.includes(searchQuery);
 
       if (activeFilter === "All") return matchesSearch;
       return (
         matchesSearch &&
-        item.status.toLowerCase() === activeFilter.toLowerCase()
+        status.toLowerCase() === activeFilter.toLowerCase()
       );
     });
 
@@ -207,8 +278,8 @@ const HealthCard = () => {
         let bValue = b[sortConfig.key];
 
         if (sortConfig.key === "members") {
-          aValue = a.members.length;
-          bValue = b.members.length;
+          aValue = (a.members || []).length;
+          bValue = (b.members || []).length;
         } else if (sortConfig.key === "amount") {
           aValue = a.payment.totalPaid;
           bValue = b.payment.totalPaid;
@@ -284,11 +355,10 @@ const HealthCard = () => {
         <button
           key={idx}
           onClick={() => setCurrentPage(page)}
-          className={`w-7 h-7 flex items-center justify-center rounded-md text-sm font-medium ${
-            currentPage === page
-              ? "bg-[#374151] text-[#FFFCFB]"
-              : "text-[#4B5563] hover:bg-gray-100"
-          }`}
+          className={`w-7 h-7 flex items-center justify-center rounded-md text-sm font-medium ${currentPage === page
+            ? "bg-[#374151] text-[#FFFCFB]"
+            : "text-[#4B5563] hover:bg-gray-100"
+            }`}
         >
           {page}
         </button>
@@ -376,6 +446,13 @@ const HealthCard = () => {
         </div>
       </div>
 
+      {/* Fetch error banner */}
+      {fetchError && (
+        <div className="mb-3 px-4 py-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-[13px]">
+          {fetchError}
+        </div>
+      )}
+
       {/* Filters Bar */}
       <div className="flex items-center justify-between mb-4 shrink-0">
         <div className="flex items-center gap-4 flex-1">
@@ -409,11 +486,10 @@ const HealthCard = () => {
                   setActiveFilter(filter);
                   setCurrentPage(1);
                 }}
-                className={`px-4 py-1.5 text-[15px] rounded-lg text-sm font-medium transition-colors ${
-                  activeFilter === filter
-                    ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
-                    : "text-[#6B7280] hover:text-[#22333B]"
-                }`}
+                className={`px-4 py-1.5 text-[15px] rounded-lg text-sm font-medium transition-colors ${activeFilter === filter
+                  ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
+                  : "text-[#6B7280] hover:text-[#22333B]"
+                  }`}
               >
                 {filter}
               </button>
@@ -432,7 +508,12 @@ const HealthCard = () => {
 
       {/* Table & Fallbacks */}
       <div className="bg-white border border-[#D9D9D9] rounded-2xl overflow-hidden flex flex-col flex-1 min-h-0">
-        {paginatedData.length > 0 ? (
+        {loading ? (
+          <div className="flex flex-col items-center justify-center flex-1 py-12">
+            <Loader2 size={32} className="animate-spin text-[#F68E5F] mb-3" />
+            <p className="text-sm text-gray-500">Loading applications…</p>
+          </div>
+        ) : paginatedData.length > 0 ? (
           <div className="overflow-y-auto overflow-x-auto flex-1">
             <table className="w-full text-left border-collapse relative">
               <thead className="sticky top-0 z-10 bg-[#FFFFFF]">
@@ -591,23 +672,29 @@ const HealthCard = () => {
                 Are you sure?
               </h3>
             </div>
-            <p className="text-[#4B5563] text-sm mb-6 pl-12 line-clamp-3">
+            <p className="text-[#4B5563] text-sm mb-4 pl-12 line-clamp-3">
               Do you really want to delete the health card application for{" "}
               <strong>{itemToDelete.applicant}</strong> ({itemToDelete.id})?
               This process cannot be undone.
             </p>
+            {deleteError && (
+              <p className="mb-4 pl-12 text-sm text-red-500">{deleteError}</p>
+            )}
             <div className="flex justify-end gap-3">
               <button
-                onClick={() => setItemToDelete(null)}
-                className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                onClick={() => { setItemToDelete(null); setDeleteError(""); }}
+                disabled={deleteLoading}
+                className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteConfirm}
-                className="px-4 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff702d] transition-colors shadow-sm"
+                disabled={deleteLoading}
+                className="px-4 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff702d] transition-colors shadow-sm flex items-center gap-2 disabled:opacity-60"
               >
-                Confirm Delete
+                {deleteLoading && <Loader2 size={14} className="animate-spin" />}
+                {deleteLoading ? "Deleting…" : "Confirm Delete"}
               </button>
             </div>
           </div>
