@@ -111,7 +111,7 @@ const ActionButtons = ({ status, item, navigate, onDelete }) => {
         {status === "Verified" && (
           <button
             onClick={() =>
-              navigate(`/admin/health-card/${item.id}`, {
+              navigate(`/health-card/${item.id}`, {
                 state: { editMode: true },
               })
             }
@@ -124,7 +124,7 @@ const ActionButtons = ({ status, item, navigate, onDelete }) => {
         {status === "Expired" && (
           <button
             onClick={() =>
-              navigate(`/admin/health-card/${item.id}`, {
+              navigate(`/health-card/${item.id}`, {
                 state: { editMode: true },
               })
             }
@@ -137,7 +137,7 @@ const ActionButtons = ({ status, item, navigate, onDelete }) => {
       </div>
       <div className="flex items-center gap-2">
         <button
-          onClick={() => navigate(`/admin/health-card/${item.id}`)}
+          onClick={() => navigate(`/health-card/${item.id}`)}
           className="text-[#F68E5F] hover:text-[#ff6e2b] cursor-pointer transition-colors p-1.5"
         >
           <Eye size={20} />
@@ -366,7 +366,7 @@ const HealthCard = () => {
           </button>
           {/* Create Button (Tablet/Mobile Only) */}
           <button
-            onClick={() => navigate("/admin/health-card/create")}
+            onClick={() => navigate("/health-card/create")}
             className="flex lg:hidden px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff7535] transition-colors items-center gap-2"
           >
             Create New
@@ -423,7 +423,7 @@ const HealthCard = () => {
 
         {/* Create Button (Desktop only) */}
         <button
-          onClick={() => navigate("/admin/health-card/create")}
+          onClick={() => navigate("/health-card/create")}
           className="hidden lg:flex px-5 py-2.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[16px] font-medium hover:bg-[#ff6e2b] transition-colors items-center gap-2"
         >
           Create New application <Plus size={16} />
@@ -543,7 +543,7 @@ const HealthCard = () => {
             </h3>
             {!isFiltered && (
               <button
-                onClick={() => navigate("/admin/health-card/create")}
+                onClick={() => navigate("/health-card/create")}
                 className="flex items-center gap-2 px-6 py-2.5 bg-[#F68E5F] hover:bg-[#ff7535] text-[#FFFCFB] rounded-lg text-sm font-medium transition-colors shadow-sm"
               >
                 <PlusCircle size={18} />

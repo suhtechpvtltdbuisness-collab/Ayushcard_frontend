@@ -19,42 +19,52 @@ const Sidebar = () => {
   const [isHovered, setIsHovered] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const userRole = localStorage.getItem("userRole") || "Admin";
 
   const handleLogout = () => {
     navigate("/login");
   };
 
+  const basePath = "/dashboard"; // default for strict 'end' matching if any
+
   const mainMenuItems = [
-    { name: "Dashboard", icon: LayoutDashboard, path: "/admin" },
-    { name: "Health Card", icon: CreditCard, path: "/admin/health-card" },
+    { name: "Dashboard", icon: LayoutDashboard, path: `/dashboard` },
+    { name: "Health Card", icon: CreditCard, path: `/health-card` },
     {
       name: "Partners",
       customIcon: "/admin_images/partner.svg",
-      path: "/admin/partners",
+      path: `/partners`,
     },
     {
       name: "Donations",
       customIcon: "/admin_images/donations.svg",
-      path: "/admin/donations",
+      path: `/donations`,
     },
     {
       name: "HR & Payroll",
       customIcon: "/admin_images/hr_payroll.svg",
-      path: "/admin/hr",
+      path: `/hr`,
       subItems: [
-        { name: "Employees", path: "/admin/hr/employees" },
-        { name: "Salary", path: "/admin/hr/salary" },
+        { name: "Employees", path: `/hr/employees` },
+        { name: "Salary", path: `/hr/salary` },
       ],
     },
   ];
+
+  const filteredMainMenuItems = mainMenuItems.filter((item) => {
+    if (item.name === "HR & Payroll" && userRole === "Employee") {
+      return false;
+    }
+    return true;
+  });
 
   const systemItems = [
     {
       name: "Reports",
       customIcon: "/admin_images/reports.svg",
-      path: "/admin/reports",
+      path: `/reports`,
     },
-    { name: "Help & Support", icon: HelpCircle, path: "/admin/help" },
+    { name: "Help & Support", icon: HelpCircle, path: `/help` },
   ];
 
   const renderNavLinks = (items) => {
@@ -66,7 +76,7 @@ const Sidebar = () => {
         <div key={item.name} className="flex flex-col">
           <NavLink
             to={item.subItems ? item.subItems[0].path : item.path}
-            end={item.path === "/admin"}
+            end={item.path === basePath}
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-3 mx-4 rounded-lg text-sm font-medium transition-colors ${
                 isActive || isParentActive
@@ -146,7 +156,7 @@ const Sidebar = () => {
               MAIN MENU
             </p>
             <div className="flex flex-col gap-1">
-              {renderNavLinks(mainMenuItems)}
+              {renderNavLinks(filteredMainMenuItems)}
             </div>
           </div>
 
@@ -163,7 +173,7 @@ const Sidebar = () => {
 
       {/* Logout Button */}
       <div className="mb-8 pl-4 ">
-        <button 
+        <button
           onClick={handleLogout}
           className="flex items-center gap-3 px-4 py-3 rounded-lg text-[16px] font-medium text-[#22333B] hover:bg-gray-100 transition-colors w-[calc(100%-1rem)]"
         >
@@ -205,7 +215,7 @@ const Sidebar = () => {
           {/* Collapsed Navigation Icons */}
           <nav className="flex flex-col gap-6 w-full items-center mt-14">
             <div className="flex flex-col gap-2 w-full px-3">
-              {mainMenuItems.map((item) => {
+              {filteredMainMenuItems.map((item) => {
                 const isParentActive =
                   item.subItems && location.pathname.startsWith(item.path);
 
@@ -213,7 +223,7 @@ const Sidebar = () => {
                   <NavLink
                     key={item.name}
                     to={item.subItems ? item.subItems[0].path : item.path}
-                    end={item.path === "/admin"}
+                    end={item.path === basePath}
                     className={({ isActive }) =>
                       `flex justify-center items-center w-10 h-10 rounded-lg transition-colors ${
                         isActive || isParentActive
@@ -261,7 +271,7 @@ const Sidebar = () => {
                 <NavLink
                   key={item.name}
                   to={item.path}
-                  end={item.path === "/admin"}
+                  end={item.path === basePath}
                   className={({ isActive }) =>
                     `flex justify-center items-center w-10 h-10 rounded-lg transition-colors ${
                       isActive

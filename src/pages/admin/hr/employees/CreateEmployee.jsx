@@ -25,7 +25,7 @@ const CreateEmployee = () => {
     if (name === "name") {
       value = value.replace(/[^a-zA-Z\s]/g, "");
     } else if (name === "phone") {
-      value = value.replace(/\D/g, "");
+      value = value.replace(/\D/g, "").slice(0, 10);
     }
 
     setFormData((prev) => ({
@@ -52,7 +52,7 @@ const CreateEmployee = () => {
     const updatedEmployees = [newEmployee, ...employees];
     localStorage.setItem("employees_data", JSON.stringify(updatedEmployees));
 
-    navigate("/admin/hr/employees");
+    navigate("/hr/employees");
   };
 
   return (
@@ -65,7 +65,7 @@ const CreateEmployee = () => {
         <div className="flex items-center gap-4">
           <button
             type="button"
-            onClick={() => navigate("/admin/hr/employees")}
+            onClick={() => navigate("/hr/employees")}
             className="w-10 h-10 border border-[#E5E7EB] rounded-full flex items-center justify-center text-[#4B5563] bg-white hover:bg-gray-50 transition-colors shadow-sm"
           >
             <ArrowLeft size={20} />
@@ -75,7 +75,7 @@ const CreateEmployee = () => {
         <div className="flex gap-4">
           <button
             type="button"
-            onClick={() => navigate("/admin/hr/employees")}
+            onClick={() => navigate("/hr/employees")}
             className="px-6 py-2.5 border border-[#E5E7EB] text-[#4B5563] bg-white rounded-lg text-[15px] font-medium hover:bg-gray-50 transition-colors"
           >
             Cancel

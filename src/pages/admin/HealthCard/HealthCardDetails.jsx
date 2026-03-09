@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, UploadCloud, ChevronDown } from "lucide-react";
+import { ArrowLeft, UploadCloud, ChevronDown, X, Plus } from "lucide-react";
 import { getHealthCards } from "./HealthCard";
 import AyushCardPreview from "../../../components/admin/AyushCardPreview";
 
@@ -8,7 +8,9 @@ const HealthCardDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const fileInputRef = useRef(null);
+  const fileInputFrontRef = useRef(null);
+  const fileInputBackRef = useRef(null);
+  const [previewImage, setPreviewImage] = useState(null);
   const [isEditing, setIsEditing] = useState(location.state?.editMode || false);
 
   const healthCards = getHealthCards();
@@ -53,6 +55,8 @@ const HealthCardDetails = () => {
       ].includes(field)
     ) {
       value = value.replace(/[^a-zA-Z\s]/g, "");
+    } else if (["phone", "altPhone"].includes(field)) {
+      value = value.replace(/\D/g, "").slice(0, 10);
     } else if (
       [
         "phone",
@@ -93,28 +97,56 @@ const HealthCardDetails = () => {
   const handleDateChange = (e, field) => {
     const val = e.target.value;
     if (!val) {
-      setFormData((prev) => ({ ...prev, [field]: "" }));
+      setFormData((prev) => ({
+        ...prev,
+        [field]: "",
+        ...(field === "issueDate" ? { expiryDate: "" } : {}),
+      }));
       return;
     }
     const parts = val.split("-");
+    let formattedDate = val;
     if (parts.length === 3) {
-      setFormData((prev) => ({
-        ...prev,
-        [field]: `${parts[2]}-${parts[1]}-${parts[0]}`,
-      }));
-    } else {
-      setFormData((prev) => ({ ...prev, [field]: val }));
+      formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
     }
+
+    let additionalUpdates = {};
+    if (field === "issueDate") {
+      const issueD = new Date(val);
+      if (!isNaN(issueD.getTime())) {
+        issueD.setFullYear(issueD.getFullYear() + 1);
+        const expDay = String(issueD.getDate()).padStart(2, "0");
+        const expMonth = String(issueD.getMonth() + 1).padStart(2, "0");
+        const expYear = issueD.getFullYear();
+        additionalUpdates.expiryDate = `${expDay}-${expMonth}-${expYear}`;
+      }
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      [field]: formattedDate,
+      ...additionalUpdates,
+    }));
   };
 
-  const handleImageUpload = (e) => {
+  const handleImageUpload = (e, side) => {
     const file = e.target.files[0];
     if (file && (file.type === "image/jpeg" || file.type === "image/png")) {
       const imageUrl = URL.createObjectURL(file);
-      setFormData((prev) => ({ ...prev, profileImage: imageUrl }));
+      setFormData((prev) => ({
+        ...prev,
+        [side === "front" ? "documentFront" : "documentBack"]: imageUrl,
+      }));
     } else {
       alert("Please upload a valid .jpg or .png image.");
     }
+  };
+
+  const handleRemoveImage = (side) => {
+    setFormData((prev) => ({
+      ...prev,
+      [side === "front" ? "documentFront" : "documentBack"]: "",
+    }));
   };
 
   const handleSave = () => {
@@ -436,9 +468,9 @@ const HealthCardDetails = () => {
               <input
                 type="date"
                 value={formatDateForInput(formData.expiryDate)}
-                onChange={(e) => handleDateChange(e, "expiryDate")}
-                disabled={!isEditing}
-                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
+                readOnly
+                disabled
+                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none bg-gray-50 cursor-not-allowed"
               />
             </div>
           </div>
@@ -489,62 +521,122 @@ const HealthCardDetails = () => {
               Image Upload
             </h3>
             <p className="text-[13px] text-[#6D6D6D] mb-5">
-              Upload your profile photo here
+              Add your documents here, and you can upload up to 5 files max
             </p>
-            <div className="flex-1 border border-dashed border-[#1849D6] rounded-xl flex flex-col items-center justify-center p-8 bg-[#FFFFFF] relative overflow-hidden">
-              {formData.profileImage ? (
-                <div className="w-30 h-30 rounded-lg overflow-hidden border border-gray-200 mb-4 z-10 relative group">
-                  <img
-                    src={formData.profileImage}
-                    alt="Profile preview"
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-black/40 hidden group-hover:flex items-center justify-center">
-                    <button
-                      onClick={() => isEditing && fileInputRef.current?.click()}
-                      className="text-white text-[12px] font-medium hover:underline cursor-pointer"
-                    >
-                      Change
-                    </button>
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Front Side Upload */}
+              <div className="border border-dashed border-[#1849D6] rounded-xl flex flex-col items-center justify-center p-8 bg-[#FFFFFF] relative overflow-hidden min-h-50">
+                {formData.documentFront ? (
+                  <div className="w-full h-full absolute inset-0 group">
+                    <img
+                      src={formData.documentFront}
+                      alt="Document Front preview"
+                      className="w-full h-full object-contain p-2 cursor-pointer"
+                      onClick={() => setPreviewImage(formData.documentFront)}
+                    />
+                    {isEditing && (
+                      <div className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center gap-4 transition-all z-20">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            fileInputFrontRef.current?.click();
+                          }}
+                          className="px-4 py-2 bg-white text-[#1849D6] rounded-lg text-sm font-medium hover:bg-gray-50"
+                        >
+                          Change
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveImage("front");
+                          }}
+                          className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ) : (
-                <div className="w-12 h-12 bg-[#FFFFFF] text-[#1849D6] rounded-xl flex items-center justify-center mb-4 z-10">
-                  <img src="/admin_images/upload.svg" alt="" />
-                </div>
-              )}
-
-              {!formData.profileImage && (
-                <p className="text-[14px] text-[#0F172A] font-medium mb-1 relative z-10">
-                  Drag your file to start uploading
-                </p>
-              )}
-
-              <div className="flex items-center w-full max-w-50 my-3 z-10">
-                <div className="flex-1 h-px bg-[#E2E8F0]"></div>
-                <span className="px-2 text-[12px] text-[#94A3B8] font-medium">
-                  OR
-                </span>
-                <div className="flex-1 h-px bg-[#E2E8F0]"></div>
+                ) : (
+                  <div
+                    className={`flex flex-col items-center justify-center w-full h-full ${isEditing ? "cursor-pointer" : "opacity-50 cursor-not-allowed"}`}
+                    onClick={() =>
+                      isEditing && fileInputFrontRef.current?.click()
+                    }
+                  >
+                    <Plus size={32} className="text-[#1849D6] mb-3" />
+                    <p className="text-[14px] text-[#0F172A] font-medium text-center">
+                      Document Front Side
+                    </p>
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept=".jpg, .jpeg, .png"
+                  className="hidden"
+                  ref={fileInputFrontRef}
+                  disabled={!isEditing}
+                  onChange={(e) => handleImageUpload(e, "front")}
+                />
               </div>
 
-              <input
-                type="file"
-                accept=".jpg, .jpeg, .png"
-                className="hidden"
-                ref={fileInputRef}
-                onChange={handleImageUpload}
-                disabled={!isEditing}
-              />
-              <button
-                onClick={() => isEditing && fileInputRef.current?.click()}
-                disabled={!isEditing}
-                className={`px-3 py-1 border border-[#1849D6] text-[#1849D6] rounded-xl text-[13px] font-medium transition-colors z-10 ${!isEditing ? "opacity-50 cursor-not-allowed bg-gray-50" : "bg-white hover:bg-[#1849D6] hover:text-white"}`}
-              >
-                Browse files
-              </button>
+              {/* Back Side Upload */}
+              <div className="border border-dashed border-[#1849D6] rounded-xl flex flex-col items-center justify-center p-8 bg-[#FFFFFF] relative overflow-hidden min-h-50">
+                {formData.documentBack ? (
+                  <div className="w-full h-full absolute inset-0 group">
+                    <img
+                      src={formData.documentBack}
+                      alt="Document Back preview"
+                      className="w-full h-full object-contain p-2 cursor-pointer"
+                      onClick={() => setPreviewImage(formData.documentBack)}
+                    />
+                    {isEditing && (
+                      <div className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center gap-4 transition-all z-20">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            fileInputBackRef.current?.click();
+                          }}
+                          className="px-4 py-2 bg-white text-[#1849D6] rounded-lg text-sm font-medium hover:bg-gray-50"
+                        >
+                          Change
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveImage("back");
+                          }}
+                          className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div
+                    className={`flex flex-col items-center justify-center w-full h-full ${isEditing ? "cursor-pointer" : "opacity-50 cursor-not-allowed"}`}
+                    onClick={() =>
+                      isEditing && fileInputBackRef.current?.click()
+                    }
+                  >
+                    <Plus size={32} className="text-[#1849D6] mb-3" />
+                    <p className="text-[14px] text-[#0F172A] font-medium text-center">
+                      Document Back Side
+                    </p>
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept=".jpg, .jpeg, .png"
+                  className="hidden"
+                  ref={fileInputBackRef}
+                  disabled={!isEditing}
+                  onChange={(e) => handleImageUpload(e, "back")}
+                />
+              </div>
             </div>
-            <p className="text-[12px] text-[#6D6D6D] mt-3">
+            <p className="text-[12px] text-[#6D6D6D] mt-6">
               Only supports .jpg, .png files
             </p>
           </div>
@@ -577,10 +669,10 @@ const HealthCardDetails = () => {
                   <th className="py-4 px-6 text-[12px] font-bold text-[#64748B] uppercase tracking-wider w-25">
                     SR. NO
                   </th>
-                  <th className="py-4 px-6 text-[12px] font-bold text-[#64748B] uppercase tracking-wider min-w-50">
+                  <th className="py-4 px-6 text-[12px] font-bold text-[#64748B] uppercase tracking-wider min-w-25">
                     MEMBER NAME
                   </th>
-                  <th className="py-4 px-6 text-[12px] font-bold text-[#64748B] uppercase tracking-wider min-w-37.5">
+                  <th className="py-4 px-6 text-[12px] font-bold text-[#64748B] uppercase tracking-wider min-w-25">
                     RELATION
                   </th>
                   <th className="py-4 px-6 text-[12px] font-bold text-[#64748B] uppercase tracking-wider min-w-25">
@@ -599,7 +691,7 @@ const HealthCardDetails = () => {
                     <td className="py-4 px-6 text-[14px] text-[#475569]">
                       {i + 1}
                     </td>
-                    <td className="py-4 px-6">
+                    <td className="py-2 px-6">
                       {isEditing ? (
                         <input
                           type="text"
@@ -609,7 +701,7 @@ const HealthCardDetails = () => {
                             newMembers[i].name = e.target.value;
                             setFormData({ ...formData, members: newMembers });
                           }}
-                          className="w-full border border-[#E2E8F0] rounded px-3 py-2 text-[14px]"
+                          className="w-full rounded px-3 py-2 text-[14px]"
                           placeholder="Name"
                         />
                       ) : (
@@ -618,7 +710,7 @@ const HealthCardDetails = () => {
                         </span>
                       )}
                     </td>
-                    <td className="py-4 px-6">
+                    <td className="py-2 px-6">
                       {isEditing ? (
                         <input
                           type="text"
@@ -628,7 +720,7 @@ const HealthCardDetails = () => {
                             newMembers[i].relation = e.target.value;
                             setFormData({ ...formData, members: newMembers });
                           }}
-                          className="w-full border border-[#E2E8F0] rounded px-3 py-2 text-[14px]"
+                          className="w-full rounded px-3 py-2 text-[14px]"
                           placeholder="Relation"
                         />
                       ) : (
@@ -637,7 +729,7 @@ const HealthCardDetails = () => {
                         </span>
                       )}
                     </td>
-                    <td className="py-4 px-6">
+                    <td className="py-2 px-6">
                       {isEditing ? (
                         <input
                           type="text"
@@ -647,7 +739,7 @@ const HealthCardDetails = () => {
                             newMembers[i].age = e.target.value;
                             setFormData({ ...formData, members: newMembers });
                           }}
-                          className="w-full border border-[#E2E8F0] rounded px-3 py-2 text-[14px]"
+                          className="w-full rounded px-3 py-2 text-[14px]"
                           placeholder="Age"
                         />
                       ) : (
@@ -657,7 +749,7 @@ const HealthCardDetails = () => {
                       )}
                     </td>
                     {isEditing && (
-                      <td className="py-4 px-6">
+                      <td className="py-2 px-6">
                         <button
                           onClick={() => {
                             const newMembers = formData.members.filter(
@@ -743,6 +835,31 @@ const HealthCardDetails = () => {
           </div>
         </div>
       </div>
+
+      {/* Full Screen Image Preview Modal */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-100 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div
+            className="relative w-[60vw] h-[60vh] max-w-4xl max-h-200 flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute -top-10 -right-10 text-white hover:text-gray-300 p-2"
+            >
+              <X size={32} />
+            </button>
+            <img
+              src={previewImage}
+              alt="Document Full Preview"
+              className="w-full h-full object-contain rounded-lg"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
