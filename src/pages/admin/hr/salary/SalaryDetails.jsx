@@ -24,7 +24,7 @@ const SalaryDetails = () => {
     if (name === "name") {
       value = value.replace(/[^a-zA-Z\s]/g, "");
     } else if (name === "phone") {
-      value = value.replace(/\D/g, "");
+      value = value.replace(/\D/g, "").slice(0, 10);
     }
 
     setFormData((prev) => ({ ...prev, [name]: value }));

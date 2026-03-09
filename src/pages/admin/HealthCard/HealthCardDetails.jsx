@@ -55,6 +55,8 @@ const HealthCardDetails = () => {
       ].includes(field)
     ) {
       value = value.replace(/[^a-zA-Z\s]/g, "");
+    } else if (["phone", "altPhone"].includes(field)) {
+      value = value.replace(/\D/g, "").slice(0, 10);
     } else if (
       [
         "phone",

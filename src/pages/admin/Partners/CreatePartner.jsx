@@ -259,7 +259,10 @@ const CreatePartner = () => {
   );
 
   const handleBasicInfoChange = (e) => {
-    const { name, value } = e.target;
+    let { name, value } = e.target;
+    if (name === "primaryContact") {
+      value = value.replace(/\D/g, "").slice(0, 10);
+    }
     setBasicInfo((prev) => ({ ...prev, [name]: value }));
   };
 

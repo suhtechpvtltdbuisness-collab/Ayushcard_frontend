@@ -20,7 +20,7 @@ const DonationDetails = () => {
     if (field === "name") {
       value = value.replace(/[^a-zA-Z\s]/g, "");
     } else if (field === "contact") {
-      value = value.replace(/\D/g, "");
+      value = value.replace(/\D/g, "").slice(0, 10);
     }
 
     setFormData((prev) => ({ ...prev, [field]: value }));

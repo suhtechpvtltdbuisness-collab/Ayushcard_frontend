@@ -275,6 +275,14 @@ const PartnerDetails = () => {
     setDetails((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleBasicInfoChange = (e) => {
+    let { name, value } = e.target;
+    if (name === "primaryContact") {
+      value = value.replace(/\D/g, "").slice(0, 10);
+    }
+    setBasicInfo((prev) => ({ ...prev, [name]: value }));
+  };
+
   const handleAddDoctor = (doctor) => {
     setDoctors([...doctors, doctor]);
   };
