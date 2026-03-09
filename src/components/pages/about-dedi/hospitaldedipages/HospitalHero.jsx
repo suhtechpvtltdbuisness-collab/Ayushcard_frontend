@@ -1,10 +1,9 @@
 import React from "react";
 import { MapPin, Star, Calendar, CheckCircle } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 
 const HospitalHero = () => {
   const location = useLocation();
-  const navigate = useNavigate();
   const hospital = location.state?.hospital;
 
   const data = hospital || {

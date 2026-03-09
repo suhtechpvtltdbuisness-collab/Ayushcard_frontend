@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 
 const testimonials = [
@@ -26,16 +26,12 @@ const testimonials = [
 ];
 
 const TestimonialsSection = () => {
-  const [startIndex, setStartIndex] = useState(0);
-
   const handlePrev = () => {
-    setStartIndex((prev) => Math.max(prev - 1, 0));
+    // Logic removed as it was unused
   };
 
   const handleNext = () => {
-    setStartIndex((prev) =>
-      Math.min(prev + 1, testimonials.length - 1)
-    );
+    // Logic removed as it was unused
   };
 
   return (

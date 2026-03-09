@@ -1,36 +1,9 @@
-import React, { useState, useMemo } from 'react';
-import { Search, Eye, Trash2, Download, ArrowUpDown } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { exportToCSV } from '../../../utils/exportUtils';
+import React, { useState, useMemo } from "react";
+import { Search, Eye, Trash2, Download, ArrowUpDown } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { exportToCSV } from "../../../utils/exportUtils";
 
-export const getDonations = () => {
-  const stored = localStorage.getItem('donations_data');
-  if (stored) {
-    const parsed = JSON.parse(stored);
-    // If it has too many items from previous test, regenerate it
-    if (parsed.length <= 25) return parsed;
-  }
-
-  const initialData = Array.from({ length: 14 }).map((_, i) => {
-    const names = ['Vibha Singh', 'Renu Verma', 'Amit Kumar', 'Sneha Sharma', 'Rahul Gupta', 'Priya Desai', 'Anil Mehta', 'Sunita Rao'];
-    const locations = ['Kanpur,UP', 'Noida,UP', 'Delhi', 'Lucknow,UP', 'Kanpur,UP', 'Delhi'];
-    const dates = ['10-02-2026', '12-02-2026', '15-02-2026', '18-02-2026', '20-02-2026'];
-    const times = ['10:30 AM', '11:15 AM', '02:00 PM', '04:45 PM', '09:00 AM'];
-
-    return {
-      id: `P-${1001456 + i}`,
-      name: names[i % names.length],
-      contact: `98${Math.floor(10000000 + Math.random() * 90000000)}`,
-      email: `${names[i % names.length].split(' ')[0].toLowerCase()}@example.com`,
-      date: dates[i % dates.length],
-      time: times[i % times.length],
-      location: locations[i % locations.length],
-      message: 'Lorem ipsum dolor sit amet consectetur. Scelerisque quis nullam sagittis diam eu at est scelerisque. Facilisis ipsum augue ante quam. Consectetur aenean sit condimentum senectus lacus placerat. Condimentum volutpat dolor egestas id imperdiet sagittis nulla vel.'
-    };
-  });
-  localStorage.setItem('donations_data', JSON.stringify(initialData));
-  return initialData;
-};
+import { getDonations } from "../../../data/mockData";
 
 const ActionButtons = ({ item, navigate, onDelete }) => {
   return (
@@ -54,29 +27,29 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
 const Donations = () => {
   const navigate = useNavigate();
   const [donations, setDonations] = useState(getDonations());
-  const [searchQuery, setSearchQuery] = useState('');
-  const [locationFilter, setLocationFilter] = useState('');
-  const [dateRangeFilter, setDateRangeFilter] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
+  const [dateRangeFilter, setDateRangeFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [itemToDelete, setItemToDelete] = useState(null);
   const [selectedRows, setSelectedRows] = useState([]);
   const ITEMS_PER_PAGE = 10;
 
   const handleDeleteConfirm = () => {
     if (itemToDelete) {
-      const updatedData = donations.filter(d => d.id !== itemToDelete.id);
+      const updatedData = donations.filter((d) => d.id !== itemToDelete.id);
       setDonations(updatedData);
-      localStorage.setItem('donations_data', JSON.stringify(updatedData));
+      localStorage.setItem("donations_data", JSON.stringify(updatedData));
       setSelectedRows([]);
       setItemToDelete(null);
     }
   };
 
   const handleSort = (key) => {
-    let direction = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
+    let direction = "asc";
+    if (sortConfig.key === key && sortConfig.direction === "asc") {
+      direction = "desc";
     }
     setSortConfig({ key, direction });
   };
@@ -89,15 +62,15 @@ const Donations = () => {
 
       const matchesLocation = locationFilter ? item.location === locationFilter : true;
 
-      // Basic mock date logic for dateRangeFilter
-      // For a real app, you would parse the dates natively. Here we mock it based on selection
       let matchesDate = true;
-      if (dateRangeFilter === 'today') {
-        matchesDate = item.date === '20-02-2026'; // Mocking today's date based on sample data
-      } else if (dateRangeFilter === 'week') {
-        matchesDate = ['15-02-2026', '18-02-2026', '20-02-2026'].includes(item.date);
-      } else if (dateRangeFilter === 'month') {
-        matchesDate = item.date.includes('-02-2026');
+      if (dateRangeFilter === "today") {
+        matchesDate = item.date === "20-02-2026"; 
+      } else if (dateRangeFilter === "week") {
+        matchesDate = ["15-02-2026", "18-02-2026", "20-02-2026"].includes(
+          item.date,
+        );
+      } else if (dateRangeFilter === "month") {
+        matchesDate = item.date.includes("-02-2026");
       }
 
       return matchesSearch && matchesLocation && matchesDate;
@@ -112,14 +85,17 @@ const Donations = () => {
         if (bValue === undefined) bValue = '';
 
         let comparison = 0;
-        if (typeof aValue === 'string' && typeof bValue === 'string') {
-          comparison = aValue.localeCompare(bValue, undefined, { numeric: true, sensitivity: 'base' });
+        if (typeof aValue === "string" && typeof bValue === "string") {
+          comparison = aValue.localeCompare(bValue, undefined, {
+            numeric: true,
+            sensitivity: "base",
+          });
         } else {
           if (aValue < bValue) comparison = -1;
           else if (aValue > bValue) comparison = 1;
         }
 
-        return sortConfig.direction === 'asc' ? comparison : -comparison;
+        return sortConfig.direction === "asc" ? comparison : -comparison;
       });
     }
 
@@ -128,7 +104,10 @@ const Donations = () => {
 
   const totalPages = Math.ceil(processedData.length / ITEMS_PER_PAGE) || 1;
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedData = processedData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const paginatedData = processedData.slice(
+    startIndex,
+    startIndex + ITEMS_PER_PAGE,
+  );
 
   const renderPaginationButtons = () => {
     let pages = [];
@@ -136,17 +115,38 @@ const Donations = () => {
       for (let i = 1; i <= totalPages; i++) pages.push(i);
     } else {
       if (currentPage <= 4) {
-        pages = [1, 2, 3, 4, 5, '...', totalPages];
+        pages = [1, 2, 3, 4, 5, "...", totalPages];
       } else if (currentPage >= totalPages - 3) {
-        pages = [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+        pages = [
+          1,
+          "...",
+          totalPages - 4,
+          totalPages - 3,
+          totalPages - 2,
+          totalPages - 1,
+          totalPages,
+        ];
       } else {
-        pages = [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
+        pages = [
+          1,
+          "...",
+          currentPage - 1,
+          currentPage,
+          currentPage + 1,
+          "...",
+          totalPages,
+        ];
       }
     }
 
-    return pages.map((page, idx) => (
-      page === '...' ? (
-        <span key={idx} className="w-7 h-7 flex items-center justify-center text-[#9CA3AF]">...</span>
+    return pages.map((page, idx) =>
+      page === "..." ? (
+        <span
+          key={idx}
+          className="w-7 h-7 flex items-center justify-center text-[#9CA3AF]"
+        >
+          ...
+        </span>
       ) : (
         <button
           key={idx}
@@ -156,8 +156,8 @@ const Donations = () => {
         >
           {page}
         </button>
-      )
-    ));
+      ),
+    );
   };
 
   const handleSelectAll = (e) => {
@@ -173,8 +173,8 @@ const Donations = () => {
       alert("Please select at least one item to export.");
       return;
     }
-    const dataToExport = selectedRows.map(index => processedData[index]);
-    exportToCSV(dataToExport, 'Donations_Export.csv');
+    const dataToExport = selectedRows.map((index) => processedData[index]);
+    exportToCSV(dataToExport, "Donations_Export.csv");
   };
 
   const handleSelectRow = (globalIndex) => {
@@ -192,13 +192,19 @@ const Donations = () => {
         onClick={() => handleSort(sortKey)}
       >
         {title}
-        <ArrowUpDown size={14} className={`shrink-0 ${sortConfig.key === sortKey ? "text-[#F68E5F]" : "text-[#22333B]"}`} />
+        <ArrowUpDown
+          size={14}
+          className={`shrink-0 ${sortConfig.key === sortKey ? "text-[#F68E5F]" : "text-[#22333B]"}`}
+        />
       </div>
     </th>
   );
 
   return (
-    <div className="flex flex-col h-[calc(100vh-170px)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+    <div
+      className="flex flex-col h-[calc(100vh-170px)]"
+      style={{ fontFamily: "Inter, sans-serif" }}
+    >
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 shrink-0 gap-4 sm:gap-0">
         <h2 className="text-xl font-bold text-[#22333B]">Donation Enquiries</h2>
@@ -219,16 +225,25 @@ const Donations = () => {
               type="text"
               placeholder="Search by name, id, phone"
               value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
               className="w-full pl-4 pr-10 py-2.5 text-[16px] border border-[#E5E7EB] rounded-full text-sm placeholder:text-[#9CA3AF] focus:outline-none focus:ring-1 focus:ring-[#F68E5F] focus:border-[#F68E5F]"
             />
-            <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1E1E1E]" />
+            <Search
+              size={18}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1E1E1E]"
+            />
           </div>
 
           {/* Location Dropdown */}
           <select
             value={locationFilter}
-            onChange={(e) => { setLocationFilter(e.target.value); setCurrentPage(1); }}
+            onChange={(e) => {
+              setLocationFilter(e.target.value);
+              setCurrentPage(1);
+            }}
             className="px-4 py-2 border border-[#ff7535] rounded-lg text-[16px] bg-[#F68E5F] text-[#FFFCFB] focus:outline-none focus:border-[#F68E5F]"
           >
             <option value="">Location</option>
@@ -241,7 +256,10 @@ const Donations = () => {
           {/* Date Range Dropdown */}
           <select
             value={dateRangeFilter}
-            onChange={(e) => { setDateRangeFilter(e.target.value); setCurrentPage(1); }}
+            onChange={(e) => {
+              setDateRangeFilter(e.target.value);
+              setCurrentPage(1);
+            }}
             className="px-4 py-2 border border-[#ff7535] rounded-lg text-[16px] bg-[#F68E5F] text-[#FFFCFB] focus:outline-none focus:border-[#F68E5F]"
           >
             <option value="">Select Date range</option>
@@ -312,7 +330,9 @@ const Donations = () => {
             <div className="w-24 h-24 bg-[#F8FAFC] rounded-full flex items-center justify-center mb-6">
               <img src="/admin_images/donations.svg" alt="not record found" className="w-14 h-14" />
             </div>
-            <p className="text-lg font-bold text-[#22333B] mb-1">No enquiry found</p>
+            <p className="text-lg font-bold text-[#22333B] mb-1">
+              No enquiry found
+            </p>
           </div>
         )}
       </div>
@@ -320,13 +340,15 @@ const Donations = () => {
       {/* Pagination */}
       <div className="flex items-center justify-between px-2 py-4 relative mt-2 shrink-0">
         <span className="text-sm font-medium text-[#4B5563]">
-          Showing {processedData.length > 0 ? startIndex + 1 : 0} - {Math.min(startIndex + ITEMS_PER_PAGE, processedData.length)} of {processedData.length}
+          Showing {processedData.length > 0 ? startIndex + 1 : 0} -{" "}
+          {Math.min(startIndex + ITEMS_PER_PAGE, processedData.length)} of{" "}
+          {processedData.length}
         </span>
         <div className="flex items-center gap-1 text-sm font-medium absolute left-1/2 -translate-x-1/2">
           <button
             onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
             disabled={currentPage === 1}
-            className={`px-2 py-1 flex items-center gap-1 ${currentPage === 1 ? 'text-[#D1D5DB] cursor-not-allowed' : 'text-[#4B5563] hover:text-[#22333B]'}`}
+            className={`px-2 py-1 flex items-center gap-1 ${currentPage === 1 ? "text-[#D1D5DB] cursor-not-allowed" : "text-[#4B5563] hover:text-[#22333B]"}`}
           >
             &larr; Previous
           </button>
@@ -334,7 +356,7 @@ const Donations = () => {
           <button
             onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
             disabled={currentPage === totalPages}
-            className={`px-2 py-1 flex items-center gap-1 ${currentPage === totalPages ? 'text-[#D1D5DB] cursor-not-allowed' : 'text-[#4B5563] hover:text-[#22333B]'}`}
+            className={`px-2 py-1 flex items-center gap-1 ${currentPage === totalPages ? "text-[#D1D5DB] cursor-not-allowed" : "text-[#4B5563] hover:text-[#22333B]"}`}
           >
             Next &rarr;
           </button>
@@ -352,7 +374,9 @@ const Donations = () => {
               <h3 className="text-lg font-bold text-[#22333B]">Are you sure?</h3>
             </div>
             <p className="text-[#4B5563] text-sm mb-6 pl-12 line-clamp-3">
-              Do you really want to delete the enquiry from <strong>{itemToDelete.name}</strong> ({itemToDelete.id})? This process cannot be undone.
+              Do you really want to delete the enquiry from{" "}
+              <strong>{itemToDelete.name}</strong> ({itemToDelete.id})? This
+              process cannot be undone.
             </p>
             <div className="flex justify-end gap-3">
               <button

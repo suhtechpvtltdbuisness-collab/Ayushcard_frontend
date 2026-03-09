@@ -1,22 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Edit2, ChevronDown } from "lucide-react";
-import { getSalaries } from "./Salary";
+import { getSalaries } from "../../../../data/mockData";
 
 const SalaryDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState(null);
-
-  // Load data
-  useEffect(() => {
+  const [formData, setFormData] = useState(() => {
     const salaries = getSalaries();
-    const data = salaries.find((s) => s.id === id) || salaries[0];
-    if (data && !formData) {
-      setFormData(data);
-    }
-  }, [id, formData]);
+    return salaries.find((s) => s.id === id) || salaries[0];
+  });
 
   const handleChange = (e) => {
     let { name, value } = e.target;
@@ -24,7 +18,7 @@ const SalaryDetails = () => {
     if (name === "name") {
       value = value.replace(/[^a-zA-Z\s]/g, "");
     } else if (name === "phone") {
-      value = value.replace(/\D/g, "");
+      value = value.replace(/\D/g, "").slice(0, 10);
     }
 
     setFormData((prev) => ({ ...prev, [name]: value }));

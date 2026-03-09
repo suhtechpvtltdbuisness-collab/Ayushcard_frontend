@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Edit2, Loader2 } from "lucide-react";
-import { getEmployees } from "./Employees";
+import { getEmployees } from "../../../../data/mockData";
 import apiService from "../../../../api/service";
 
 const EmployeeDetails = () => {
@@ -27,7 +27,7 @@ const EmployeeDetails = () => {
     if (name === "name") {
       value = value.replace(/[^a-zA-Z\s]/g, "");
     } else if (name === "phone") {
-      value = value.replace(/\D/g, "");
+      value = value.replace(/\D/g, "").slice(0, 10);
     }
 
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -289,7 +289,7 @@ const EmployeeDetails = () => {
           </div>
           <div>
             <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
-              Working hours
+              Working Hours
             </label>
             <div className="flex items-center gap-3">
               <input

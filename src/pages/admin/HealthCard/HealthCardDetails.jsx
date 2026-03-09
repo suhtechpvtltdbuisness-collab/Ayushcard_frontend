@@ -72,7 +72,6 @@ const HealthCardDetails = () => {
   const { id } = useParams();          // MongoDB _id (from HealthCard list navigation)
   const navigate = useNavigate();
   const location = useLocation();
-  const fileInputRef = useRef(null);
   const docInputRef = useRef(null);
 
   const [isEditing, setIsEditing] = useState(location.state?.editMode || false);
@@ -137,7 +136,7 @@ const HealthCardDetails = () => {
       ...prev,
       payment: { ...prev.payment, memberAddOns: n * 10, totalPaid: 120 + n * 10 },
     }));
-  }, [formData?.totalMembers]);
+  }, [formData?.totalMembers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Handlers ─────────────────────────────────────────────────────────────
   const handleChange = (e, field) => {
@@ -173,14 +172,8 @@ const HealthCardDetails = () => {
   };
 
   // Profile image upload (local preview only — document upload goes to API)
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (file && (file.type === "image/jpeg" || file.type === "image/png")) {
-      setFormData((prev) => ({ ...prev, profileImage: URL.createObjectURL(file) }));
-    } else {
-      alert("Please upload a valid .jpg or .png image.");
-    }
-  };
+  // Not currently used in UI - keeping for future but commenting out logic
+  // const handleImageUpload = (e) => { ... };
 
   // Document file selected → store in state, send with Save Changes
   const handleDocSelect = (e) => {

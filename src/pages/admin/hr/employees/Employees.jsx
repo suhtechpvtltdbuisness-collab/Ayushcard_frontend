@@ -4,44 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { exportToCSV } from "../../../../utils/exportUtils";
 import apiService from "../../../../api/service";
 
-export const getEmployees = () => {
-  const stored = localStorage.getItem("employees_data");
-  if (stored) {
-    const parsed = JSON.parse(stored);
-    if (parsed.length <= 25) return parsed;
-  }
-
-  const initialData = Array.from({ length: 14 }).map((_, i) => {
-    const names = [
-      "Renu Verma",
-      "Amit Kumar",
-      "Sneha Sharma",
-      "Rahul Gupta",
-      "Priya Desai",
-      "Anil Mehta",
-      "Sunita Rao",
-    ];
-    const locations = ["Kanpur,UP", "Noida,UP", "Delhi", "Lucknow,UP"];
-    const statuses = ["Verified", "Not Verified", "Verified", "Expired"];
-
-    return {
-      id: `EMP-BK-100${i + 1}`,
-      name: names[i % names.length],
-      phone: `837384957${i % 10}`,
-      email: `${names[i % names.length].split(" ")[0].toLowerCase()}@gmail.com`,
-      dateOfJoining: "02-10-2026",
-      location: locations[i % locations.length],
-      status: statuses[i % statuses.length],
-      salary: "20,000",
-      workingHoursFrom: "10:00 AM",
-      workingHoursTo: "6:00 PM",
-      role: "Field Officer",
-    };
-  });
-  localStorage.setItem("employees_data", JSON.stringify(initialData));
-  return initialData;
-};
-
+import { getEmployees } from "../../../../data/mockData";
 const ActionButtons = ({ item, navigate, onDelete }) => {
   return (
     <div className="flex items-center gap-2">

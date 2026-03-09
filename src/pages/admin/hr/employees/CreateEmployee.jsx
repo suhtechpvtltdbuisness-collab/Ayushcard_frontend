@@ -7,7 +7,6 @@ const CreateEmployee = () => {
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
-    id: "",
     name: "",
     phone: "",
     email: "",
@@ -15,8 +14,8 @@ const CreateEmployee = () => {
     location: "",
     salary: "",
     workingHoursFrom: "10:00 AM",
-    workingHoursTo: "6:00 PM",
-    role: "",
+    workingHoursTo: "06:00 PM",
+    role: "employee",
   });
 
   const [password, setPassword] = useState("");
@@ -29,7 +28,7 @@ const CreateEmployee = () => {
     if (name === "name") {
       value = value.replace(/[^a-zA-Z\s]/g, "");
     } else if (name === "phone") {
-      value = value.replace(/\D/g, "");
+      value = value.replace(/\D/g, "").slice(0, 10);
     }
 
     setFormData((prev) => ({
@@ -39,8 +38,6 @@ const CreateEmployee = () => {
   };
 
   const formatTime = (timeStr) => {
-    // UI has "10:00 AM". API expects "09:00". We need to safely transform or let backend handle if it accepts string.
-    // If it's a simple length 5 string like "10:00", keep it.
     if (!timeStr) return "09:00";
     const match = timeStr.match(/(\d+):(\d+)\s*([AP]M)/i);
     if (match) {
@@ -49,35 +46,39 @@ const CreateEmployee = () => {
       if (match[3].toUpperCase() === 'AM' && hrs === 12) hrs = 0;
       return `${hrs.toString().padStart(2, '0')}:${match[2]}`;
     }
+    // If already in 24h format
+    if (timeStr.includes(":")) {
+      const parts = timeStr.split(":");
+      if (parts[0].length === 1) parts[0] = "0" + parts[0];
+      return parts.join(":").substring(0, 5);
+    }
     return timeStr.substring(0, 5);
   };
 
   const handleSave = async () => {
     try {
+      if (!formData.name || !formData.email || !password) {
+        setError("Name, Email and Password are required.");
+        return;
+      }
+
       setLoading(true);
       setError("");
-
-      let formattedDate = formData.dateOfJoining;
-      if (formattedDate) {
-        // Assume API accepts "YYYY-MM-DD" which is the HTML date picker default.
-        // User's example: "2026-03-01". So keep YYYY-MM-DD.
-        // If it needs DD-MM-YYYY we can do that, but "2026-03-01" was in example.
-      }
 
       const payload = {
         name: formData.name,
         email: formData.email,
-        password: password || "securePassword123", // Provided by user example
-        role: "employee", // Hardcoded per API requirements, ignoring user typo if any
-        contact: formData.phone || "+1234567890",
-        employeeId: formData.id,
-        location: formData.location,
+        password: password,
+        role: "employee",
+        contact: formData.phone || "",
+        location: formData.location || "",
         salary: Number(formData.salary.replace(/\D/g, "")) || 0,
         dateOfJoining: formData.dateOfJoining || new Date().toISOString().split('T')[0],
         workStartTime: formatTime(formData.workingHoursFrom),
         workEndTime: formatTime(formData.workingHoursTo)
       };
 
+      console.log("Creating employee with payload:", payload);
       await apiService.createEmployee(payload);
       navigate("/admin/hr/employees");
     } catch (err) {
@@ -136,24 +137,10 @@ const CreateEmployee = () => {
         }}
         className="bg-white border border-[#D9D9D9] rounded-2xl p-6 shadow-sm"
       >
-        {/* Row 1 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div>
             <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
-              Employee ID
-            </label>
-            <input
-              type="text"
-              name="id"
-              value={formData.id}
-              onChange={handleChange}
-              placeholder="Enter Employee ID"
-              className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F]"
-            />
-          </div>
-          <div>
-            <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
-              Name
+              Name <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -161,9 +148,41 @@ const CreateEmployee = () => {
               value={formData.name}
               onChange={handleChange}
               placeholder="Enter name"
+              required
               className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F]"
             />
           </div>
+          <div>
+            <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
+              Email <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              placeholder="Enter email address"
+              required
+              className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F]"
+            />
+          </div>
+          <div>
+            <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
+              Password <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="password"
+              name="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Create password"
+              required
+              className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F]"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div>
             <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
               Contact Number
@@ -174,36 +193,6 @@ const CreateEmployee = () => {
               value={formData.phone}
               onChange={handleChange}
               placeholder="Enter phone number"
-              className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F]"
-            />
-          </div>
-        </div>
-
-        {/* Row 2 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
-          <div>
-            <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
-              Email
-            </label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="Enter email address"
-              className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F]"
-            />
-          </div>
-          <div>
-            <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
-              Password
-            </label>
-            <input
-              type="password"
-              name="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Create password"
               className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F]"
             />
           </div>
@@ -234,8 +223,7 @@ const CreateEmployee = () => {
           </div>
         </div>
 
-        {/* Row 3 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
             <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
               Salary
@@ -251,7 +239,7 @@ const CreateEmployee = () => {
           </div>
           <div>
             <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
-              Working hours
+              Working Hours
             </label>
             <div className="flex items-center gap-3">
               <input
@@ -259,15 +247,16 @@ const CreateEmployee = () => {
                 name="workingHoursFrom"
                 value={formData.workingHoursFrom}
                 onChange={handleChange}
-                placeholder="From"
+                placeholder="From (e.g. 10:00 AM)"
                 className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F] text-center"
               />
+              <span className="text-gray-400 font-medium">to</span>
               <input
                 type="text"
                 name="workingHoursTo"
                 value={formData.workingHoursTo}
                 onChange={handleChange}
-                placeholder="To"
+                placeholder="To (e.g. 06:00 PM)"
                 className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F] text-center"
               />
             </div>
@@ -276,14 +265,16 @@ const CreateEmployee = () => {
             <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
               Role
             </label>
-            <input
-              type="text"
+            <select
               name="role"
               value={formData.role}
               onChange={handleChange}
-              placeholder="Enter role"
               className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F]"
-            />
+            >
+              <option value="employee">Employee</option>
+              <option value="admin">Admin</option>
+              <option value="manager">Manager</option>
+            </select>
           </div>
         </div>
       </form>

@@ -5,11 +5,11 @@ import apiService from '../../../api/service';
 
 const AddDoctorModal = ({ isOpen, onClose, onAdd, saving }) => {
   const [formData, setFormData] = useState({
-    name: '',
-    specialty: '',
-    timeFrom: '',
-    timeTo: '',
-    location: '',
+    name: "",
+    specialty: "",
+    timeFrom: "",
+    timeTo: "",
+    location: "",
     days: [],
   });
   const [errors, setErrors] = useState({});
@@ -20,7 +20,7 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd, saving }) => {
   const dayLabels = { sun: 'Sun', mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat' };
 
   const handleDayToggle = (day) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       days: prev.days.includes(day) ? prev.days.filter(d => d !== day) : [...prev.days, day]
     }));
@@ -126,11 +126,10 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd, saving }) => {
                   key={day}
                   type="button"
                   onClick={() => handleDayToggle(day)}
-                  className={`flex-1 min-w-[40px] py-1.5 rounded-md text-xs font-medium transition-colors border ${
-                    formData.days.includes(day)
+                  className={`flex-1 min-w-[40px] py-1.5 rounded-md text-xs font-medium transition-colors border ${formData.days.includes(day)
                       ? 'bg-[#F68E5F] border-[#ff6e2b] text-[#FFFCFB]'
                       : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                  }`}
+                    }`}
                 >
                   {dayLabels[day]}
                 </button>
@@ -139,7 +138,7 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd, saving }) => {
             {errors.days && <p className="text-xs text-red-500 mt-1">{errors.days}</p>}
           </div>
 
-          <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
             <button
               type="button"
               onClick={onClose}
@@ -170,27 +169,27 @@ const CreatePartner = () => {
 
   // Form States
   const [basicInfo, setBasicInfo] = useState({
-    orgName: '',
-    type: 'Hospital',
-    primaryContact: '',
-    location: '',
-    image: null
+    orgName: "",
+    type: "Hospital",
+    primaryContact: "",
+    location: "",
+    image: null,
   });
   const basicInfoImageRef = React.useRef(null);
 
   const [details, setDetails] = useState({
-    registrationNumber: '',
-    partnerId: '',
-    establishmentYear: '',
-    bedCapacity: '',
-    staffCount: '',
-    ambulanceService: '',
-    emergencyServices: 'available 24/7'
+    registrationNumber: "",
+    partnerId: "",
+    establishmentYear: "",
+    bedCapacity: "",
+    staffCount: "",
+    ambulanceService: "",
+    emergencyServices: "available 24/7",
   });
 
-  const [specializations, setSpecializations] = useState('');
+  const [specializations, setSpecializations] = useState("");
   const [doctors, setDoctors] = useState([]);
-  const [doctorSearch, setDoctorSearch] = useState('');
+  const [doctorSearch, setDoctorSearch] = useState("");
 
   const filteredDoctors = doctors.filter(doc =>
     doc.name.toLowerCase().includes(doctorSearch.toLowerCase()) ||
@@ -198,13 +197,16 @@ const CreatePartner = () => {
   );
 
   const handleBasicInfoChange = (e) => {
-    const { name, value } = e.target;
-    setBasicInfo(prev => ({ ...prev, [name]: value }));
+    let { name, value } = e.target;
+    if (name === "primaryContact") {
+      value = value.replace(/\D/g, "").slice(0, 10);
+    }
+    setBasicInfo((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleDetailChange = (e) => {
     const { name, value } = e.target;
-    setDetails(prev => ({ ...prev, [name]: value }));
+    setDetails((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleBasicInfoImageUpload = (e) => {
@@ -212,7 +214,7 @@ const CreatePartner = () => {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setBasicInfo(prev => ({ ...prev, image: reader.result }));
+        setBasicInfo((prev) => ({ ...prev, image: reader.result }));
       };
       reader.readAsDataURL(file);
     }
@@ -249,15 +251,15 @@ const CreatePartner = () => {
       const orgRes = await apiService.createOrganization(payload);
       console.log('Organization creation response:', orgRes);
 
-      const orgId = orgRes?._id || 
-                    orgRes?.data?._id || 
-                    orgRes?.data?.organization?._id || 
-                    orgRes?.organization?._id || 
-                    orgRes?.id || 
-                    orgRes?.data?.id ||
-                    (typeof orgRes?.data === 'string' ? orgRes.data : null) ||
-                    (typeof orgRes?.organization === 'string' ? orgRes.organization : null);
-      
+      const orgId = orgRes?._id ||
+        orgRes?.data?._id ||
+        orgRes?.data?.organization?._id ||
+        orgRes?.organization?._id ||
+        orgRes?.id ||
+        orgRes?.data?.id ||
+        (typeof orgRes?.data === 'string' ? orgRes.data : null) ||
+        (typeof orgRes?.organization === 'string' ? orgRes.organization : null);
+
       console.log('Final resolved orgId for doctors:', orgId);
 
       if (!orgId) {
@@ -297,7 +299,10 @@ const CreatePartner = () => {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto pb-10" style={{ fontFamily: 'Inter, sans-serif' }}>
+    <div
+      className="flex flex-col h-full overflow-y-auto pb-10"
+      style={{ fontFamily: "Inter, sans-serif" }}
+    >
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-4">
           <button
@@ -335,14 +340,20 @@ const CreatePartner = () => {
         {/* Left Side Profile Card (Basic Info during creation) */}
         <div className="w-full lg:w-[320px] shrink-0">
           <div className="bg-white border border-[#E5E7EB] rounded-2xl p-6 flex flex-col shadow-[0_4px_20px_0px_#0000000D] h-full">
-            <h3 className="text-[16px] font-bold text-[#22333B] mb-5">Basic Info</h3>
+            <h3 className="text-[16px] font-bold text-[#22333B] mb-5">
+              Basic Info
+            </h3>
             <div className="relative mb-6 self-center">
               <div
                 className="w-24 h-24 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 overflow-hidden cursor-pointer"
                 onClick={() => basicInfoImageRef.current?.click()}
               >
                 {basicInfo.image ? (
-                  <img src={basicInfo.image} alt="Hospital Logo" className="w-full h-full object-cover" />
+                  <img
+                    src={basicInfo.image}
+                    alt="Hospital Logo"
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
                   <Upload size={24} />
                 )}
@@ -418,7 +429,9 @@ const CreatePartner = () => {
         <div className="flex-1 flex flex-col gap-6">
           {/* Organization Details */}
           <div className="bg-white border border-[#E5E7EB] rounded-2xl p-6 shadow-[0_4px_20px_0px_#0000000D]">
-            <h3 className="text-[16px] font-bold text-[#22333B] mb-5">Organization Details</h3>
+            <h3 className="text-[16px] font-bold text-[#22333B] mb-5">
+              Organization Details
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div>
                 <label className="block text-sm text-[#374151] mb-1.5">Registration Number</label>
@@ -518,7 +531,9 @@ const CreatePartner = () => {
       {/* Available Doctors (Full Width) */}
       <div className="bg-white border border-[#E5E7EB] rounded-2xl p-6 mb-6 shadow-[0_4px_20px_0px_#0000000D]">
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-bold text-[#22333B]">Available Doctors</h3>
+          <h3 className="text-lg font-bold text-[#22333B]">
+            Available Doctors
+          </h3>
           <div className="flex gap-3">
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]" />
@@ -527,7 +542,7 @@ const CreatePartner = () => {
                 placeholder="Search doctor..."
                 value={doctorSearch}
                 onChange={(e) => setDoctorSearch(e.target.value)}
-                className="pl-9 pr-4 py-2 border border-[#E5E7EB] rounded-lg text-sm w-75 focus:outline-none focus:border-[#F68E5F]"
+                className="pl-9 pr-4 py-2 border border-[#E5E7EB] rounded-lg text-sm w-80 focus:outline-none focus:border-[#F68E5F]"
               />
             </div>
             <button
@@ -542,21 +557,36 @@ const CreatePartner = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredDoctors.length > 0 ? (
             filteredDoctors.map((doc, idx) => (
-              <div key={idx} className="bg-[#F8FAFC] border border-[#F1F5F9] rounded-xl p-4 flex gap-4 items-start">
+              <div
+                key={idx}
+                className="bg-[#F8FAFC] border border-[#F1F5F9] rounded-xl p-4 flex gap-4 items-start"
+              >
                 <div className="w-12 h-12 rounded-lg bg-[#E2E8F0] overflow-hidden shrink-0 mt-1">
-                  {doc.image && doc.image.startsWith('data:image') ? (
-                    <img src={doc.image} alt={doc.name} className="w-full h-full object-cover" />
-                  ) : doc.image === 'female' ? (
-                    <img src="https://i.pravatar.cc/150?img=5" alt={doc.name} className="w-full h-full object-cover" />
+                  {doc.image && doc.image.startsWith("data:image") ? (
+                    <img
+                      src={doc.image}
+                      alt={doc.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : doc.image === "female" ? (
+                    <img
+                      src="https://i.pravatar.cc/150?img=5"
+                      alt={doc.name}
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
-                    <img src="https://i.pravatar.cc/150?img=11" alt={doc.name} className="w-full h-full object-cover" />
+                    <img
+                      src="https://i.pravatar.cc/150?img=11"
+                      alt={doc.name}
+                      className="w-full h-full object-cover"
+                    />
                   )}
                 </div>
                 <div className="flex-1">
                   <div className="flex justify-between items-start">
                     <h4 className="text-[15px] font-bold text-[#22333B] mb-0.5">{doc.name}</h4>
                     <button
-                      onClick={() => setDoctors(docs => docs.filter(d => d.id !== doc.id))}
+                      onClick={() => setDoctors(docs => docs.filter((_, i) => i !== idx))}
                       className="text-[#9CA3AF] hover:text-red-500"
                     >
                       <X size={14} />
@@ -587,6 +617,7 @@ const CreatePartner = () => {
         isOpen={isDoctorModalOpen}
         onClose={() => setIsDoctorModalOpen(false)}
         onAdd={handleAddDoctor}
+        saving={saving}
       />
     </div>
   );

@@ -45,6 +45,8 @@ import PartnerDetails from "./pages/admin/Partners/PartnerDetails";
 import CreatePartner from "./pages/admin/Partners/CreatePartner";
 import Donations from "./pages/admin/Donations/Donations";
 import DonationDetails from "./pages/admin/Donations/DonationDetails";
+import HelpSupport from "./pages/admin/HelpSupport/HelpSupport";
+import Reports from "./pages/admin/Reports/Reports";
 
 // HR & Payroll
 import Employees from "./pages/admin/hr/employees/Employees";
@@ -59,7 +61,6 @@ function App() {
   return (
     <Router>
       <Routes>
-
         {/* Auth routes */}
         <Route path="/login" element={<Login />} />
 
@@ -98,6 +99,7 @@ function App() {
         />
 
         {/* Associated Hospitals Page */}
+        {/* Associated Hospitals Page */}
         <Route
           path="/associated-hospitals"
           element={
@@ -130,6 +132,7 @@ function App() {
         /> */}
 
         {/* Contact us Page */}
+        {/* Contact us Page */}
         <Route
           path="/contact"
           element={
@@ -159,9 +162,10 @@ function App() {
             <Route path="hr/salary" element={<Salary />} />
             <Route path="hr/salary/create" element={<CreateSalary />} />
             <Route path="hr/salary/:id" element={<SalaryDetails />} />
+            <Route path="reports" element={<Reports />} />
+            <Route path="help-support" element={<HelpSupport />} />
           </Route>
         </Route>
-
       </Routes>
     </Router>
   );

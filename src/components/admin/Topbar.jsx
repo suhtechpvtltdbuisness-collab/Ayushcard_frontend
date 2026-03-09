@@ -105,10 +105,14 @@ const Topbar = () => {
               {getInitials(displayName)}
             </div>
 
-            {/* Name + Role — hidden on small screens */}
-            <div className="hidden sm:flex flex-col text-left">
-              <span className="text-sm font-bold text-[#22333B] leading-tight">{displayName}</span>
-              <span className="text-xs text-[#9CA3AF] capitalize leading-tight">{displayRole}</span>
+            {/* Name + Role */}
+            <div className="flex flex-col text-left">
+              <span className="text-sm font-bold text-[#22333B] leading-tight truncate max-w-[100px] sm:max-w-none">
+                {displayName || "Loading..."}
+              </span>
+              <span className="text-[10px] sm:text-xs text-[#9CA3AF] capitalize leading-tight">
+                {displayRole || "User"}
+              </span>
             </div>
 
             <ChevronDown

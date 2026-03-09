@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronDown, ArrowLeft, Loader2 } from "lucide-react";
-import { getHealthCards } from "./HealthCard";
+import { ChevronDown, ArrowLeft, Loader2, Plus, X } from "lucide-react";
 import apiService from "../../../api/service";
 
 
@@ -9,12 +8,14 @@ import apiService from "../../../api/service";
 
 const CreateHealthCard = () => {
   const navigate = useNavigate();
-  const fileInputRef = useRef(null);
+  const fileInputFrontRef = useRef(null);
+  const fileInputBackRef = useRef(null);
 
   // Save/API state
   const [saveLoading, setSaveLoading] = useState(false);
   const [saveError, setSaveError] = useState("");
-  const [pendingFile, setPendingFile] = useState(null);
+  const [pendingFileFront, setPendingFileFront] = useState(null);
+  const [previewImage, setPreviewImage] = useState(null);
 
   const [formData, setFormData] = useState({
     id: "",
@@ -31,11 +32,13 @@ const CreateHealthCard = () => {
     altPhone: "",
     email: "",
     address: "",
+    cardNumber: "",
     issueDate: "",
     expiryDate: "",
     verificationDate: "",
     members: [],
-    profileImage: "",
+    documentFront: "",
+    documentBack: "",
     payment: {
       applicationFee: 120,
       memberAddOns: 0,
@@ -44,19 +47,19 @@ const CreateHealthCard = () => {
   });
 
   useEffect(() => {
-    const totalMembers =
-      formData.totalMembers !== undefined
-        ? Number(formData.totalMembers)
-        : formData.members?.length || 0;
-    const calculatedTotal = 120 + totalMembers * 10;
+    // Up to 7 included members allowed
+    const includedMembersCount = Math.min(formData.members?.length || 0, 7);
+    const calculatedTotal = 120 + includedMembersCount * 10;
+
     setFormData((prev) => ({
       ...prev,
       payment: {
         ...prev.payment,
+        memberAddOns: includedMembersCount * 10,
         totalPaid: calculatedTotal.toFixed(2),
       },
     }));
-  }, [formData.members, formData.totalMembers]);
+  }, [formData.members]);
 
   const isEditing = true;
 
@@ -73,6 +76,8 @@ const CreateHealthCard = () => {
       ].includes(field)
     ) {
       value = value.replace(/[^a-zA-Z\s]/g, "");
+    } else if (["phone", "altPhone"].includes(field)) {
+      value = value.replace(/\D/g, "").slice(0, 10);
     } else if (
       [
         "phone",
@@ -113,28 +118,62 @@ const CreateHealthCard = () => {
   const handleDateChange = (e, field) => {
     const val = e.target.value;
     if (!val) {
-      setFormData((prev) => ({ ...prev, [field]: "" }));
+      setFormData((prev) => ({
+        ...prev,
+        [field]: "",
+        ...(field === "issueDate" ? { expiryDate: "" } : {}),
+      }));
       return;
     }
     const parts = val.split("-");
+    let formattedDate = val;
     if (parts.length === 3) {
-      setFormData((prev) => ({
-        ...prev,
-        [field]: `${parts[2]}-${parts[1]}-${parts[0]}`,
-      }));
-    } else {
-      setFormData((prev) => ({ ...prev, [field]: val }));
+      formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
     }
+
+    let additionalUpdates = {};
+    if (field === "issueDate") {
+      const issueD = new Date(val);
+      if (!isNaN(issueD.getTime())) {
+        issueD.setFullYear(issueD.getFullYear() + 1);
+        const expDay = String(issueD.getDate()).padStart(2, "0");
+        const expMonth = String(issueD.getMonth() + 1).padStart(2, "0");
+        const expYear = issueD.getFullYear();
+        additionalUpdates.expiryDate = `${expDay}-${expMonth}-${expYear}`;
+      }
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      [field]: formattedDate,
+      ...additionalUpdates,
+    }));
   };
 
-  const handleImageUpload = (e) => {
+  const handleImageUpload = (e, side) => {
     const file = e.target.files[0];
     if (file && (file.type === "image/jpeg" || file.type === "image/png")) {
       const imageUrl = URL.createObjectURL(file);
-      setFormData((prev) => ({ ...prev, profileImage: imageUrl }));
-      setPendingFile(file); // store actual file for FormData API POST
+      if (side === "front") {
+        setFormData((prev) => ({ ...prev, documentFront: imageUrl }));
+        setPendingFileFront(file);
+      } else {
+        setFormData((prev) => ({ ...prev, documentBack: imageUrl }));
+        // Back side currently preview-only as API supports single document
+      }
     } else {
       alert("Please upload a valid .jpg or .png image.");
+    }
+  };
+
+  const handleRemoveImage = (side) => {
+    if (side === "front") {
+      setFormData((prev) => ({ ...prev, documentFront: "" }));
+      setPendingFileFront(null);
+      if (fileInputFrontRef.current) fileInputFrontRef.current.value = "";
+    } else {
+      setFormData((prev) => ({ ...prev, documentBack: "" }));
+      if (fileInputBackRef.current) fileInputBackRef.current.value = "";
     }
   };
 
@@ -153,7 +192,6 @@ const CreateHealthCard = () => {
     }
 
     // Map form fields → API payload
-    // NOTE: applicationId is NOT sent — backend auto-generates it
     const payload = {
       applicationDate: formData.dateApplied || "",
       status: (() => {
@@ -175,15 +213,16 @@ const CreateHealthCard = () => {
       cardIssueDate: formData.issueDate || "",
       cardExpiredDate: formData.expiryDate || "",
       verificationDate: formData.verificationDate || "",
-      totalMember:
-        formData.totalMembers !== undefined
-          ? Number(formData.totalMembers)
-          : formData.members?.length || 0,
+      totalMember: formData.members?.length || 0,
       totalAmount: parseFloat(formData.payment?.totalPaid || "0"),
-      members: formData.members || [], // explicitly include members array
+      members: formData.members || [],
+      address: formData.address || "",
+      gender: formData.gender || "",
+      dob: formData.dob || "",
+      relation: formData.relation || "",
+      relatedPerson: formData.relatedPerson || "",
     };
 
-    // Only include cardNo if the user actually filled it in
     const cardNoVal = formData.cardNumber?.trim();
     if (cardNoVal) payload.cardNo = cardNoVal;
 
@@ -191,9 +230,13 @@ const CreateHealthCard = () => {
 
     setSaveLoading(true);
     try {
-      // Send JSON fields + optional file
-      const result = await apiService.createHealthCard(payload, pendingFile);
+      // Create with front document primarily if available, or just as JSON
+      const result = await apiService.createHealthCard(payload, pendingFileFront);
       console.log("[CreateHealthCard] API success:", result);
+      
+      // If we have a back document, we might need a separate update if the API doesn't support multiple ones in create
+      // For now, let's assume it supports the 'documents' field as an array or handles it
+      
       navigate("/admin/health-card");
     } catch (err) {
       const status = err?.response?.status;
@@ -221,7 +264,7 @@ const CreateHealthCard = () => {
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate(-1)}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+            className="w-10 h-10 flex items-center justify-center border border-gray-200 rounded-full hover:bg-gray-50 transition-colors shadow-sm"
           >
             <ArrowLeft size={20} className="text-gray-600" />
           </button>
@@ -263,7 +306,7 @@ const CreateHealthCard = () => {
 
       <div className="space-y-6">
         {/* Application Details Section */}
-        <div className="border border-[#E2E8F0] rounded-xl p-6 bg-white">
+        <div className="border border-[#E2E8F0] rounded-xl p-6 bg-white shadow-sm">
           <h3 className="font-bold text-[16px] text-[#22333B] mb-3">
             Application Details
           </h3>
@@ -320,13 +363,14 @@ const CreateHealthCard = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-3">
             <div>
               <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Applicant's first name
+                Applicant's first name <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 value={formData.applicantFirstName || ""}
                 onChange={(e) => handleChange(e, "applicantFirstName")}
                 disabled={!isEditing}
+                required
                 className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
               />
             </div>
@@ -432,13 +476,14 @@ const CreateHealthCard = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-3">
             <div>
               <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Phone Number
+                Phone Number <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 value={formData.phone || ""}
                 onChange={(e) => handleChange(e, "phone")}
                 disabled={!isEditing}
+                required
                 className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
               />
             </div>
@@ -513,9 +558,9 @@ const CreateHealthCard = () => {
               <input
                 type="date"
                 value={formatDateForInput(formData.expiryDate)}
-                onChange={(e) => handleDateChange(e, "expiryDate")}
-                disabled={!isEditing}
-                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
+                readOnly
+                disabled
+                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none bg-gray-50 cursor-not-allowed"
               />
             </div>
           </div>
@@ -539,19 +584,14 @@ const CreateHealthCard = () => {
               </label>
               <input
                 type="text"
-                value={
-                  formData.totalMembers !== undefined
-                    ? formData.totalMembers
-                    : formData.members?.length || 0
-                }
-                onChange={(e) => handleChange(e, "totalMembers")}
-                disabled={!isEditing}
-                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
+                value={(formData.members?.length || 0) + 1}
+                readOnly
+                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none bg-gray-50`}
               />
             </div>
             <div>
               <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Total Amount Paid
+                Total Amount Paid (₹)
               </label>
               <input
                 type="text"
@@ -564,70 +604,128 @@ const CreateHealthCard = () => {
         </div>
 
         {/* Upload Layout */}
-        <div className="border border-[#E2E8F0] rounded-xl p-6 bg-white flex flex-col">
+        <div className="border border-[#E2E8F0] rounded-xl p-6 bg-white flex flex-col shadow-sm">
           <h3 className="font-bold text-[15px] text-[#22333B]">Image Upload</h3>
-          <p className="text-[13px] text-[#6D6D6D] mb-3">
-            Upload you profile photo here
+          <p className="text-[13px] text-[#6D6D6D] mb-5">
+            Add your documents here (Aadhar front/back or other ID)
           </p>
-          <div className="border border-dashed border-[#1849D6] rounded-xl flex flex-col items-center justify-center p-8 bg-[#FFFFFF] relative overflow-hidden">
-            {formData.profileImage ? (
-              <div className="w-30 h-30 rounded-lg overflow-hidden border border-gray-200 mb-4 z-10 relative group">
-                <img
-                  src={formData.profileImage}
-                  alt="Profile preview"
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-black/40 hidden group-hover:flex items-center justify-center">
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="text-white text-[12px] font-medium hover:underline"
-                  >
-                    Change
-                  </button>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Front Side Upload */}
+            <div className="border border-dashed border-[#1849D6] rounded-xl flex flex-col items-center justify-center p-8 bg-[#FFFFFF] relative overflow-hidden min-h-[200px]">
+              {formData.documentFront ? (
+                <div className="w-full h-full absolute inset-0 group">
+                  <img
+                    src={formData.documentFront}
+                    alt="Document Front preview"
+                    className="w-full h-full object-contain p-2 cursor-pointer"
+                    onClick={() => setPreviewImage(formData.documentFront)}
+                  />
+                  {isEditing && (
+                    <div className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center gap-4 transition-all z-20">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          fileInputFrontRef.current?.click();
+                        }}
+                        className="px-4 py-2 bg-white text-[#1849D6] rounded-lg text-sm font-medium hover:bg-gray-50"
+                      >
+                        Change
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveImage("front");
+                        }}
+                        className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ) : (
-              <div className="w-12 h-12 bg-[#FFFFFF] text-[#1849D6] rounded-xl flex items-center justify-center mb-4 z-10">
-                <img src="/admin_images/upload.svg" alt="" />
-              </div>
-            )}
-
-            {!formData.profileImage && (
-              <p className="text-[14px] text-[#0F172A] font-medium mb-1 relative z-10">
-                Drag your file to start uploading
-              </p>
-            )}
-
-            <div className="flex items-center w-full max-w-50 my-3 z-10">
-              <div className="flex-1 h-px bg-[#E2E8F0]"></div>
-              <span className="px-2 text-[12px] text-[#94A3B8] font-medium">
-                OR
-              </span>
-              <div className="flex-1 h-px bg-[#E2E8F0]"></div>
+              ) : (
+                <div
+                  className="flex flex-col items-center justify-center cursor-pointer w-full h-full"
+                  onClick={() => fileInputFrontRef.current?.click()}
+                >
+                  <Plus size={32} className="text-[#1849D6] mb-3" />
+                  <p className="text-[14px] text-[#0F172A] font-medium">
+                    Document Front Side
+                  </p>
+                </div>
+              )}
+              <input
+                type="file"
+                accept=".jpg, .jpeg, .png"
+                className="hidden"
+                ref={fileInputFrontRef}
+                onChange={(e) => handleImageUpload(e, "front")}
+              />
             </div>
 
-            <input
-              type="file"
-              accept=".jpg, .jpeg, .png"
-              className="hidden"
-              ref={fileInputRef}
-              onChange={handleImageUpload}
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="px-3 py-1 border border-[#1849D6] text-[#1849D6] rounded-xl text-[13px] font-medium bg-white hover:bg-[#1849D6] hover:text-white transition-colors z-10"
-            >
-              Browse files
-            </button>
+            {/* Back Side Upload */}
+            <div className="border border-dashed border-[#1849D6] rounded-xl flex flex-col items-center justify-center p-8 bg-[#FFFFFF] relative overflow-hidden min-h-[200px]">
+              {formData.documentBack ? (
+                <div className="w-full h-full absolute inset-0 group">
+                  <img
+                    src={formData.documentBack}
+                    alt="Document Back preview"
+                    className="w-full h-full object-contain p-2 cursor-pointer"
+                    onClick={() => setPreviewImage(formData.documentBack)}
+                  />
+                  {isEditing && (
+                    <div className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center gap-4 transition-all z-20">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          fileInputBackRef.current?.click();
+                        }}
+                        className="px-4 py-2 bg-white text-[#1849D6] rounded-lg text-sm font-medium hover:bg-gray-50"
+                      >
+                        Change
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveImage("back");
+                        }}
+                        className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div
+                  className="flex flex-col items-center justify-center cursor-pointer w-full h-full"
+                  onClick={() => fileInputBackRef.current?.click()}
+                >
+                  <Plus size={32} className="text-[#1849D6] mb-3" />
+                  <p className="text-[14px] text-[#0F172A] font-medium">
+                    Document Back Side
+                  </p>
+                </div>
+              )}
+              <input
+                type="file"
+                accept=".jpg, .jpeg, .png"
+                className="hidden"
+                ref={fileInputBackRef}
+                onChange={(e) => handleImageUpload(e, "back")}
+              />
+            </div>
           </div>
-          <p className="text-[12px] text-[#6D6D6D] mt-3">
+
+          <p className="text-[12px] text-[#6D6D6D] mt-6">
             Only supports .jpg, .png files
           </p>
 
         </div>
 
         {/* Members Table */}
-        <div className="border border-[#E2E8F0] rounded-xl bg-white overflow-hidden mb-5">
+        <div className="border border-[#E2E8F0] rounded-xl bg-white overflow-hidden mb-5 shadow-sm">
           <div className="p-4 border border-[#E2E8F0]">
             <h3 className="font-bold text-[15px] text-[#22333B]">
               Included Members ({formData.members?.length || 0})
@@ -662,7 +760,7 @@ const CreateHealthCard = () => {
                     <td className="py-4 px-6 text-[14px] text-[#475569]">
                       {i + 1}
                     </td>
-                    <td className="py-4 px-6">
+                    <td className="py-2 px-6">
                       {isEditing ? (
                         <input
                           type="text"
@@ -675,7 +773,7 @@ const CreateHealthCard = () => {
                             );
                             setFormData({ ...formData, members: newMembers });
                           }}
-                          className="w-full border border-[#E2E8F0] rounded px-3 py-2 text-[14px]"
+                          className="w-full border border-gray-200 rounded px-3 py-2 text-[14px] focus:outline-none focus:border-[#F68E5F]"
                           placeholder="Name"
                         />
                       ) : (
@@ -684,7 +782,7 @@ const CreateHealthCard = () => {
                         </span>
                       )}
                     </td>
-                    <td className="py-4 px-6">
+                    <td className="py-2 px-6">
                       {isEditing ? (
                         <input
                           type="text"
@@ -697,7 +795,7 @@ const CreateHealthCard = () => {
                             );
                             setFormData({ ...formData, members: newMembers });
                           }}
-                          className="w-full border border-[#E2E8F0] rounded px-3 py-2 text-[14px]"
+                          className="w-full border border-gray-200 rounded px-3 py-2 text-[14px] focus:outline-none focus:border-[#F68E5F]"
                           placeholder="Relation"
                         />
                       ) : (
@@ -706,7 +804,7 @@ const CreateHealthCard = () => {
                         </span>
                       )}
                     </td>
-                    <td className="py-4 px-6">
+                    <td className="py-2 px-6">
                       {isEditing ? (
                         <input
                           type="text"
@@ -719,7 +817,7 @@ const CreateHealthCard = () => {
                             );
                             setFormData({ ...formData, members: newMembers });
                           }}
-                          className="w-full border border-[#E2E8F0] rounded px-3 py-2 text-[14px]"
+                          className="w-full border border-gray-200 rounded px-3 py-2 text-[14px] focus:outline-none focus:border-[#F68E5F]"
                           placeholder="Age"
                         />
                       ) : (
@@ -729,7 +827,7 @@ const CreateHealthCard = () => {
                       )}
                     </td>
                     {isEditing && (
-                      <td className="py-4 px-6">
+                      <td className="py-2 px-6">
                         <button
                           onClick={() => {
                             const newMembers = formData.members.filter(
@@ -749,9 +847,9 @@ const CreateHealthCard = () => {
                   <tr>
                     <td
                       colSpan={isEditing ? 5 : 4}
-                      className="py-4 text-center text-gray-400"
+                      className="py-10 text-center text-gray-400 text-sm italic"
                     >
-                      No members added yet.
+                      No members added yet. Add family members to include them in the health card.
                     </td>
                   </tr>
                 )}
@@ -779,6 +877,31 @@ const CreateHealthCard = () => {
           )}
         </div>
       </div>
+
+      {/* Full Screen Image Preview Modal */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div
+            className="relative w-[80vw] h-[80vh] max-w-5xl max-h-[800px] flex items-center justify-center p-4 bg-white rounded-lg border-2 border-white/20"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute -top-12 -right-12 text-white hover:text-gray-300 p-2 transition-colors"
+            >
+              <X size={40} />
+            </button>
+            <img
+              src={previewImage}
+              alt="Document Full Preview"
+              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

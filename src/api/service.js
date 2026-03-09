@@ -344,6 +344,14 @@ const apiService = {
         return response.data;
     },
 
+    // ─── SALARIES ─────────────────────────────────────────────────────────
+
+    // POST /api/salaries
+    createSalary: async (salaryData) => {
+        const response = await api.post('/api/salaries', salaryData);
+        return response.data;
+    },
+
     // ─── UTILITY ──────────────────────────────────────────────────────────
 
     logout: () => {

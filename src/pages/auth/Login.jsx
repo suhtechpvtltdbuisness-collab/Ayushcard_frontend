@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import apiService from '../../api/service';
 
 const Login = () => {
-  const [activeTab, setActiveTab] = useState('Admin');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [activeTab, setActiveTab] = useState("Admin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [keepLogged, setKeepLogged] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -49,7 +49,10 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center overflow-hidden" style={{ backgroundColor: '#FCF3EB' }}>
+    <div
+      className="min-h-screen relative flex items-center justify-center overflow-hidden"
+      style={{ backgroundColor: "#FCF3EB" }}
+    >
       {/* Corner Shapes */}
       <img src="/orange2.svg" alt="decoration" className="absolute top-0 left-0 w-48 md:w-104 select-none pointer-events-none" />
       <img src="/orange1.svg" alt="decoration" className="absolute top-0 left-0 w-20 md:w-42 select-none pointer-events-none" />
@@ -75,7 +78,7 @@ const Login = () => {
           <div className="flex w-full mb-6 border rounded-xl border-[#F68E5F] p-2" style={{ fontFamily: "'Nunito Sans', sans-serif" }}>
             <button
               type="button"
-              className={`flex-1 py-2 text-[16px] font-semibold font-['Nunito_Sans'] rounded-xl transition-colors duration-200 ${activeTab === 'Admin'
+              className={`flex-1 py-2 text-[16px] font-semibold rounded-xl transition-colors duration-200 ${activeTab === 'Admin'
                 ? 'bg-[#F68E5F] text-white shadow-sm'
                 : 'text-[#F68E5F] bg-transparent'
                 }`}
@@ -85,7 +88,7 @@ const Login = () => {
             </button>
             <button
               type="button"
-              className={`flex-1 py-2 text-[16px] font-semibold font-['Nunito_Sans'] rounded-xl transition-colors duration-200 ${activeTab === 'Employee'
+              className={`flex-1 py-2 text-[16px] font-semibold rounded-xl transition-colors duration-200 ${activeTab === 'Employee'
                 ? 'bg-[#F68E5F] text-white shadow-sm'
                 : 'text-[#F68E5F] bg-transparent'
                 }`}
@@ -98,10 +101,16 @@ const Login = () => {
           <form onSubmit={handleLogin} className="space-y-5">
             {/* Email Field */}
             <div className="space-y-1">
-              <label className="block text-[16px] font-normal font-['Inter'] text-gray-700">Email</label>
+              <label className="block text-[16px] font-normal font-['Inter'] text-gray-700">
+                Email
+              </label>
               <input
-                type="email"
-                placeholder="example123@gmail.com"
+                type="text"
+                placeholder={
+                  activeTab === "Admin"
+                    ? "admin123@gmail.com"
+                    : "employee123@gmail.com"
+                }
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
@@ -112,7 +121,9 @@ const Login = () => {
 
             {/* Password Field */}
             <div className="space-y-1">
-              <label className="block text-[16px] font-normal font-['Inter'] text-gray-700">Password</label>
+              <label className="block text-[16px] font-normal font-['Inter'] text-gray-700">
+                Password
+              </label>
               <input
                 type="password"
                 placeholder="password"
@@ -148,7 +159,11 @@ const Login = () => {
                     stroke="currentColor"
                     strokeWidth="3"
                   >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M5 13l4 4L19 7"
+                    />
                   </svg>
                 </div>
                 <span className="text-sm font-normal font-['Inter'] text-[#757575] group-hover:text-gray-700 transition-colors">
@@ -158,7 +173,7 @@ const Login = () => {
 
               <button
                 type="button"
-                className="text-[16px] font-normal font-['Inter'] text-[#F68E5F] mt-5 hover:text-[#ff702d] transition-colors underline-offset-4 hover:underline"
+                className="text-[16px] font-normal font-['Inter'] text-[#F68E5F] mt-0 hover:text-[#ff702d] transition-colors underline-offset-4 hover:underline"
               >
                 Forgot password?
               </button>
@@ -183,7 +198,6 @@ const Login = () => {
               )}
             </button>
           </form>
-
         </div>
       </div>
     </div>
