@@ -2,46 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { Search, Plus, Eye, Trash2, Download, ArrowUpDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { exportToCSV } from '../../../utils/exportUtils';
+import apiService from '../../../api/service';
 
+// Keeping this for reference or fallback if needed, but the main component will use the API directly
 export const getPartners = () => {
-  const stored = localStorage.getItem('partners_data');
-  if (stored) {
-    const parsed = JSON.parse(stored);
-    // If it has too many items from previous test, regenerate it
-    if (parsed.length <= 25) return parsed;
-  }
-
-  const initialData = Array.from({ length: 14 }).map((_, i) => {
-    const types = ['Hospital', 'Pathology Lab', 'Clinic', 'Nursing Home'];
-    const statuses = ['Not verified', 'Verified', 'Inactive'];
-    return {
-      id: `P-${1001456 + i}`,
-      type: types[i % types.length],
-      orgName: 'Care Hospital',
-      primaryContact: '8373849574',
-      location: 'Kanpur,UP',
-      status: statuses[i % statuses.length],
-      rating: (4.0 + (i % 10) / 10).toFixed(1),
-      members: 850 + i * 10,
-      details: {
-        registrationNumber: `HOSP/2020/00${(i % 9) + 1}`,
-        partnerId: `PTE-00${(i % 9) + 1}`,
-        establishmentYear: '2005-01-01',
-        bedCapacity: 1200 + i * 10,
-        staffCount: 420 + i * 5,
-        ambulanceService: '5 Ambulances Available',
-        emergencyServices: 'available 24/7'
-      },
-      specializations: ['Cardiology', 'Neurology', 'Orthopedics', 'Pediatrics', 'Oncology', 'Gynecology'],
-      doctors: [
-        { id: 1, name: 'Dr. Sarah Wilson', specialty: 'CARDIOLOGIST', days: ['Mon', 'Wed', 'Fri'], timeFrom: '09:00 AM', timeTo: '01:00 PM', image: 'female' },
-        { id: 2, name: 'Dr. James Miller', specialty: 'NEUROLOGIST', days: ['Tue', 'Thu', 'Sat'], timeFrom: '10:00 AM', timeTo: '04:00 PM', image: 'male' },
-        { id: 3, name: 'Dr. Elena Petrova', specialty: 'PEDIATRICIAN', days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], timeFrom: '08:00 AM', timeTo: '12:00 PM', image: 'female' },
-      ]
-    };
-  });
-  localStorage.setItem('partners_data', JSON.stringify(initialData));
-  return initialData;
+  return [];
 };
 
 const StatusBadge = ({ status }) => {
@@ -84,7 +49,7 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
     <div className="flex items-center gap-4">
       <div className="w-21 flex justify-center">
         <button
-          onClick={() => navigate(`/admin/partners/${item.id}`, { state: { editMode: true } })}
+          onClick={() => navigate(`/admin/partners/${item._id || item.id}`, { state: { editMode: true } })}
           className="flex items-center justify-center gap-1.5 px-2 py-1 bg-[#2C2C2C] text-[#FFFCFB] rounded-lg text-sm font-normal hover:bg-[#1F2937]"
         >
           Edit
@@ -93,7 +58,7 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
       </div>
       <div className="flex items-center gap-2">
         <button
-          onClick={() => navigate(`/admin/partners/${item.id}`)}
+          onClick={() => navigate(`/admin/partners/${item._id || item.id}`)}
           className="text-[#F68E5F] hover:text-[#ff6e2b] cursor-pointer transition-colors p-1.5"
         >
           <Eye size={20} />
@@ -111,7 +76,8 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
 
 const Partners = () => {
   const navigate = useNavigate();
-  const [partners, setPartners] = useState(getPartners());
+  const [partners, setPartners] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
   const [activeFilter, setActiveFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -120,13 +86,43 @@ const Partners = () => {
   const [selectedRows, setSelectedRows] = useState([]);
   const ITEMS_PER_PAGE = 10;
 
-  const handleDeleteConfirm = () => {
+  React.useEffect(() => {
+    fetchPartners();
+  }, []);
+
+  const fetchPartners = async () => {
+    try {
+      setLoading(true);
+      const res = await apiService.getOrganizations();
+      let list = [];
+      if (Array.isArray(res)) {
+        list = res;
+      } else if (res?.data?.organizations && Array.isArray(res.data.organizations)) {
+        list = res.data.organizations;
+      } else if (res?.data && Array.isArray(res.data)) {
+        list = res.data;
+      } else if (res?.organizations && Array.isArray(res.organizations)) {
+        list = res.organizations;
+      }
+      setPartners(list);
+    } catch (err) {
+      console.error('Failed to load partners', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
     if (itemToDelete) {
-      const updatedData = partners.filter(p => p.id !== itemToDelete.id);
-      setPartners(updatedData);
-      localStorage.setItem('partners_data', JSON.stringify(updatedData));
-      setSelectedRows([]);
-      setItemToDelete(null);
+      try {
+        const idToDelete = itemToDelete._id || itemToDelete.id;
+        await apiService.deleteOrganization(idToDelete);
+        setPartners(prev => prev.filter(p => (p._id || p.id) !== idToDelete));
+        setSelectedRows([]);
+        setItemToDelete(null);
+      } catch (err) {
+        alert(err.response?.data?.message || 'Failed to delete partner.');
+      }
     }
   };
 
@@ -139,14 +135,18 @@ const Partners = () => {
   };
 
   const processedData = useMemo(() => {
-    let result = [...partners].filter(item => {
-      const matchesSearch = item.orgName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.primaryContact.includes(searchQuery);
+    let result = [...(Array.isArray(partners) ? partners : [])].filter(item => {
+      const itemName = item.name || item.orgName || '';
+      const itemId = item._id || item.id || item.partnerId || '';
+      const itemContact = item.contact || item.primaryContact || '';
+
+      const matchesSearch = itemName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        itemId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        itemContact.includes(searchQuery);
 
       if (activeFilter === 'All') return matchesSearch;
-      if (activeFilter === 'Not Verified') return matchesSearch && item.status === 'Not verified';
-      return matchesSearch && item.status.toLowerCase() === activeFilter.toLowerCase();
+      if (activeFilter === 'Not Verified') return matchesSearch && (item.status === 'Not verified' || !item.status);
+      return matchesSearch && (item.status || '').toLowerCase() === activeFilter.toLowerCase();
     });
 
     if (sortConfig.key) {
@@ -308,7 +308,11 @@ const Partners = () => {
 
       {/* Table */}
       <div className="bg-white border border-[#D9D9D9] rounded-2xl overflow-hidden flex flex-col flex-1 min-h-0">
-        {paginatedData.length > 0 ? (
+        {loading ? (
+          <div className="flex-1 flex items-center justify-center py-12 text-[#6B7280]">
+            <div className="w-10 h-10 border-4 border-[#F68E5F] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          </div>
+        ) : paginatedData.length > 0 ? (
           <div className="overflow-y-auto overflow-x-auto flex-1">
             <table className="w-full text-left border-collapse relative">
               <thead className="sticky top-0 z-10 bg-[#FFFFFF]">
@@ -322,10 +326,10 @@ const Partners = () => {
                     />
                   </th>
                   <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-17.5">Sr.no</th>
-                  {renderSortableHeader('Partner ID', 'id', 'left', 'w-[130px]')}
+                  {renderSortableHeader('Partner ID', '_id', 'left', 'w-[130px]')}
                   {renderSortableHeader('Type', 'type', 'left', 'w-[160px]')}
-                  {renderSortableHeader('Org Name', 'orgName', 'left', 'min-w-[180px]')}
-                  {renderSortableHeader('Primary Contact', 'primaryContact', 'left', 'w-[150px]')}
+                  {renderSortableHeader('Org Name', 'name', 'left', 'min-w-[180px]')}
+                  {renderSortableHeader('Primary Contact', 'contact', 'left', 'w-[150px]')}
                   {renderSortableHeader('Location', 'location', 'left', 'w-[150px]')}
                   {renderSortableHeader('Status', 'status', 'left', 'w-[140px]')}
                   <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-32.5">Actions</th>
@@ -346,13 +350,13 @@ const Partners = () => {
                         />
                       </td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B]">{globalIndex + 1}</td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.id}</td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.type}</td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.orgName}</td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.primaryContact}</td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{(row.partnerId || row._id || row.id || '').substring(0, 10)}...</td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.type || 'Hospital'}</td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.name || row.orgName}</td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.contact || row.primaryContact}</td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.location}</td>
                       <td className="py-3 px-4 whitespace-nowrap">
-                        <StatusBadge status={row.status} />
+                        <StatusBadge status={row.status || 'Verified'} />
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
                         <ActionButtons item={row} navigate={navigate} onDelete={setItemToDelete} />
@@ -408,7 +412,7 @@ const Partners = () => {
               <h3 className="text-lg font-bold text-[#22333B]">Are you sure?</h3>
             </div>
             <p className="text-[#4B5563] text-sm mb-6 pl-12 line-clamp-3">
-              Do you really want to delete the partner <strong>{itemToDelete.orgName}</strong> ({itemToDelete.id})? This process cannot be undone.
+              Do you really want to delete the partner <strong>{itemToDelete.name || itemToDelete.orgName}</strong> ({itemToDelete._id || itemToDelete.id})? This process cannot be undone.
             </p>
             <div className="flex justify-end gap-3">
               <button

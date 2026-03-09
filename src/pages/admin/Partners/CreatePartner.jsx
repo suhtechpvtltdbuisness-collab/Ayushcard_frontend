@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Search, Plus, X, Upload, Camera } from 'lucide-react';
-import { getPartners } from './Partners';
+import apiService from '../../../api/service';
 
-const AddDoctorModal = ({ isOpen, onClose, onAdd }) => {
+const AddDoctorModal = ({ isOpen, onClose, onAdd, saving }) => {
   const [formData, setFormData] = useState({
     name: '',
     specialty: '',
@@ -11,93 +11,65 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd }) => {
     timeTo: '',
     location: '',
     days: [],
-    imagePreview: null
   });
-  const fileInputRef = React.useRef(null);
+  const [errors, setErrors] = useState({});
 
   if (!isOpen) return null;
 
-  const daysList = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const daysList = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  const dayLabels = { sun: 'Sun', mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat' };
 
   const handleDayToggle = (day) => {
     setFormData(prev => ({
       ...prev,
-      days: prev.days.includes(day)
-        ? prev.days.filter(d => d !== day)
-        : [...prev.days, day]
+      days: prev.days.includes(day) ? prev.days.filter(d => d !== day) : [...prev.days, day]
     }));
   };
 
-  const handleSubmit = () => {
-    if (!formData.name || !formData.specialty || formData.days.length === 0) return;
-    onAdd({
-      id: Math.random(),
-      name: formData.name,
-      specialty: formData.specialty,
-      timeFrom: formData.timeFrom || '09:00 AM',
-      timeTo: formData.timeTo || '05:00 PM',
-      days: formData.days,
-      image: formData.imagePreview || 'female'
-    });
-    setFormData({ name: '', specialty: '', timeFrom: '', timeTo: '', location: '', days: [], imagePreview: null });
+  const validate = () => {
+    const e = {};
+    if (!formData.name.trim()) e.name = 'Name is required';
+    if (!formData.specialty.trim()) e.specialty = 'Specialty is required';
+    if (!formData.timeFrom) e.timeFrom = 'Start time required';
+    if (!formData.timeTo) e.timeTo = 'End time required';
+    if (!formData.location.trim()) e.location = 'Location is required';
+    if (formData.days.length === 0) e.days = 'Select at least one day';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleSubmit = (e) => {
+    e?.preventDefault();
+    if (!validate()) return;
+    onAdd({ ...formData });
+    setFormData({ name: '', specialty: '', timeFrom: '', timeTo: '', location: '', days: [] });
+    setErrors({});
     onClose();
   };
 
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, imagePreview: reader.result }));
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 ">
-      <div className="bg-white rounded-xl w-full max-w-lg animate-in zoom-in-95 duration-200" style={{ fontFamily: 'Inter, sans-serif' }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-white rounded-xl w-full max-w-lg shadow-xl" style={{ fontFamily: 'Inter, sans-serif' }}>
         <div className="flex justify-between items-center p-6 border-b border-gray-100">
           <div>
             <h3 className="text-lg font-bold text-[#22333B]">Add Doctor</h3>
-            <p className="text-sm text-[#6B7280]">Add new Doctor Details</p>
+            <p className="text-sm text-[#6B7280]">Fill in the doctor details below</p>
           </div>
-          <button onClick={onClose} className="text-[#9CA3AF] hover:text-[#22333B] transition-colors"><X size={20} /></button>
+          <button type="button" onClick={onClose} className="text-[#9CA3AF] hover:text-[#22333B] transition-colors"><X size={20} /></button>
         </div>
 
-        <div className="p-6">
-          <div className="flex flex-col items-center mb-6">
-            <div className="w-20 h-20 bg-gray-100 rounded-full mb-3 flex items-center justify-center overflow-hidden border border-gray-200">
-              {formData.imagePreview ? (
-                <img src={formData.imagePreview} alt="Preview" className="w-full h-full object-cover" />
-              ) : (
-                <Upload className="text-[#9CA3AF]" size={24} />
-              )}
-            </div>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImageUpload}
-              accept="image/*"
-              className="hidden"
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-1.5 border border-gray-200 rounded-md text-xs font-medium text-[#22333B] hover:bg-gray-50"
-            >
-              Upload Profile Picture
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-[#22333B] mb-1.5">Name <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-[#F68E5F]"
+                placeholder="Dr. John Smith"
+                className={`w-full border rounded-lg px-3 py-2 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-[#F68E5F] ${errors.name ? 'border-red-400' : 'border-gray-200'}`}
               />
+              {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
             </div>
             <div>
               <label className="block text-xs font-medium text-[#22333B] mb-1.5">Specialty <span className="text-red-500">*</span></label>
@@ -105,73 +77,81 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd }) => {
                 type="text"
                 value={formData.specialty}
                 onChange={(e) => setFormData({ ...formData, specialty: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-[#F68E5F]"
+                placeholder="Cardiology"
+                className={`w-full border rounded-lg px-3 py-2 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-[#F68E5F] ${errors.specialty ? 'border-red-400' : 'border-gray-200'}`}
+              />
+              {errors.specialty && <p className="text-xs text-red-500 mt-1">{errors.specialty}</p>}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-[#22333B] mb-1.5">Timing <span className="text-red-500">*</span></label>
+            <div className="flex items-center gap-3">
+              <input
+                type="time"
+                value={formData.timeFrom}
+                onChange={(e) => setFormData({ ...formData, timeFrom: e.target.value })}
+                className={`flex-1 border rounded-lg px-3 py-2 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-[#F68E5F] ${errors.timeFrom ? 'border-red-400' : 'border-gray-200'}`}
+              />
+              <span className="text-sm text-gray-500">To</span>
+              <input
+                type="time"
+                value={formData.timeTo}
+                onChange={(e) => setFormData({ ...formData, timeTo: e.target.value })}
+                className={`flex-1 border rounded-lg px-3 py-2 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-[#F68E5F] ${errors.timeTo ? 'border-red-400' : 'border-gray-200'}`}
               />
             </div>
+            {(errors.timeFrom || errors.timeTo) && (
+              <p className="text-xs text-red-500 mt-1">{errors.timeFrom || errors.timeTo}</p>
+            )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-[#22333B] mb-1.5">Timing <span className="text-red-500">*</span></label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="time"
-                  value={formData.timeFrom}
-                  onChange={(e) => setFormData({ ...formData, timeFrom: e.target.value })}
-                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-[#F68E5F]"
-                />
-                <span className="text-sm text-gray-500">To</span>
-                <input
-                  type="time"
-                  value={formData.timeTo}
-                  onChange={(e) => setFormData({ ...formData, timeTo: e.target.value })}
-                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-[#F68E5F]"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="mb-4">
+          <div>
             <label className="block text-xs font-medium text-[#22333B] mb-1.5">Location <span className="text-red-500">*</span></label>
-            <select
+            <input
+              type="text"
               value={formData.location}
               onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-[#F68E5F]"
-            >
-              <option value="">Select location...</option>
-              <option value="Main Building">Main Building</option>
-              <option value="Annex">Annex</option>
-            </select>
+              placeholder="Building A, Floor 3"
+              className={`w-full border rounded-lg px-3 py-2 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-[#F68E5F] ${errors.location ? 'border-red-400' : 'border-gray-200'}`}
+            />
+            {errors.location && <p className="text-xs text-red-500 mt-1">{errors.location}</p>}
           </div>
 
-          <div className="mb-6">
+          <div>
             <label className="block text-xs font-medium text-[#22333B] mb-1.5">Days <span className="text-red-500">*</span></label>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               {daysList.map(day => (
                 <button
                   key={day}
+                  type="button"
                   onClick={() => handleDayToggle(day)}
-                  className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors border ${formData.days.includes(day)
+                  className={`flex-1 min-w-[40px] py-1.5 rounded-md text-xs font-medium transition-colors border ${
+                    formData.days.includes(day)
                       ? 'bg-[#F68E5F] border-[#ff6e2b] text-[#FFFCFB]'
                       : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                    }`}
+                  }`}
                 >
-                  {day}
+                  {dayLabels[day]}
                 </button>
               ))}
             </div>
+            {errors.days && <p className="text-xs text-red-500 mt-1">{errors.days}</p>}
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+          <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
             <button
+              type="button"
               onClick={onClose}
               className="px-6 py-2 border border-gray-200 rounded-lg text-sm font-medium text-[#22333B] hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
+              type="button"
               onClick={handleSubmit}
-              className="px-6 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff6e2b] transition-colors"
+              disabled={saving}
+              className="px-6 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff6e2b] transition-colors disabled:opacity-60"
             >
               Add
             </button>
@@ -185,6 +165,8 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd }) => {
 const CreatePartner = () => {
   const navigate = useNavigate();
   const [isDoctorModalOpen, setIsDoctorModalOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   // Form States
   const [basicInfo, setBasicInfo] = useState({
@@ -240,37 +222,78 @@ const CreatePartner = () => {
     setDoctors([...doctors, doctor]);
   };
 
-  const handleSave = () => {
-    const partners = getPartners();
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setErrorMsg('');
 
-    // Generate simple ID
-    const newId = `P-${1001456 + partners.length + Math.floor(Math.random() * 100)}`;
+      const payload = {
+        name: basicInfo.orgName || 'Unnamed Partner',
+        type: basicInfo.type || 'Hospital',
+        contact: basicInfo.primaryContact || '',
+        location: basicInfo.location || '',
+        registrationId: details.registrationNumber || '',
+        partnerId: details.partnerId || '',
+        establishedYear: details.establishmentYear || '',
+        bed: Number(details.bedCapacity) || undefined,
+        logo: basicInfo.image || undefined,
+        staff: Number(details.staffCount) || undefined,
+        ambulance: details.ambulanceService || undefined,
+        emergency: details.emergencyServices || undefined,
+      };
 
-    const newPartner = {
-      id: newId,
-      type: basicInfo.type || 'Hospital',
-      orgName: basicInfo.orgName || 'Unnamed Partner',
-      primaryContact: basicInfo.primaryContact || '',
-      location: basicInfo.location || '',
-      status: 'Not verified',
-      rating: '0.0',
-      members: 0,
-      details: {
-        registrationNumber: details.registrationNumber,
-        partnerId: details.partnerId,
-        establishmentYear: details.establishmentYear,
-        bedCapacity: Number(details.bedCapacity) || 0,
-        staffCount: Number(details.staffCount) || 0,
-        ambulanceService: details.ambulanceService,
-        emergencyServices: details.emergencyServices
-      },
-      specializations: specializations.split(',').map(s => s.trim()).filter(Boolean),
-      doctors: doctors
-    };
+      // Remove undefined
+      Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
 
-    const updatedPartners = [newPartner, ...partners];
-    localStorage.setItem('partners_data', JSON.stringify(updatedPartners));
-    navigate('/admin/partners');
+      console.log('Creating organization with payload:', payload);
+      const orgRes = await apiService.createOrganization(payload);
+      console.log('Organization creation response:', orgRes);
+
+      const orgId = orgRes?._id || 
+                    orgRes?.data?._id || 
+                    orgRes?.data?.organization?._id || 
+                    orgRes?.organization?._id || 
+                    orgRes?.id || 
+                    orgRes?.data?.id ||
+                    (typeof orgRes?.data === 'string' ? orgRes.data : null) ||
+                    (typeof orgRes?.organization === 'string' ? orgRes.organization : null);
+      
+      console.log('Final resolved orgId for doctors:', orgId);
+
+      if (!orgId) {
+        alert("Organization created, but couldn't find the ID in response: " + JSON.stringify(orgRes));
+        return; // stop execution so user can see it
+      }
+
+      if (orgId && doctors.length > 0) {
+        console.log(`Sending ${doctors.length} doctors to /api/doctors/ ...`);
+        const doctorResults = await Promise.all(
+          doctors.map(doc => {
+            const docPayload = {
+              name: doc.name,
+              specialty: doc.specialty,
+              timeFrom: doc.timeFrom,
+              timeTo: doc.timeTo,
+              location: doc.location || 'Unknown',
+              organizationId: orgId,
+              days: doc.days,
+            };
+            console.log('Hitting /api/doctors/ POST with:', docPayload);
+            return apiService.createDoctor(docPayload);
+          })
+        );
+        console.log('Doctors successfully created:', doctorResults);
+      } else {
+        console.warn('Doctor creation SKIPPED: no doctors added.');
+      }
+
+      navigate('/admin/partners');
+    } catch (err) {
+      console.error('Error in handleSave:', err);
+      setErrorMsg(err.response?.data?.message || err.message || 'Failed to successfully save the partner.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -294,12 +317,19 @@ const CreatePartner = () => {
           </button>
           <button
             onClick={handleSave}
-            className="px-6 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff702d] transition-colors"
+            disabled={saving}
+            className="px-6 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff702d] transition-colors disabled:opacity-60"
           >
-            Save Partner
+            {saving ? 'Saving...' : 'Save Partner'}
           </button>
         </div>
       </div>
+
+      {errorMsg && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600 flex items-center gap-2">
+          {errorMsg}
+        </div>
+      )}
 
       <div className="flex flex-col lg:flex-row gap-6 mb-6">
         {/* Left Side Profile Card (Basic Info during creation) */}

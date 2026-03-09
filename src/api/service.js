@@ -282,6 +282,68 @@ const apiService = {
         return response.data;
     },
 
+    // ─── ORGANIZATIONS ────────────────────────────────────────────────────
+
+    // POST /api/organizations
+    createOrganization: async (orgData) => {
+        const response = await api.post('/api/organizations', orgData);
+        return response.data;
+    },
+
+    // GET /api/organizations
+    getOrganizations: async () => {
+        const response = await api.get('/api/organizations');
+        return response.data;
+    },
+
+    // GET /api/organizations/:id
+    getOrganizationById: async (id) => {
+        const response = await api.get(`/api/organizations/${id}`);
+        return response.data;
+    },
+
+    // PUT /api/organizations/:id
+    updateOrganization: async (id, orgData) => {
+        const response = await api.put(`/api/organizations/${id}`, orgData);
+        return response.data;
+    },
+
+    // DELETE /api/organizations/:id
+    deleteOrganization: async (id) => {
+        const response = await api.delete(`/api/organizations/${id}`);
+        return response.data;
+    },
+
+    // ─── DOCTORS ──────────────────────────────────────────────────────────
+
+    // POST /api/doctors
+    // Body: { name, specialty, timeFrom, timeTo, location, organizationId, days[] }
+    createDoctor: async (doctorData) => {
+        const response = await api.post('/api/doctors/', doctorData);
+        return response.data;
+    },
+
+    // GET /api/doctors/organization/:organizationId
+    getDoctors: async (organizationId) => {
+        const url = organizationId
+            ? `/api/doctors/organization/${organizationId}`
+            : '/api/doctors';
+        const response = await api.get(url);
+        return response.data;
+    },
+
+    // PUT /api/doctors/:id
+    updateDoctor: async (id, doctorData) => {
+        const response = await api.put(`/api/doctors/${id}`, doctorData);
+        return response.data;
+    },
+
+    // DELETE /api/doctors/:id
+    deleteDoctor: async (id) => {
+        const response = await api.delete(`/api/doctors/${id}`);
+        return response.data;
+    },
+
     // ─── UTILITY ──────────────────────────────────────────────────────────
 
     logout: () => {
