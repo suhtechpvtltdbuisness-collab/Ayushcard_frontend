@@ -1,65 +1,51 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Search,
   Plus,
-  MoreHorizontal,
-  Edit2,
-  RefreshCw,
   Eye,
   Trash2,
   Download,
-  Folder,
   PlusCircle,
   ArrowUpDown,
+  Loader2,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import apiService from "../../../api/service";
+import { exportToCSV } from "../../../utils/exportUtils";
 
-const userNames = [
-  "Neeraj",
-  "Yuvraj",
-  "Gautam",
-  "Soumya Sindhu",
-  "Akriti Nanda",
-  "Samiksha Umbarje",
-  "Neeraj K",
-  "Gautam Kumar",
-  "Yuvraj Singh",
-  "Saurabh",
-  "Sindhu Soumya",
-];
+import { getHealthCards } from "../../../data/mockData";
 
-export const getHealthCards = () => {
-  const stored = localStorage.getItem("health_cards_data");
-  if (stored) return JSON.parse(stored);
-
-  const initialData = Array.from({ length: 16 }).map((_, i) => {
-    const mockName = userNames[i % userNames.length];
-    return {
-      id: `ASS-200${i + 1}`,
-      applicant: mockName,
-      phone: `987654321${i % 10}`,
-      address: "123, Sector 4, MG Road, Bangalore",
-      dateApplied: "10/12/2023",
-      verificationDate: "10/15/2023",
-      expiryDate: "10/15/2024",
-      status:
-        i % 3 === 0 ? "Not verified" : i % 3 === 1 ? "Verified" : "Expired",
-      members: [
-        { id: 1, name: mockName, relation: "Self", age: 42 },
-        { id: 2, name: "Suman Devi", relation: "Spouse", age: 38 },
-        { id: 3, name: "Aryan Kumar", relation: "Son", age: 14 },
-        { id: 4, name: "Ishita Kumar", relation: "Daughter", age: 11 },
-        { id: 5, name: "Om Prakash", relation: "Father", age: 70 },
-      ].slice(0, (i % 5) + 1),
-      payment: {
-        applicationFee: 120.0,
-        memberAddOns: ((i % 5) + 1) * 10,
-        totalPaid: 120.0 + ((i % 5) + 1) * 10,
-      },
-    };
-  });
-  localStorage.setItem("health_cards_data", JSON.stringify(initialData));
-  return initialData;
-};
+// Normalize an API card object to the shape the table expects
+const normalizeCard = (card) => ({
+  ...card,
+  id: card.applicationId || card._id || "",
+  applicant: [
+    card.firstName,
+    card.middleName,
+    card.lastName,
+  ]
+    .filter(Boolean)
+    .join(" ") || "",
+  phone: card.contact || "",
+  members: Array.isArray(card.members)
+    ? card.members
+    : Array.from({ length: Number(card.totalMember) || 0 }, (_, i) => ({ id: i })),
+  payment: {
+    applicationFee: 120,
+    memberAddOns: (Number(card.totalMember) || 0) * 10,
+    totalPaid: card.totalAmount ?? 120,
+  },
+  status: (() => {
+    switch ((card.status || "").toLowerCase()) {
+      case "approved": return "Verified";
+      case "active": return "Verified";
+      case "pending": return "Not verified";
+      case "rejected": return "Not verified";
+      case "expired": return "Expired";
+      default: return card.status || "Not verified";
+    }
+  })(),
+});
 
 const StatusBadge = ({ status }) => {
   let bg = "";
@@ -98,46 +84,24 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-import { useNavigate } from "react-router-dom";
-import { exportToCSV } from "../../../utils/exportUtils";
-
-const ActionButtons = ({ status, item, navigate, onDelete }) => {
+const ActionButtons = ({ item, navigate, onDelete }) => {
   return (
     <div className="flex items-center gap-4">
-      <div className="w-21 flex justify-center">
-        {status === "Not verified" && (
-          <span className="w-full text-center text-[#22333B] font-bold">—</span>
-        )}
-        {status === "Verified" && (
-          <button
-            onClick={() =>
-              navigate(`/health-card/${item.id}`, {
-                state: { editMode: true },
-              })
-            }
-            className="flex items-center justify-center gap-1.5 px-2 py-1 bg-[#2C2C2C] text-[#FFFCFB] rounded-lg text-sm font-normal hover:bg-[#1F2937]"
-          >
-            Edit
-            <img src="/admin_images/Edit 3.svg" alt="edit" />
-          </button>
-        )}
-        {status === "Expired" && (
-          <button
-            onClick={() =>
-              navigate(`/health-card/${item.id}`, {
-                state: { editMode: true },
-              })
-            }
-            className="flex items-center justify-center gap-1.5 px-2 py-1 bg-[#2C2C2C] text-[#FFFCFB] rounded-lg text-sm font-normal hover:bg-[#1F2937]"
-          >
-            Renew
-            <img src="/admin_images/Edit 3.svg" alt="edit" />
-          </button>
-        )}
-      </div>
+      <button
+        onClick={() =>
+          navigate(`/admin/health-card/${item._id || item.id}`, {
+            state: { editMode: true },
+          })
+        }
+        className="flex items-center justify-center gap-1.5 px-2 py-1 bg-[#2C2C2C] text-[#FFFCFB] rounded-lg text-sm font-normal hover:bg-[#1F2937]"
+      >
+        Edit
+        <img src="/admin_images/Edit 3.svg" alt="edit" className="w-3.5 h-3.5" />
+      </button>
+
       <div className="flex items-center gap-2">
         <button
-          onClick={() => navigate(`/health-card/${item.id}`)}
+          onClick={() => navigate(`/admin/health-card/${item._id || item.id}`)}
           className="text-[#F68E5F] hover:text-[#ff6e2b] cursor-pointer transition-colors p-1.5"
         >
           <Eye size={20} />
@@ -155,27 +119,66 @@ const ActionButtons = ({ status, item, navigate, onDelete }) => {
 
 const HealthCard = () => {
   const navigate = useNavigate();
-  const [healthCards, setHealthCards] = useState(getHealthCards());
+
+  const [healthCards, setHealthCards] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [itemToDelete, setItemToDelete] = useState(null);
+  const [selectedRows, setSelectedRows] = useState([]);
+  const [deleteError, setDeleteError] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  
   const ITEMS_PER_PAGE = 10;
 
-  const handleDeleteConfirm = () => {
-    if (itemToDelete) {
-      const updatedData = healthCards.filter((c) => c.id !== itemToDelete.id);
-      setHealthCards(updatedData);
-      localStorage.setItem("health_cards_data", JSON.stringify(updatedData));
-      if (
-        selectedRows.some(
-          (rowIdx) => processedData[rowIdx]?.id === itemToDelete.id,
-        )
-      ) {
-        setSelectedRows([]);
-      }
+  useEffect(() => {
+    fetchCards();
+  }, []);
+
+  const fetchCards = async () => {
+    try {
+      setLoading(true);
+      setFetchError("");
+      const res = await apiService.getHealthCards();
+      const raw = Array.isArray(res?.data?.cards)
+        ? res.data.cards
+        : Array.isArray(res?.data)
+          ? res.data
+          : Array.isArray(res)
+            ? res
+            : [];
+
+      const normalized = raw.map(normalizeCard);
+      setHealthCards(normalized);
+    } catch (err) {
+      console.error("[HealthCard] GET /api/cards failed:", err?.response?.data || err?.message);
+      setFetchError("Could not load cards from server. Showing local data.");
+      setHealthCards(getHealthCards().map(normalizeCard));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!itemToDelete) return;
+    setDeleteLoading(true);
+    setDeleteError("");
+    try {
+      const mongoId = itemToDelete._id || itemToDelete.id;
+      await apiService.deleteHealthCard(mongoId);
+      setHealthCards((prev) => prev.filter((c) => c._id !== itemToDelete._id && c.id !== itemToDelete.id));
+      setSelectedRows([]);
       setItemToDelete(null);
+    } catch (err) {
+      console.error("[HealthCard] DELETE failed:", err?.response?.data || err?.message);
+      setDeleteError(
+        err?.response?.data?.message || err?.message || "Delete failed. Please try again."
+      );
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -189,15 +192,21 @@ const HealthCard = () => {
 
   const processedData = useMemo(() => {
     let result = [...healthCards].filter((item) => {
+      const applicant = (item.applicant || "").toLowerCase();
+      const id = (item.id || "").toLowerCase();
+      const phone = (item.phone || "");
+      const status = (item.status || "");
+      const query = searchQuery.toLowerCase();
+
       const matchesSearch =
-        item.applicant.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.phone.includes(searchQuery);
+        applicant.includes(query) ||
+        id.includes(query) ||
+        phone.includes(searchQuery);
 
       if (activeFilter === "All") return matchesSearch;
       return (
         matchesSearch &&
-        item.status.toLowerCase() === activeFilter.toLowerCase()
+        status.toLowerCase() === activeFilter.toLowerCase()
       );
     });
 
@@ -207,8 +216,8 @@ const HealthCard = () => {
         let bValue = b[sortConfig.key];
 
         if (sortConfig.key === "members") {
-          aValue = a.members.length;
-          bValue = b.members.length;
+          aValue = (a.members || []).length;
+          bValue = (b.members || []).length;
         } else if (sortConfig.key === "amount") {
           aValue = a.payment.totalPaid;
           bValue = b.payment.totalPaid;
@@ -284,11 +293,10 @@ const HealthCard = () => {
         <button
           key={idx}
           onClick={() => setCurrentPage(page)}
-          className={`w-7 h-7 flex items-center justify-center rounded-md text-sm font-medium ${
-            currentPage === page
-              ? "bg-[#374151] text-[#FFFCFB]"
-              : "text-[#4B5563] hover:bg-gray-100"
-          }`}
+          className={`w-7 h-7 flex items-center justify-center rounded-md text-sm font-medium ${currentPage === page
+            ? "bg-[#374151] text-[#FFFCFB]"
+            : "text-[#4B5563] hover:bg-gray-100"
+            }`}
         >
           {page}
         </button>
@@ -297,8 +305,6 @@ const HealthCard = () => {
   };
 
   const isFiltered = searchQuery !== "" || activeFilter !== "All";
-
-  const [selectedRows, setSelectedRows] = useState([]);
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
@@ -360,27 +366,31 @@ const HealthCard = () => {
         <div className="flex items-center gap-4">
           <button
             onClick={handleExport}
-            className="px-4 py-1.5 border border-[#F68E5F] bg-[#FFFCFB] rounded-lg text-[15px] font-medium text-[#F68E5F] hover:bg-[#F68E5F] hover:text-[#FFFCFB] flex items-center gap-2"
+            className="px-4 py-1.5 border border-[#F68E5F] bg-[#FFFCFB] rounded-lg text-[15px] font-medium text-[#F68E5F] hover:bg-[#F68E5F] hover:text-[#FFFCFB] flex items-center gap-2 transition-colors"
           >
             Export <Download size={16} />
           </button>
           {/* Create Button (Tablet/Mobile Only) */}
           <button
-            onClick={() => navigate("/health-card/create")}
+            onClick={() => navigate("/admin/health-card/create")}
             className="flex lg:hidden px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff7535] transition-colors items-center gap-2"
           >
-            Create New
-            <span className="hidden sm:inline">application</span>
-            <Plus size={16} />
+            Create New Application <Plus size={16} />
           </button>
         </div>
       </div>
 
+      {fetchError && (
+        <div className="mb-3 px-4 py-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-[13px]">
+          {fetchError}
+        </div>
+      )}
+
       {/* Filters Bar */}
-      <div className="flex items-center justify-between mb-4 shrink-0">
-        <div className="flex items-center gap-4 flex-1">
+      <div className="flex items-center justify-between xl:flex-row flex-col gap-4 mb-4 shrink-0">
+        <div className="flex items-center gap-4 flex-wrap flex-1 xl:flex-nowrap">
           {/* Search */}
-          <div className="relative w-70">
+          <div className="relative w-full xl:w-70">
             <input
               type="text"
               placeholder="Search by name, id, phone"
@@ -399,7 +409,7 @@ const HealthCard = () => {
 
           {/* Status Tabs */}
           <div
-            className="flex p-1 bg-[#F7F7F7] rounded-xl shrink-0"
+            className="flex p-1 bg-[#F7F7F7] rounded-xl shrink-0 overflow-x-auto w-full xl:w-auto"
             style={{ fontFamily: "ABeeZee, sans-serif" }}
           >
             {["All", "Verified", "Not Verified", "Expired"].map((filter) => (
@@ -409,11 +419,10 @@ const HealthCard = () => {
                   setActiveFilter(filter);
                   setCurrentPage(1);
                 }}
-                className={`px-4 py-1.5 text-[15px] rounded-lg text-sm font-medium transition-colors ${
-                  activeFilter === filter
-                    ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
-                    : "text-[#6B7280] hover:text-[#22333B]"
-                }`}
+                className={`px-4 py-1.5 whitespace-nowrap text-[15px] rounded-lg text-sm font-medium transition-colors ${activeFilter === filter
+                  ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
+                  : "text-[#6B7280] hover:text-[#22333B]"
+                  }`}
               >
                 {filter}
               </button>
@@ -423,16 +432,21 @@ const HealthCard = () => {
 
         {/* Create Button (Desktop only) */}
         <button
-          onClick={() => navigate("/health-card/create")}
-          className="hidden lg:flex px-5 py-2.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[16px] font-medium hover:bg-[#ff6e2b] transition-colors items-center gap-2"
+          onClick={() => navigate("/admin/health-card/create")}
+          className="hidden lg:flex px-5 py-2.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[16px] font-medium hover:bg-[#ff6e2b] transition-colors items-center gap-2 whitespace-nowrap"
         >
-          Create New application <Plus size={16} />
+          Create New Application <Plus size={16} />
         </button>
       </div>
 
       {/* Table & Fallbacks */}
       <div className="bg-white border border-[#D9D9D9] rounded-2xl overflow-hidden flex flex-col flex-1 min-h-0">
-        {paginatedData.length > 0 ? (
+        {loading ? (
+          <div className="flex flex-col items-center justify-center flex-1 py-12">
+            <Loader2 size={32} className="animate-spin text-[#F68E5F] mb-3" />
+            <p className="text-sm text-gray-500">Loading Applications…</p>
+          </div>
+        ) : paginatedData.length > 0 ? (
           <div className="overflow-y-auto overflow-x-auto flex-1">
             <table className="w-full text-left border-collapse relative">
               <thead className="sticky top-0 z-10 bg-[#FFFFFF]">
@@ -521,7 +535,6 @@ const HealthCard = () => {
                       </td>
                       <td className="py-3 px-4">
                         <ActionButtons
-                          status={row.status}
                           item={row}
                           navigate={navigate}
                           onDelete={setItemToDelete}
@@ -543,7 +556,7 @@ const HealthCard = () => {
             </h3>
             {!isFiltered && (
               <button
-                onClick={() => navigate("/health-card/create")}
+                onClick={() => navigate("/admin/health-card/create")}
                 className="flex items-center gap-2 px-6 py-2.5 bg-[#F68E5F] hover:bg-[#ff7535] text-[#FFFCFB] rounded-lg text-sm font-medium transition-colors shadow-sm"
               >
                 <PlusCircle size={18} />
@@ -579,6 +592,7 @@ const HealthCard = () => {
           </button>
         </div>
       </div>
+
       {/* Delete Confirmation Modal */}
       {itemToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -591,23 +605,29 @@ const HealthCard = () => {
                 Are you sure?
               </h3>
             </div>
-            <p className="text-[#4B5563] text-sm mb-6 pl-12 line-clamp-3">
+            <p className="text-[#4B5563] text-sm mb-4 pl-12 line-clamp-3">
               Do you really want to delete the health card application for{" "}
               <strong>{itemToDelete.applicant}</strong> ({itemToDelete.id})?
               This process cannot be undone.
             </p>
+            {deleteError && (
+              <p className="mb-4 pl-12 text-sm text-red-500">{deleteError}</p>
+            )}
             <div className="flex justify-end gap-3">
               <button
-                onClick={() => setItemToDelete(null)}
-                className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                onClick={() => { setItemToDelete(null); setDeleteError(""); }}
+                disabled={deleteLoading}
+                className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteConfirm}
-                className="px-4 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff702d] transition-colors shadow-sm"
+                disabled={deleteLoading}
+                className="px-4 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff702d] transition-colors shadow-sm flex items-center gap-2 disabled:opacity-60"
               >
-                Confirm Delete
+                {deleteLoading && <Loader2 size={14} className="animate-spin" />}
+                {deleteLoading ? "Deleting…" : "Confirm Delete"}
               </button>
             </div>
           </div>

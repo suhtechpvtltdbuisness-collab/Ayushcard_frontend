@@ -1,13 +1,12 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
-import { getEmployees } from "./Employees";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import apiService from "../../../../api/service";
 
 const CreateEmployee = () => {
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
-    id: "",
     name: "",
     phone: "",
     email: "",
@@ -15,9 +14,13 @@ const CreateEmployee = () => {
     location: "",
     salary: "",
     workingHoursFrom: "10:00 AM",
-    workingHoursTo: "6:00 PM",
-    role: "",
+    workingHoursTo: "06:00 PM",
+    role: "employee",
   });
+
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleChange = (e) => {
     let { name, value } = e.target;
@@ -34,25 +37,56 @@ const CreateEmployee = () => {
     }));
   };
 
-  const handleSave = () => {
-    const employees = getEmployees();
-
-    let formattedDate = formData.dateOfJoining;
-    if (formattedDate) {
-      const [year, month, day] = formattedDate.split("-");
-      formattedDate = `${day}-${month}-${year}`;
+  const formatTime = (timeStr) => {
+    if (!timeStr) return "09:00";
+    const match = timeStr.match(/(\d+):(\d+)\s*([AP]M)/i);
+    if (match) {
+      let hrs = parseInt(match[1]);
+      if (match[3].toUpperCase() === 'PM' && hrs < 12) hrs += 12;
+      if (match[3].toUpperCase() === 'AM' && hrs === 12) hrs = 0;
+      return `${hrs.toString().padStart(2, '0')}:${match[2]}`;
     }
+    // If already in 24h format
+    if (timeStr.includes(":")) {
+      const parts = timeStr.split(":");
+      if (parts[0].length === 1) parts[0] = "0" + parts[0];
+      return parts.join(":").substring(0, 5);
+    }
+    return timeStr.substring(0, 5);
+  };
 
-    const newEmployee = {
-      ...formData,
-      dateOfJoining: formattedDate,
-      status: "Verified", // Default status
-    };
+  const handleSave = async () => {
+    try {
+      if (!formData.name || !formData.email || !password) {
+        setError("Name, Email and Password are required.");
+        return;
+      }
 
-    const updatedEmployees = [newEmployee, ...employees];
-    localStorage.setItem("employees_data", JSON.stringify(updatedEmployees));
+      setLoading(true);
+      setError("");
 
-    navigate("/hr/employees");
+      const payload = {
+        name: formData.name,
+        email: formData.email,
+        password: password,
+        role: "employee",
+        contact: formData.phone || "",
+        location: formData.location || "",
+        salary: Number(formData.salary.replace(/\D/g, "")) || 0,
+        dateOfJoining: formData.dateOfJoining || new Date().toISOString().split('T')[0],
+        workStartTime: formatTime(formData.workingHoursFrom),
+        workEndTime: formatTime(formData.workingHoursTo)
+      };
+
+      console.log("Creating employee with payload:", payload);
+      await apiService.createEmployee(payload);
+      navigate("/admin/hr/employees");
+    } catch (err) {
+      console.error("Employee create error:", err);
+      setError(err.response?.data?.message || err.message || "Failed to create employee");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -65,17 +99,19 @@ const CreateEmployee = () => {
         <div className="flex items-center gap-4">
           <button
             type="button"
-            onClick={() => navigate("/hr/employees")}
+            onClick={() => navigate("/admin/hr/employees")}
             className="w-10 h-10 border border-[#E5E7EB] rounded-full flex items-center justify-center text-[#4B5563] bg-white hover:bg-gray-50 transition-colors shadow-sm"
           >
             <ArrowLeft size={20} />
           </button>
           <h2 className="text-xl font-bold text-[#22333B]">Create Employee</h2>
         </div>
-        <div className="flex gap-4">
+        <div className="flex gap-4 items-center">
+          {error && <span className="text-red-500 text-sm">{error}</span>}
           <button
             type="button"
-            onClick={() => navigate("/hr/employees")}
+            onClick={() => navigate("/admin/hr/employees")}
+            disabled={loading}
             className="px-6 py-2.5 border border-[#E5E7EB] text-[#4B5563] bg-white rounded-lg text-[15px] font-medium hover:bg-gray-50 transition-colors"
           >
             Cancel
@@ -83,8 +119,10 @@ const CreateEmployee = () => {
           <button
             type="submit"
             form="create-employee-form"
-            className="px-6 py-2.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff7535] transition-colors"
+            disabled={loading}
+            className="px-6 py-2.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff7535] transition-colors flex items-center gap-2"
           >
+            {loading && <Loader2 size={16} className="animate-spin" />}
             Save Employee
           </button>
         </div>
@@ -99,24 +137,10 @@ const CreateEmployee = () => {
         }}
         className="bg-white border border-[#D9D9D9] rounded-2xl p-6 shadow-sm"
       >
-        {/* Row 1 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div>
             <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
-              Employee ID
-            </label>
-            <input
-              type="text"
-              name="id"
-              value={formData.id}
-              onChange={handleChange}
-              placeholder="Enter Employee ID"
-              className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F]"
-            />
-          </div>
-          <div>
-            <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
-              Name
+              Name <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -124,9 +148,41 @@ const CreateEmployee = () => {
               value={formData.name}
               onChange={handleChange}
               placeholder="Enter name"
+              required
               className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F]"
             />
           </div>
+          <div>
+            <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
+              Email <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              placeholder="Enter email address"
+              required
+              className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F]"
+            />
+          </div>
+          <div>
+            <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
+              Password <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="password"
+              name="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Create password"
+              required
+              className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F]"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div>
             <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
               Contact Number
@@ -137,23 +193,6 @@ const CreateEmployee = () => {
               value={formData.phone}
               onChange={handleChange}
               placeholder="Enter phone number"
-              className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F]"
-            />
-          </div>
-        </div>
-
-        {/* Row 2 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
-          <div>
-            <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
-              Email
-            </label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="Enter email address"
               className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F]"
             />
           </div>
@@ -184,8 +223,7 @@ const CreateEmployee = () => {
           </div>
         </div>
 
-        {/* Row 3 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
             <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
               Salary
@@ -201,7 +239,7 @@ const CreateEmployee = () => {
           </div>
           <div>
             <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
-              Working hours
+              Working Hours
             </label>
             <div className="flex items-center gap-3">
               <input
@@ -209,15 +247,16 @@ const CreateEmployee = () => {
                 name="workingHoursFrom"
                 value={formData.workingHoursFrom}
                 onChange={handleChange}
-                placeholder="From"
+                placeholder="From (e.g. 10:00 AM)"
                 className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F] text-center"
               />
+              <span className="text-gray-400 font-medium">to</span>
               <input
                 type="text"
                 name="workingHoursTo"
                 value={formData.workingHoursTo}
                 onChange={handleChange}
-                placeholder="To"
+                placeholder="To (e.g. 06:00 PM)"
                 className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F] text-center"
               />
             </div>
@@ -226,14 +265,16 @@ const CreateEmployee = () => {
             <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
               Role
             </label>
-            <input
-              type="text"
+            <select
               name="role"
               value={formData.role}
               onChange={handleChange}
-              placeholder="Enter role"
               className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F]"
-            />
+            >
+              <option value="employee">Employee</option>
+              <option value="admin">Admin</option>
+              <option value="manager">Manager</option>
+            </select>
           </div>
         </div>
       </form>

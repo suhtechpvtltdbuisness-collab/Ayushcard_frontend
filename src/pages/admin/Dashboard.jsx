@@ -1,39 +1,19 @@
-import React from "react";
-import {
-  CreditCard,
-  Stethoscope,
-  HandCoins,
-  Users,
-  ChevronRight,
-  Activity,
-  Building,
-  Heart,
-  Download,
-} from "lucide-react";
+import React from 'react';
+import { CreditCard, ChevronRight, Building, Download, Heart } from 'lucide-react';
 
+// ─── Dashboard ────────────────────────────────────────────────────────────────
 const Dashboard = () => {
   return (
     <div>
-      {/* Top Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
-        {/* Card 1 */}
-        <div className="bg-[#FFFFFF] rounded-xl p-5 border border-[#F3F4F6] shadow-[0_2px_10px_-3px_#0000000D] flex flex-col justify-between h-full">
-          <div>
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-10 h-10 bg-[#FFEDD5] rounded-lg flex items-center justify-center">
-                <img
-                  src="/admin_images/suitcase.svg"
-                  alt="Ayush Metrics"
-                  className="w-5 h-5"
-                />
-              </div>
-              <span className="text-[10px] font-bold text-[#D9D9D9] tracking-wider mt-1">
-                +12% MONTHLY
-              </span>
+
+        {/* Card 1 – Ayush Card Metrics */}
+        <div className="bg-[#FFFFFF] rounded-xl p-5 border border-[#F3F4F6] shadow-[0_2px_10px_-3px_#0000000D]">
+          <div className="flex justify-between items-start mb-4">
+            <div className="w-10 h-10 bg-[#FFEDD5] rounded-lg flex items-center justify-center">
+              <img src="/admin_images/suitcase.svg" alt="Ayush Metrics" className="w-5 h-5" />
             </div>
-            <h3 className="text-sm font-semibold text-[#6B7280] mb-6">
-              Ayush Card Metrics
-            </h3>
+            <span className="text-[10px] font-bold text-[#D9D9D9] tracking-wider">+12% MONTHLY</span>
           </div>
           <div className="flex gap-12 mt-auto">
             <div>
@@ -51,22 +31,13 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Card 2 */}
-        <div className="bg-[#FFFFFF] rounded-xl p-5 border border-[#F3F4F6] shadow-[0_2px_10px_-3px_#0000000D] flex flex-col justify-between h-full">
-          <div>
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-10 h-10 bg-[#DBEAFE] rounded-lg flex items-center justify-center">
-                <img
-                  src="/admin_images/plus.svg"
-                  alt="Hospital Metrics"
-                  className="w-5 h-5"
-                />
-              </div>
-              <span className="text-[10px] font-bold text-[#3B82F6] tracking-wider mt-1">
-                STEADY
-              </span>
+        {/* Card 2 – Hospital Metrics */}
+        <div className="bg-[#FFFFFF] rounded-xl p-5 border border-[#F3F4F6] shadow-[0_2px_10px_-3px_#0000000D]">
+          <div className="flex justify-between items-start mb-4">
+            <div className="w-10 h-10 bg-[#DBEAFE] rounded-lg flex items-center justify-center">
+              <img src="/admin_images/plus.svg" alt="Hospital Metrics" className="w-5 h-5" />
             </div>
-            <h3 className="text-sm font-semibold text-[#6B7280] mb-6">
+            <h3 className="text-sm font-semibold text-[#6B7280] mb-0">
               Hospital Metrics
             </h3>
           </div>
@@ -88,74 +59,52 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Card 3 */}
-        <div className="bg-[#FFFFFF] rounded-xl p-5 border border-[#F3F4F6] shadow-[0_2px_10px_-3px_#0000000D] flex flex-col justify-between h-full">
-          <div>
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-10 h-10 bg-[#D1FAE5] rounded-lg flex items-center justify-center">
-                <img
-                  src="/admin_images/donation_finance.svg"
-                  alt="Donation"
-                  className="w-5 h-5"
-                />
-              </div>
-              <button className="text-[10px] font-bold text-[#10B981] tracking-wider hover:underline mt-1">
-                VIEW DETAILS
-              </button>
+        {/* Card 3 – Donation & Finance */}
+        <div className="bg-[#FFFFFF] rounded-xl p-5 border border-[#F3F4F6] shadow-[0_2px_10px_-3px_#0000000D]">
+          <div className="flex justify-between items-start mb-4">
+            <div className="w-10 h-10 bg-[#D1FAE5] rounded-lg flex items-center justify-center">
+              <img src="/admin_images/donation_finance.svg" alt="Donation" className="w-5 h-5" />
             </div>
-            <h3 className="text-sm font-semibold text-[#6B7280] mb-6">
+            <h3 className="text-sm font-semibold text-[#6B7280] mb-0">
               Donation & Finance
             </h3>
           </div>
-          <div className="mt-auto">
-            <p className="text-[10px] font-medium text-[#9CA3AF] tracking-wider mb-1">
-              MONTHLY ENQUIRIES
-            </p>
-            <p className="text-2xl font-bold text-[#22333B]">560</p>
+          <p className="text-xs font-medium text-[#9CA3AF] mb-1">Monthly Collections</p>
+          <p className="text-2xl font-bold text-[#22333B] mb-6">₹4,20,500</p>
+          <div className="flex justify-between items-center text-sm text-[#242D35] mb-1">
+            <span>Corporate</span>
+            <span className="font-semibold text-[#6B7280]">65%</span>
+          </div>
+          <div className="flex justify-between items-center text-sm text-[#242D35]">
+            <span>Individual</span>
+            <span className="font-semibold text-[#6B7280]">35%</span>
           </div>
         </div>
 
-        {/* Card 4 */}
-        <div className="bg-[#FFFFFF] rounded-xl p-5 border border-[#F3F4F6] shadow-[0_2px_10px_-3px_#0000000D] flex flex-col justify-between h-full">
-          <div>
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-10 h-10 bg-[#F3E8FF] rounded-lg flex items-center justify-center">
-                <img
-                  src="/admin_images/team_operation.svg"
-                  alt="Team"
-                  className="w-5 h-5"
-                />
-              </div>
+        {/* Card 4 – Team & Operations */}
+        <div className="bg-[#FFFFFF] rounded-xl p-5 border border-[#F3F4F6] shadow-[0_2px_10px_-3px_#0000000D]">
+          <div className="flex justify-between items-start mb-4">
+            <div className="w-10 h-10 bg-[#F3E8FF] rounded-lg flex items-center justify-center">
+              <img src="/admin_images/team_operation.svg" alt="Team" className="w-5 h-5" />
             </div>
-            <h3 className="text-sm font-semibold text-[#6B7280] mb-6">
+            <h3 className="text-sm font-semibold text-[#6B7280] mb-0">
               Team & Operations
             </h3>
           </div>
-          <div className="flex -space-x-2 mt-auto">
-            <img
-              src="https://i.pravatar.cc/100?img=11"
-              alt="avatar"
-              className="w-8 h-8 rounded-full border-2 border-white object-cover"
-            />
-            <img
-              src="https://i.pravatar.cc/100?img=33"
-              alt="avatar"
-              className="w-8 h-8 rounded-full border-2 border-white object-cover"
-            />
-            <img
-              src="https://i.pravatar.cc/100?img=47"
-              alt="avatar"
-              className="w-8 h-8 rounded-full border-2 border-white object-cover"
-            />
-            <div className="w-8 h-8 rounded-full bg-gray-200 border-2 border-white flex items-center justify-center text-[10px] text-gray-600 font-bold">
-              +8
-            </div>
+          <div className="flex -space-x-2 mb-4">
+            <img src="https://i.pravatar.cc/100?img=11" alt="avatar" className="w-8 h-8 rounded-full border-2 border-white object-cover" />
+            <img src="https://i.pravatar.cc/100?img=33" alt="avatar" className="w-8 h-8 rounded-full border-2 border-white object-cover" />
+            <img src="https://i.pravatar.cc/100?img=47" alt="avatar" className="w-8 h-8 rounded-full border-2 border-white object-cover" />
+            <div className="w-8 h-8 rounded-full bg-gray-200 border-2 border-white flex items-center justify-center text-[10px] text-gray-600 font-bold">+8</div>
           </div>
+          <p className="text-xl font-bold text-[#22333B]">12 Active Staff</p>
+          <p className="text-xs font-medium text-[#9CA3AF] mt-1">3 Field agents on duty</p>
         </div>
       </div>
 
-      {/* Bottom Row */}
+      {/* ── Bottom Row ───────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
+
         {/* Recent Activity Feed */}
         <div className="bg-[#FFFFFF] rounded-xl p-6 border border-[#F3F4F6] shadow-[0_2px_10px_-3px_#0000000D]">
           <div className="flex justify-between items-center mb-4 border-b border-[#F3F4F6] pb-2">
@@ -168,7 +117,6 @@ const Dashboard = () => {
           </div>
 
           <div className="flex flex-col gap-6">
-            {/* Activity Item 1 */}
             <div className="flex items-start gap-4">
               <div className="relative">
                 <div className="w-10 h-10 rounded-full bg-[#FFF7ED] flex items-center justify-center">
@@ -196,14 +144,9 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Activity Item 2 */}
             <div className="flex items-start gap-4">
               <div className="w-10 h-10 rounded-full bg-[#EFF6FF] flex items-center justify-center">
-                <img
-                  src="/admin_images/hospital.svg"
-                  alt="Hospital"
-                  className="w-4.5 h-4.5"
-                />
+                <img src="/admin_images/hospital.svg" alt="Hospital" className="w-4.5 h-4.5" />
               </div>
               <div className="flex-1">
                 <div className="flex justify-between items-start">
@@ -221,28 +164,6 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Activity Item 3 */}
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-[#ECFDF5] text-[#059669] flex items-center justify-center">
-                <Heart size={18} />
-              </div>
-              <div className="flex-1">
-                <div className="flex justify-between items-start">
-                  <h4 className="text-sm font-semibold text-[#242D35]">
-                    New Donation Received
-                  </h4>
-                  <span className="text-xs font-normal text-gray-400">
-                    2 hours ago
-                  </span>
-                </div>
-                <p className="text-xs font-normal text-[#6B7280] mt-1">
-                  TechCorp Inc. donated ₹1,50,000 to the Children's Wellness
-                  Fund.
-                </p>
-              </div>
-            </div>
-
-            {/* Activity Item 4 */}
             <div className="flex items-start gap-4">
               <div className="w-10 h-10 rounded-full bg-[#ECFDF5] text-[#059669] flex items-center justify-center">
                 <Heart size={18} />
@@ -287,11 +208,7 @@ const Dashboard = () => {
             </button>
             <button className="w-full flex items-center justify-between p-4 bg-[#F2F4F3] text-[#22333B] rounded-lg hover:bg-[#e6e9e7] transition-colors shadow-sm border border-transparent hover:border-gray-200">
               <div className="flex items-center gap-3">
-                <img
-                  src="/admin_images/hr_payroll.svg"
-                  alt="New Card"
-                  className="w-4.5 h-4.5"
-                />
+                <img src="/admin_images/hr_payroll.svg" alt="Staff" className="w-4.5 h-4.5" />
                 <span className="font-semibold text-sm">Add Staff Member</span>
               </div>
               <ChevronRight size={20} className="text-gray-400" />

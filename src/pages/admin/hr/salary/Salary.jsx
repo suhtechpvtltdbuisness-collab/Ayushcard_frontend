@@ -3,40 +3,7 @@ import { Search, Eye, Trash2, Download, Plus, ArrowUpDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { exportToCSV } from "../../../../utils/exportUtils";
 
-export const getSalaries = () => {
-  const stored = localStorage.getItem("salary_data");
-  if (stored) {
-    const parsed = JSON.parse(stored);
-    if (parsed.length <= 25) return parsed;
-  }
-
-  const initialData = Array.from({ length: 14 }).map((_, i) => {
-    const names = [
-      "Renu Verma",
-      "Amit Kumar",
-      "Sneha Sharma",
-      "Rahul Gupta",
-      "Priya Desai",
-      "Anil Mehta",
-      "Sunita Rao",
-    ];
-    const statuses = ["Paid", "Pending", "Paid", "Pending"];
-    const methods = ["UPI", "Bank Transfer", "Cash"];
-
-    return {
-      id: `EMP-BK-100${i + 1}`,
-      name: names[i % names.length],
-      phone: `837384957${i % 10}`,
-      email: `${names[i % names.length].split(" ")[0].toLowerCase()}@gmail.com`,
-      amount: "20,000",
-      date: "02-10-2026",
-      status: statuses[i % statuses.length],
-      paymentMethod: methods[i % methods.length],
-    };
-  });
-  localStorage.setItem("salary_data", JSON.stringify(initialData));
-  return initialData;
-};
+import { getSalaries } from "../../../../data/mockData";
 
 const StatusBadge = ({ status }) => {
   const styles = {
@@ -60,7 +27,7 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
   return (
     <div className="flex items-center gap-2">
       <button
-        onClick={() => navigate(`/hr/salary/${item.id}`)}
+        onClick={() => navigate(`/admin/hr/salary/${item.id}`)}
         className="text-[#F68E5F] hover:text-[#ff7535] cursor-pointer transition-colors p-1.5"
       >
         <Eye size={20} />
@@ -269,7 +236,7 @@ const Salary = () => {
           </button>
 
           <button
-            onClick={() => navigate("/hr/salary/create")}
+            onClick={() => navigate("/admin/hr/salary/create")}
             className="flex lg:hidden px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff7535] transition-colors items-center gap-2"
           >
             Add New Salary Entry <Plus size={16} />
@@ -324,7 +291,7 @@ const Salary = () => {
 
         {/* Create Button (Desktop only) */}
         <button
-          onClick={() => navigate("/hr/salary/create")}
+          onClick={() => navigate("/admin/hr/salary/create")}
           className="hidden lg:flex px-5 py-2.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[16px] font-medium hover:bg-[#ff7535] transition-colors items-center gap-2 whitespace-nowrap"
         >
           Add New Salary Entry <Plus size={16} />

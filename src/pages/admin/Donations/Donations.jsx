@@ -3,63 +3,13 @@ import { Search, Eye, Trash2, Download, ArrowUpDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { exportToCSV } from "../../../utils/exportUtils";
 
-export const getDonations = () => {
-  const stored = localStorage.getItem("donations_data");
-  if (stored) {
-    const parsed = JSON.parse(stored);
-    // If it has too many items from previous test, regenerate it
-    if (parsed.length <= 25) return parsed;
-  }
-
-  const initialData = Array.from({ length: 14 }).map((_, i) => {
-    const names = [
-      "Vibha Singh",
-      "Renu Verma",
-      "Amit Kumar",
-      "Sneha Sharma",
-      "Rahul Gupta",
-      "Priya Desai",
-      "Anil Mehta",
-      "Sunita Rao",
-    ];
-    const locations = [
-      "Kanpur,UP",
-      "Noida,UP",
-      "Delhi",
-      "Lucknow,UP",
-      "Kanpur,UP",
-      "Delhi",
-    ];
-    const dates = [
-      "10-02-2026",
-      "12-02-2026",
-      "15-02-2026",
-      "18-02-2026",
-      "20-02-2026",
-    ];
-    const times = ["10:30 AM", "11:15 AM", "02:00 PM", "04:45 PM", "09:00 AM"];
-
-    return {
-      id: `P-${1001456 + i}`,
-      name: names[i % names.length],
-      contact: `98${Math.floor(10000000 + Math.random() * 90000000)}`,
-      email: `${names[i % names.length].split(" ")[0].toLowerCase()}@example.com`,
-      date: dates[i % dates.length],
-      time: times[i % times.length],
-      location: locations[i % locations.length],
-      message:
-        "Lorem ipsum dolor sit amet consectetur. Scelerisque quis nullam sagittis diam eu at est scelerisque. Facilisis ipsum augue ante quam. Consectetur aenean sit condimentum senectus lacus placerat. Condimentum volutpat dolor egestas id imperdiet sagittis nulla vel.",
-    };
-  });
-  localStorage.setItem("donations_data", JSON.stringify(initialData));
-  return initialData;
-};
+import { getDonations } from "../../../data/mockData";
 
 const ActionButtons = ({ item, navigate, onDelete }) => {
   return (
     <div className="flex items-center gap-2">
       <button
-        onClick={() => navigate(`/donations/${item.id}`)}
+        onClick={() => navigate(`/admin/donations/${item.id}`)}
         className="text-[#F68E5F] hover:text-[#ff7535] cursor-pointer transition-colors p-1.5"
       >
         <Eye size={20} />
@@ -105,21 +55,16 @@ const Donations = () => {
   };
 
   const processedData = useMemo(() => {
-    let result = [...donations].filter((item) => {
-      const matchesSearch =
-        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    let result = [...donations].filter(item => {
+      const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.contact.includes(searchQuery);
 
-      const matchesLocation = locationFilter
-        ? item.location === locationFilter
-        : true;
+      const matchesLocation = locationFilter ? item.location === locationFilter : true;
 
-      // Basic mock date logic for dateRangeFilter
-      // For a real app, you would parse the dates natively. Here we mock it based on selection
       let matchesDate = true;
       if (dateRangeFilter === "today") {
-        matchesDate = item.date === "20-02-2026"; // Mocking today's date based on sample data
+        matchesDate = item.date === "20-02-2026"; 
       } else if (dateRangeFilter === "week") {
         matchesDate = ["15-02-2026", "18-02-2026", "20-02-2026"].includes(
           item.date,
@@ -136,8 +81,8 @@ const Donations = () => {
         let aValue = a[sortConfig.key];
         let bValue = b[sortConfig.key];
 
-        if (aValue === undefined) aValue = "";
-        if (bValue === undefined) bValue = "";
+        if (aValue === undefined) aValue = '';
+        if (bValue === undefined) bValue = '';
 
         let comparison = 0;
         if (typeof aValue === "string" && typeof bValue === "string") {
@@ -206,11 +151,8 @@ const Donations = () => {
         <button
           key={idx}
           onClick={() => setCurrentPage(page)}
-          className={`w-7 h-7 flex items-center justify-center rounded-md text-sm font-medium transition-colors ${
-            currentPage === page
-              ? "bg-[#374151] text-[#FFFCFB]"
-              : "text-[#4B5563] hover:bg-gray-100"
-          }`}
+          className={`w-7 h-7 flex items-center justify-center rounded-md text-sm font-medium transition-colors ${currentPage === page ? 'bg-[#374151] text-[#FFFCFB]' : 'text-[#4B5563] hover:bg-gray-100'
+            }`}
         >
           {page}
         </button>
@@ -236,24 +178,17 @@ const Donations = () => {
   };
 
   const handleSelectRow = (globalIndex) => {
-    setSelectedRows((prev) =>
+    setSelectedRows(prev =>
       prev.includes(globalIndex)
-        ? prev.filter((i) => i !== globalIndex)
-        : [...prev, globalIndex],
+        ? prev.filter(i => i !== globalIndex)
+        : [...prev, globalIndex]
     );
   };
 
-  const renderSortableHeader = (
-    title,
-    sortKey,
-    align = "left",
-    className = "",
-  ) => (
-    <th
-      className={`py-3 px-4 text-sm font-semibold text-[#22333B] whitespace-nowrap ${className}`}
-    >
+  const renderSortableHeader = (title, sortKey, align = 'left', className = '') => (
+    <th className={`py-3 px-4 text-sm font-semibold text-[#22333B] whitespace-nowrap ${className}`}>
       <div
-        className={`flex items-center gap-1 cursor-pointer hover:text-gray-600 ${align === "center" ? "justify-center" : align === "right" ? "justify-end" : "justify-start"}`}
+        className={`flex items-center gap-1 cursor-pointer hover:text-gray-600 ${align === 'center' ? 'justify-center' : align === 'right' ? 'justify-end' : 'justify-start'}`}
         onClick={() => handleSort(sortKey)}
       >
         {title}
@@ -346,45 +281,18 @@ const Donations = () => {
                     <input
                       type="checkbox"
                       onChange={handleSelectAll}
-                      checked={
-                        processedData.length > 0 &&
-                        selectedRows.length === processedData.length
-                      }
+                      checked={processedData.length > 0 && selectedRows.length === processedData.length}
                       className="w-4 h-4 rounded border-[#D1D5DB] border text-[#22333B] focus:ring-[#111827]"
                     />
                   </th>
-                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-17.5 text-center">
-                    Sr.no
-                  </th>
-                  {renderSortableHeader(
-                    "Enquiry ID",
-                    "id",
-                    "left",
-                    "w-[130px]",
-                  )}
-                  {renderSortableHeader(
-                    "Name",
-                    "name",
-                    "left",
-                    "min-w-[150px]",
-                  )}
-                  {renderSortableHeader(
-                    "Contact",
-                    "contact",
-                    "left",
-                    "w-[140px]",
-                  )}
-                  {renderSortableHeader("Date", "date", "left", "w-[120px]")}
-                  {renderSortableHeader("Time", "time", "left", "w-[110px]")}
-                  {renderSortableHeader(
-                    "Location",
-                    "location",
-                    "left",
-                    "w-[140px]",
-                  )}
-                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-24">
-                    Actions
-                  </th>
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-17.5 text-center">Sr.no</th>
+                  {renderSortableHeader('Enquiry ID', 'id', 'center', 'w-[130px]')}
+                  {renderSortableHeader('Name', 'name', 'center', 'min-w-[140px]')}
+                  {renderSortableHeader('Contact', 'contact', 'center', 'w-[140px]')}
+                  {renderSortableHeader('Date', 'date', 'center', 'w-[120px]')}
+                  {renderSortableHeader('Time', 'time', 'center', 'w-[110px]')}
+                  {renderSortableHeader('Location', 'location', 'center', 'w-[140px]')}
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-24">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -392,11 +300,8 @@ const Donations = () => {
                   const globalIndex = startIndex + index;
                   const isChecked = selectedRows.includes(globalIndex);
                   return (
-                    <tr
-                      key={index}
-                      className="border-b border-[#F3F4F6] hover:bg-[#F9FAFB] transition-colors"
-                    >
-                      <td className="py-4 px-4 text-center">
+                    <tr key={index} className="border-b border-[#F3F4F6] hover:bg-[#F9FAFB] transition-colors">
+                      <td className="py-2 px-4 text-center">
                         <input
                           type="checkbox"
                           checked={isChecked}
@@ -404,33 +309,15 @@ const Donations = () => {
                           className="w-4 h-4 rounded border-[#D1D5DB] text-[#22333B] focus:ring-[#111827]"
                         />
                       </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] text-center">
-                        {globalIndex + 1}
-                      </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
-                        {row.id}
-                      </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
-                        {row.name}
-                      </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
-                        {row.contact}
-                      </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
-                        {row.date}
-                      </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
-                        {row.time}
-                      </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
-                        {row.location}
-                      </td>
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        <ActionButtons
-                          item={row}
-                          navigate={navigate}
-                          onDelete={setItemToDelete}
-                        />
+                      <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">{globalIndex + 1}</td>
+                      <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">{row.id}</td>
+                      <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">{row.name}</td>
+                      <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">{row.contact}</td>
+                      <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">{row.date}</td>
+                      <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">{row.time}</td>
+                      <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">{row.location}</td>
+                      <td className="py-2 px-4 whitespace-nowrap">
+                        <ActionButtons item={row} navigate={navigate} onDelete={setItemToDelete} />
                       </td>
                     </tr>
                   );
@@ -441,11 +328,7 @@ const Donations = () => {
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center py-12 text-[#6B7280]">
             <div className="w-24 h-24 bg-[#F8FAFC] rounded-full flex items-center justify-center mb-6">
-              <img
-                src="/admin_images/donations.svg"
-                alt="not record found"
-                className="w-14 h-14"
-              />
+              <img src="/admin_images/donations.svg" alt="not record found" className="w-14 h-14" />
             </div>
             <p className="text-lg font-bold text-[#22333B] mb-1">
               No enquiry found
@@ -463,7 +346,7 @@ const Donations = () => {
         </span>
         <div className="flex items-center gap-1 text-sm font-medium absolute left-1/2 -translate-x-1/2">
           <button
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
             disabled={currentPage === 1}
             className={`px-2 py-1 flex items-center gap-1 ${currentPage === 1 ? "text-[#D1D5DB] cursor-not-allowed" : "text-[#4B5563] hover:text-[#22333B]"}`}
           >
@@ -471,7 +354,7 @@ const Donations = () => {
           </button>
           {renderPaginationButtons()}
           <button
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
             disabled={currentPage === totalPages}
             className={`px-2 py-1 flex items-center gap-1 ${currentPage === totalPages ? "text-[#D1D5DB] cursor-not-allowed" : "text-[#4B5563] hover:text-[#22333B]"}`}
           >
@@ -488,9 +371,7 @@ const Donations = () => {
               <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
                 <Trash2 size={20} className="text-red-600" />
               </div>
-              <h3 className="text-lg font-bold text-[#22333B]">
-                Are you sure?
-              </h3>
+              <h3 className="text-lg font-bold text-[#22333B]">Are you sure?</h3>
             </div>
             <p className="text-[#4B5563] text-sm mb-6 pl-12 line-clamp-3">
               Do you really want to delete the enquiry from{" "}

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import { getDonations } from "./Donations";
+import { getDonations } from "../../../data/mockData";
 
 const DonationDetails = () => {
   const { id } = useParams();
@@ -69,7 +69,7 @@ const DonationDetails = () => {
       <div className="flex justify-between items-center mb-8">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => navigate("/donations")}
+            onClick={() => navigate("/admin/donations")}
             className="w-10 h-10 border border-gray-200 rounded-full flex items-center justify-center text-[#4B5563] bg-white hover:bg-gray-50 transition-colors shadow-sm"
           >
             <ArrowLeft size={20} />

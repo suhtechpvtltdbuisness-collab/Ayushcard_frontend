@@ -529,11 +529,10 @@ const CustomDonutChart = ({
     return () => clearTimeout(timer);
   }, []);
 
-  let accumulatedLength = 0;
-  const slices = data.map((item) => {
+  const slices = data.map((item, index) => {
     const length = (item.value / total) * circumference;
-    const offset = accumulatedLength;
-    accumulatedLength += length;
+    // Calculate offset without mutating outer variable to keep it pure for render
+    const offset = data.slice(0, index).reduce((acc, prev) => acc + (prev.value / total) * circumference, 0);
     return {
       ...item,
       length,
@@ -964,7 +963,7 @@ const Reports = () => {
               </BarChart>
             </ResponsiveContainer>
 
-            {barTooltip.visible && barTooltip.data && (
+            {barTooltip.visible && (barTooltip.data || barTooltip.data?.payload) && (
               <div
                 className="absolute z-10 bg-[#FFFFFF] px-3 py-2 rounded-lg shadow-xl pointer-events-none"
                 style={{
@@ -975,13 +974,12 @@ const Reports = () => {
                 }}
               >
                 <p className="text-[#64748B] text-xs font-bold">
-                  {barTooltip.data.name || barTooltip.data.payload?.name}
+                  {barTooltip.data?.name || barTooltip.data?.payload?.name || "N/A"}
                 </p>
                 <p className="text-[#F97316] text-sm font-bold">
-                  {(barTooltip.data.value !== undefined
+                  {((barTooltip.data?.value !== undefined
                     ? barTooltip.data.value
-                    : barTooltip.data.payload?.value
-                  ).toLocaleString()}{" "}
+                    : barTooltip.data?.payload?.value) || 0).toLocaleString()}{" "}
                   cards
                 </p>
               </div>

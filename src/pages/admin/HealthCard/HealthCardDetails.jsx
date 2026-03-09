@@ -1,83 +1,153 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, UploadCloud, ChevronDown, X, Plus } from "lucide-react";
-import { getHealthCards } from "./HealthCard";
+import { ArrowLeft, ChevronDown, Loader2, FileText, UploadCloud, Trash2 } from "lucide-react";
+import apiService from "../../../api/service";
 import AyushCardPreview from "../../../components/admin/AyushCardPreview";
 
+// Map API response fields → form fields
+const apiToForm = (card) => ({
+  // IDs
+  _id: card._id || "",
+  id: card.applicationId || card._id || "",
+  // Application
+  dateApplied: card.applicationDate || "",
+  status: card.status || "pending",
+  // Name (also build a combined 'applicant' for the card preview)
+  applicantFirstName: card.firstName || "",
+  applicantMiddleName: card.middleName || "",
+  applicantLastName: card.lastName || "",
+  applicant: [card.firstName, card.middleName, card.lastName].filter(Boolean).join(" "),
+  // Contact
+  phone: card.contact || "",
+  altPhone: card.alternateContact || "",
+  email: card.email || "",
+  // Card info
+  cardNumber: card.cardNo || "",
+  cardNo: card.cardNo || "",   // alias used by preview
+  issueDate: card.cardIssueDate || "",
+  expiryDate: card.cardExpiredDate || "",
+  verificationDate: card.verificationDate || "",
+  // Members / payment
+  totalMembers: card.totalMember ?? "",
+  members: Array.isArray(card.members) ? card.members : [],
+  payment: {
+    applicationFee: 120,
+    memberAddOns: (Number(card.totalMember) || 0) * 10,
+    totalPaid: card.totalAmount ?? 120,
+  },
+  // Misc
+  address: card.address || "",
+  gender: card.gender || "",
+  dob: card.dob || "",
+  profileImage: card.profileImage || "",
+  documents: Array.isArray(card.documents) ? card.documents : [],
+  // NGO details for preview
+  ngoLocation: card.ngoLocation || "Mangla Vihar Kanpur - 208015",
+  ngoPhone: card.ngoPhone || "9927384859",
+  ngoEmail: card.ngoEmail || "baijnaathkesarbaisewatrust9625@gmail.com",
+});
+
+// Map form fields → API payload
+const formToApi = (f) => ({
+  applicationDate: f.dateApplied,
+  status: f.status,
+  firstName: f.applicantFirstName,
+  middleName: f.applicantMiddleName,
+  lastName: f.applicantLastName,
+  contact: f.phone,
+  alternateContact: f.altPhone,
+  email: f.email,
+  cardNo: f.cardNumber,
+  cardIssueDate: f.issueDate,
+  cardExpiredDate: f.expiryDate,
+  verificationDate: f.verificationDate,
+  totalMember: Number(f.totalMembers) || 0,
+  totalAmount: Number(f.payment?.totalPaid) || 0,
+  address: f.address,
+  gender: f.gender,
+  dob: f.dob,
+});
+
 const HealthCardDetails = () => {
-  const { id } = useParams();
+  const { id } = useParams();          // MongoDB _id (from HealthCard list navigation)
   const navigate = useNavigate();
   const location = useLocation();
-  const fileInputFrontRef = useRef(null);
-  const fileInputBackRef = useRef(null);
-  const [previewImage, setPreviewImage] = useState(null);
+  const docInputRef = useRef(null);
+
   const [isEditing, setIsEditing] = useState(location.state?.editMode || false);
-
-  const healthCards = getHealthCards();
-  const initialData = healthCards.find((c) => c.id === id) || healthCards[0];
-
-  const [formData, setFormData] = useState({
-    ...initialData,
-    ngoLocation: initialData.ngoLocation || "Mangla Vihar Kanpur - 208015",
-    ngoPhone: initialData.ngoPhone || "9927384859",
-    ngoEmail:
-      initialData.ngoEmail || "baijnaathkesarbaisewatrust9625@gmail.com",
-    members: initialData.members || [],
-  });
-
+  const [formData, setFormData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [fetchErr, setFetchErr] = useState("");
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [pendingFile, setPendingFile] = useState(null); // file to send with Save
   const [cardSide, setCardSide] = useState("front");
 
+  // ── Fetch card + members on mount ────────────────────────────────────────
   useEffect(() => {
-    // Calculate total including base 120 (applicant) + (included configs up to 7) * 10
-    const includedMembersCount = Math.min(formData.members?.length || 0, 7);
-    const calculatedTotal = 120 + includedMembersCount * 10;
+    const load = async () => {
+      setLoading(true);
+      setFetchErr("");
+      try {
+        const res = await apiService.getHealthCardById(id);
+        // Response: { success, data: { card: {...} } } OR { data: {...} }
+        const raw =
+          res?.data?.card ||   // { data: { card: {} } }
+          res?.data ||         // { data: {} }
+          res;                 // raw object
+        const mapped = apiToForm(raw);
+        setFormData(mapped);
 
+        // Fetch members separately via GET /api/card-members/card/:_id
+        const mongoId = raw._id || id;
+        try {
+          const mRes = await apiService.getCardMembers(mongoId);
+          console.log("[HealthCardDetails] members response:", mRes);
+          // Response shape: { data: [...] } or { data: { members: [...] } } or [...]
+          const mRaw =
+            Array.isArray(mRes?.data) ? mRes.data :
+              Array.isArray(mRes?.data?.members) ? mRes.data.members :
+                Array.isArray(mRes) ? mRes :
+                  [];
+          if (mRaw.length > 0) {
+            setFormData((prev) => ({ ...prev, members: mRaw }));
+          }
+        } catch (mErr) {
+          // Members API failed — keep whatever came from the card response
+          console.warn("[HealthCardDetails] members fetch failed:", mErr?.response?.data || mErr?.message);
+        }
+      } catch (err) {
+        console.error("[HealthCardDetails] fetch failed:", err?.response?.data || err?.message);
+        setFetchErr("Could not load card from server.");
+        setFormData(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [id]);
+
+
+  // ── Payment auto-calc ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!formData) return;
+    const n = Number(formData.totalMembers) || 0;
     setFormData((prev) => ({
       ...prev,
-      payment: {
-        ...prev.payment,
-        memberAddOns: includedMembersCount * 10,
-        totalPaid: calculatedTotal.toFixed(2),
-      },
+      payment: { ...prev.payment, memberAddOns: n * 10, totalPaid: 120 + n * 10 },
     }));
-  }, [formData.members]);
+  }, [formData?.totalMembers]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Handlers ─────────────────────────────────────────────────────────────
   const handleChange = (e, field) => {
     let value = e.target.value;
-
-    if (
-      [
-        "applicantFirstName",
-        "applicantMiddleName",
-        "applicantLastName",
-        "applicant",
-        "relatedPerson",
-      ].includes(field)
-    ) {
+    if (["applicantFirstName", "applicantMiddleName", "applicantLastName", "applicant", "relatedPerson"].includes(field))
       value = value.replace(/[^a-zA-Z\s]/g, "");
-    } else if (["phone", "altPhone"].includes(field)) {
-      value = value.replace(/\D/g, "").slice(0, 10);
-    } else if (
-      [
-        "phone",
-        "altPhone",
-        "payment.totalPaid",
-        "cardNumber",
-        "totalMembers",
-      ].includes(field)
-    ) {
-      value = value.replace(/[^0-9.]/g, ""); // allow numbers and dot for payment
-    }
-
-    if (field === "totalMembers" && Number(value) > 7) {
-      value = "7";
-    }
-
+    else if (["phone", "altPhone", "payment.totalPaid", "cardNumber", "totalMembers"].includes(field))
+      value = value.replace(/[^0-9.]/g, "");
+    if (field === "totalMembers" && Number(value) > 7) value = "7";
     if (field.startsWith("payment.")) {
-      setFormData((prev) => ({
-        ...prev,
-        payment: { ...prev.payment, [field.split(".")[1]]: value },
-      }));
+      setFormData((prev) => ({ ...prev, payment: { ...prev.payment, [field.split(".")[1]]: value } }));
     } else {
       setFormData((prev) => ({ ...prev, [field]: value }));
     }
@@ -85,76 +155,97 @@ const HealthCardDetails = () => {
 
   const formatDateForInput = (dateStr) => {
     if (!dateStr) return "";
-    if (dateStr.includes("-") && dateStr.split("-")[0].length === 4)
-      return dateStr;
+    if (dateStr.includes("-") && dateStr.split("-")[0].length === 4) return dateStr;
     const parts = dateStr.split("-");
-    if (parts.length === 3) {
-      return `${parts[2]}-${parts[1]}-${parts[0]}`;
-    }
+    if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
     return dateStr;
   };
 
   const handleDateChange = (e, field) => {
     const val = e.target.value;
-    if (!val) {
-      setFormData((prev) => ({
-        ...prev,
-        [field]: "",
-        ...(field === "issueDate" ? { expiryDate: "" } : {}),
-      }));
-      return;
-    }
+    if (!val) { setFormData((prev) => ({ ...prev, [field]: "" })); return; }
     const parts = val.split("-");
-    let formattedDate = val;
-    if (parts.length === 3) {
-      formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
-    }
-
-    let additionalUpdates = {};
-    if (field === "issueDate") {
-      const issueD = new Date(val);
-      if (!isNaN(issueD.getTime())) {
-        issueD.setFullYear(issueD.getFullYear() + 1);
-        const expDay = String(issueD.getDate()).padStart(2, "0");
-        const expMonth = String(issueD.getMonth() + 1).padStart(2, "0");
-        const expYear = issueD.getFullYear();
-        additionalUpdates.expiryDate = `${expDay}-${expMonth}-${expYear}`;
-      }
-    }
-
     setFormData((prev) => ({
       ...prev,
-      [field]: formattedDate,
-      ...additionalUpdates,
+      [field]: parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : val,
     }));
   };
 
-  const handleImageUpload = (e, side) => {
+  // Profile image upload (local preview only — document upload goes to API)
+  // Not currently used in UI - keeping for future but commenting out logic
+  // const handleImageUpload = (e) => { ... };
+
+  // Document file selected → store in state, send with Save Changes
+  const handleDocSelect = (e) => {
     const file = e.target.files[0];
-    if (file && (file.type === "image/jpeg" || file.type === "image/png")) {
-      const imageUrl = URL.createObjectURL(file);
+    if (!file) return;
+    setPendingFile(file);
+    // Show file name as pending in the documents list
+    setFormData((prev) => ({
+      ...prev,
+      documents: [
+        ...(prev.documents || []),
+        { name: file.name, url: URL.createObjectURL(file), pending: true },
+      ],
+    }));
+    if (docInputRef.current) docInputRef.current.value = "";
+  };
+
+  // Save — two API calls:
+  //   PATCH /api/cards/:id/status  → status field
+  //   PUT   /api/cards/:id         → all other fields + optional file
+  const handleSave = async () => {
+    setSaveLoading(true);
+    setSaveError("");
+    try {
+      const mongoId = formData._id || id;
+      const payload = formToApi(formData);
+      console.log("[HealthCardDetails] saving:", { mongoId, status: payload.status, file: pendingFile?.name });
+
+      await Promise.all([
+        // Status via PATCH
+        apiService.updateHealthCardStatus(mongoId, payload.status),
+        // All other fields (+ document) via JSON PUT
+        apiService.updateHealthCard(mongoId, { ...payload, status: undefined }, pendingFile || null),
+      ]);
+
+      setPendingFile(null);
+      // Remove pending flag from documents list
       setFormData((prev) => ({
         ...prev,
-        [side === "front" ? "documentFront" : "documentBack"]: imageUrl,
+        documents: (prev.documents || []).map((d) => ({ ...d, pending: false })),
       }));
-    } else {
-      alert("Please upload a valid .jpg or .png image.");
+      setIsEditing(false);
+      navigate(".", { replace: true, state: { editMode: false } });
+    } catch (err) {
+      console.error("[HealthCardDetails] save failed:", err?.response?.data || err?.message);
+      setSaveError(
+        `${err?.response?.status ? `API Error (${err.response.status}): ` : ""}` +
+        (err?.response?.data?.message || err?.message || "Save failed.")
+      );
+    } finally {
+      setSaveLoading(false);
     }
   };
 
-  const handleRemoveImage = (side) => {
-    setFormData((prev) => ({
-      ...prev,
-      [side === "front" ? "documentFront" : "documentBack"]: "",
-    }));
-  };
+  // ── Render states ────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full py-24">
+        <Loader2 size={36} className="animate-spin text-[#F68E5F] mb-3" />
+        <p className="text-sm text-gray-500">Loading application…</p>
+      </div>
+    );
+  }
 
-  const handleSave = () => {
-    const updatedCards = healthCards.map((c) => (c.id === id ? formData : c));
-    localStorage.setItem("health_cards_data", JSON.stringify(updatedCards));
-    setIsEditing(false);
-    navigate(".", { replace: true, state: { editMode: false } }); // clear state
-  };
+  if (!formData) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full py-24">
+        <p className="text-red-500 font-medium mb-4">{fetchErr || "Card not found."}</p>
+        <button onClick={() => navigate(-1)} className="text-[#F68E5F] underline text-sm">Go back</button>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -177,16 +268,19 @@ const HealthCardDetails = () => {
           {isEditing ? (
             <>
               <button
-                onClick={() => setIsEditing(false)}
-                className="px-4 py-1.5 border border-gray-200 rounded-lg text-[15px] font-medium text-[#374151] hover:bg-gray-50 bg-white"
+                onClick={() => { setIsEditing(false); setSaveError(""); }}
+                disabled={saveLoading}
+                className="px-4 py-1.5 border border-gray-200 rounded-lg text-[15px] font-medium text-[#374151] hover:bg-gray-50 bg-white disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSave}
-                className="px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff702d] transition-colors"
+                disabled={saveLoading}
+                className="px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff702d] transition-colors flex items-center gap-2 disabled:opacity-60"
               >
-                Save Changes
+                {saveLoading && <Loader2 size={14} className="animate-spin" />}
+                {saveLoading ? "Saving…" : "Save Changes"}
               </button>
             </>
           ) : (
@@ -195,15 +289,18 @@ const HealthCardDetails = () => {
               className="px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff6e2b] flex items-center gap-2 transition-colors"
             >
               Edit
-              <img
-                src="/admin_images/Edit 3.svg"
-                alt=""
-                className="w-3.5 h-3.5"
-              />
+              <img src="/admin_images/Edit 3.svg" alt="" className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
       </div>
+
+      {/* API save error banner */}
+      {saveError && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-[13px]">
+          {saveError}
+        </div>
+      )}
 
       <div className="space-y-6">
         {/* Application Details Section */}
@@ -214,440 +311,193 @@ const HealthCardDetails = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
             <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Application ID
-              </label>
-              <input
-                type="text"
-                value={formData.id}
-                readOnly
-                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none bg-[#F8FAFC]"
-              />
+              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Application ID</label>
+              <input type="text" value={formData.id} readOnly
+                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none bg-[#F8FAFC]" />
             </div>
             <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Application Date
-              </label>
-              <input
-                type="date"
-                value={formatDateForInput(formData.dateApplied)}
-                onChange={(e) => handleDateChange(e, "dateApplied")}
-                disabled={!isEditing}
-                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
-              />
+              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Application Date</label>
+              <input type="date" value={formatDateForInput(formData.dateApplied)}
+                onChange={(e) => handleDateChange(e, "dateApplied")} disabled={!isEditing}
+                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`} />
             </div>
             <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Status
-              </label>
+              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Status</label>
               <div className="relative">
-                <select
-                  value={formData.status || ""}
-                  onChange={(e) => handleChange(e, "status")}
-                  disabled={!isEditing}
-                  className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none appearance-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
-                >
-                  <option>Pending verification</option>
-                  <option>Not verified</option>
-                  <option>Verified</option>
-                  <option>Expired</option>
+                <select value={formData.status || ""}
+                  onChange={(e) => handleChange(e, "status")} disabled={!isEditing}
+                  className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none appearance-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="active">Active</option>
+                  <option value="expired">Expired</option>
                 </select>
-                <ChevronDown
-                  size={16}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-                />
+                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               </div>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
             <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Applicant's first name
-              </label>
-              <input
-                type="text"
-                value={
-                  formData.applicantFirstName ||
-                  formData.applicant?.split(" ")[0] ||
-                  ""
-                }
-                onChange={(e) => handleChange(e, "applicantFirstName")}
-                disabled={!isEditing}
-                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
-              />
+              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">First Name</label>
+              <input type="text" value={formData.applicantFirstName || ""}
+                onChange={(e) => handleChange(e, "applicantFirstName")} disabled={!isEditing}
+                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`} />
             </div>
             <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Middle name
-              </label>
-              <input
-                type="text"
-                value={
-                  formData.applicantMiddleName ||
-                  formData.applicant?.split(" ")[1] ||
-                  ""
-                }
-                onChange={(e) => handleChange(e, "applicantMiddleName")}
-                disabled={!isEditing}
-                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
-              />
+              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Middle Name</label>
+              <input type="text" value={formData.applicantMiddleName || ""}
+                onChange={(e) => handleChange(e, "applicantMiddleName")} disabled={!isEditing}
+                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`} />
             </div>
             <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Last name
-              </label>
-              <input
-                type="text"
-                value={
-                  formData.applicantLastName ||
-                  formData.applicant?.split(" ").slice(2).join(" ") ||
-                  ""
-                }
-                onChange={(e) => handleChange(e, "applicantLastName")}
-                disabled={!isEditing}
-                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
-              />
+              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Last Name</label>
+              <input type="text" value={formData.applicantLastName || ""}
+                onChange={(e) => handleChange(e, "applicantLastName")} disabled={!isEditing}
+                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`} />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
             <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Gender
-              </label>
-              <div className="relative">
-                <select
-                  value={formData.gender || ""}
-                  onChange={(e) => handleChange(e, "gender")}
-                  disabled={!isEditing}
-                  className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none appearance-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
-                >
-                  <option value="">Select Gender</option>
-                  <option>Male</option>
-                  <option>Female</option>
-                </select>
-                <ChevronDown
-                  size={16}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-                />
-              </div>
+              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Phone Number</label>
+              <input type="text" value={formData.phone || ""}
+                onChange={(e) => handleChange(e, "phone")} disabled={!isEditing}
+                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`} />
             </div>
             <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Date of birth
-              </label>
-              <input
-                type="date"
-                value={formatDateForInput(formData.dob)}
-                onChange={(e) => handleDateChange(e, "dob")}
-                disabled={!isEditing}
-                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
-              />
+              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Alternate Number</label>
+              <input type="text" value={formData.altPhone || ""}
+                onChange={(e) => handleChange(e, "altPhone")} disabled={!isEditing}
+                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`} />
             </div>
             <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Relation
-              </label>
-              <div className="relative">
-                <select
-                  value={formData.relation || ""}
-                  onChange={(e) => handleChange(e, "relation")}
-                  disabled={!isEditing}
-                  className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none appearance-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
-                >
-                  <option value="">Select Relation</option>
-                  <option>Self</option>
-                  <option>Spouse</option>
-                  <option>Child</option>
-                </select>
-                <ChevronDown
-                  size={16}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-                />
-              </div>
+              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Email</label>
+              <input type="email" value={formData.email || ""}
+                onChange={(e) => handleChange(e, "email")} disabled={!isEditing}
+                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`} />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
             <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Related person
-              </label>
-              <input
-                type="text"
-                value={formData.relatedPerson || ""}
-                onChange={(e) => handleChange(e, "relatedPerson")}
-                disabled={!isEditing}
-                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Phone Number
-              </label>
-              <input
-                type="text"
-                value={formData.phone || ""}
-                onChange={(e) => handleChange(e, "phone")}
-                disabled={!isEditing}
-                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
-              />
+              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Card Number</label>
+              <input type="text" value={formData.cardNumber || ""}
+                onChange={(e) => handleChange(e, "cardNumber")} disabled={!isEditing}
+                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`} />
             </div>
             <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Alternate Number
-              </label>
-              <input
-                type="text"
-                value={formData.altPhone || ""}
-                onChange={(e) => handleChange(e, "altPhone")}
-                disabled={!isEditing}
-                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
-              />
+              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Card Issue Date</label>
+              <input type="date" value={formatDateForInput(formData.issueDate)}
+                onChange={(e) => handleDateChange(e, "issueDate")} disabled={!isEditing}
+                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`} />
             </div>
             <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Email
-              </label>
-              <input
-                type="email"
-                value={formData.email || ""}
-                onChange={(e) => handleChange(e, "email")}
-                disabled={!isEditing}
-                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
-              />
-            </div>
-          </div>
-
-          <div className="mb-5">
-            <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-              Address
-            </label>
-            <textarea
-              rows={2}
-              value={formData.address || ""}
-              onChange={(e) => handleChange(e, "address")}
-              disabled={!isEditing}
-              className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none resize-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
-            ></textarea>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Card number
-              </label>
-              <input
-                type="text"
-                value={formData.cardNumber || ""}
-                onChange={(e) => handleChange(e, "cardNumber")}
-                disabled={!isEditing}
-                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
-              />
-            </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Card Issue Date
-              </label>
-              <input
-                type="date"
-                value={formatDateForInput(formData.issueDate)}
-                onChange={(e) => handleDateChange(e, "issueDate")}
-                disabled={!isEditing}
-                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
-              />
-            </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Card Expiry Date
-              </label>
-              <input
-                type="date"
-                value={formatDateForInput(formData.expiryDate)}
-                readOnly
-                disabled
-                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none bg-gray-50 cursor-not-allowed"
-              />
+              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Card Expiry Date</label>
+              <input type="date" value={formatDateForInput(formData.expiryDate)}
+                onChange={(e) => handleDateChange(e, "expiryDate")} disabled={!isEditing}
+                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`} />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Verification Date
-              </label>
-              <input
-                type="date"
-                value={formatDateForInput(formData.verificationDate)}
-                onChange={(e) => handleDateChange(e, "verificationDate")}
-                disabled={!isEditing}
-                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
-              />
+              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Verification Date</label>
+              <input type="date" value={formatDateForInput(formData.verificationDate)}
+                onChange={(e) => handleDateChange(e, "verificationDate")} disabled={!isEditing}
+                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`} />
             </div>
             <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Total Members
-              </label>
-              <input
-                type="text"
-                value={(formData.members?.length || 0) + 1}
-                readOnly
-                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none bg-gray-50`}
-              />
+              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Total Members</label>
+              <input type="text" value={formData.totalMembers ?? ""}
+                onChange={(e) => handleChange(e, "totalMembers")} disabled={!isEditing}
+                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`} />
             </div>
             <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Total Amount Paid
-              </label>
-              <input
-                type="text"
-                value={formData.payment?.totalPaid || ""}
-                readOnly
-                disabled={!isEditing}
-                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none bg-gray-50`}
-              />
+              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Total Amount Paid</label>
+              <input type="text" value={formData.payment?.totalPaid || ""} readOnly
+                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none bg-gray-50" />
             </div>
           </div>
         </div>
 
-        {/* Upload & QR Layout */}
+        {/* Upload & QR */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="border border-[#E2E8F0] rounded-xl p-6 bg-white flex flex-col">
-            <h3 className="font-bold text-[15px] text-[#22333B]">
-              Image Upload
-            </h3>
-            <p className="text-[13px] text-[#6D6D6D] mb-5">
-              Add your documents here, and you can upload up to 5 files max
-            </p>
-            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Front Side Upload */}
-              <div className="border border-dashed border-[#1849D6] rounded-xl flex flex-col items-center justify-center p-8 bg-[#FFFFFF] relative overflow-hidden min-h-50">
-                {formData.documentFront ? (
-                  <div className="w-full h-full absolute inset-0 group">
-                    <img
-                      src={formData.documentFront}
-                      alt="Document Front preview"
-                      className="w-full h-full object-contain p-2 cursor-pointer"
-                      onClick={() => setPreviewImage(formData.documentFront)}
-                    />
-                    {isEditing && (
-                      <div className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center gap-4 transition-all z-20">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            fileInputFrontRef.current?.click();
-                          }}
-                          className="px-4 py-2 bg-white text-[#1849D6] rounded-lg text-sm font-medium hover:bg-gray-50"
-                        >
-                          Change
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveImage("front");
-                          }}
-                          className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div
-                    className={`flex flex-col items-center justify-center w-full h-full ${isEditing ? "cursor-pointer" : "opacity-50 cursor-not-allowed"}`}
-                    onClick={() =>
-                      isEditing && fileInputFrontRef.current?.click()
-                    }
-                  >
-                    <Plus size={32} className="text-[#1849D6] mb-3" />
-                    <p className="text-[14px] text-[#0F172A] font-medium text-center">
-                      Document Front Side
-                    </p>
-                  </div>
-                )}
-                <input
-                  type="file"
-                  accept=".jpg, .jpeg, .png"
-                  className="hidden"
-                  ref={fileInputFrontRef}
-                  disabled={!isEditing}
-                  onChange={(e) => handleImageUpload(e, "front")}
-                />
-              </div>
-
-              {/* Back Side Upload */}
-              <div className="border border-dashed border-[#1849D6] rounded-xl flex flex-col items-center justify-center p-8 bg-[#FFFFFF] relative overflow-hidden min-h-50">
-                {formData.documentBack ? (
-                  <div className="w-full h-full absolute inset-0 group">
-                    <img
-                      src={formData.documentBack}
-                      alt="Document Back preview"
-                      className="w-full h-full object-contain p-2 cursor-pointer"
-                      onClick={() => setPreviewImage(formData.documentBack)}
-                    />
-                    {isEditing && (
-                      <div className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center gap-4 transition-all z-20">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            fileInputBackRef.current?.click();
-                          }}
-                          className="px-4 py-2 bg-white text-[#1849D6] rounded-lg text-sm font-medium hover:bg-gray-50"
-                        >
-                          Change
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveImage("back");
-                          }}
-                          className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div
-                    className={`flex flex-col items-center justify-center w-full h-full ${isEditing ? "cursor-pointer" : "opacity-50 cursor-not-allowed"}`}
-                    onClick={() =>
-                      isEditing && fileInputBackRef.current?.click()
-                    }
-                  >
-                    <Plus size={32} className="text-[#1849D6] mb-3" />
-                    <p className="text-[14px] text-[#0F172A] font-medium text-center">
-                      Document Back Side
-                    </p>
-                  </div>
-                )}
-                <input
-                  type="file"
-                  accept=".jpg, .jpeg, .png"
-                  className="hidden"
-                  ref={fileInputBackRef}
-                  disabled={!isEditing}
-                  onChange={(e) => handleImageUpload(e, "back")}
-                />
-              </div>
+          {/* Document Upload */}
+          <div className="border border-[#E2E8F0] rounded-xl p-6 bg-white flex flex-col gap-4">
+            <div>
+              <h3 className="font-bold text-[15px] text-[#22333B]">Document Upload</h3>
+              <p className="text-[13px] text-[#6D6D6D] mt-1">Upload supporting documents (Aadhar, photo, etc.)</p>
             </div>
-            <p className="text-[12px] text-[#6D6D6D] mt-6">
-              Only supports .jpg, .png files
-            </p>
+
+            {/* Drop zone */}
+            <div className="border border-dashed border-[#1849D6] rounded-xl flex flex-col items-center justify-center p-6 bg-[#FFFFFF]">
+              <div className="w-10 h-10 bg-white text-[#1849D6] rounded-xl flex items-center justify-center mb-3">
+                <UploadCloud size={22} />
+              </div>
+              <p className="text-[13px] text-[#0F172A] font-medium mb-1">
+                {pendingFile ? pendingFile.name : "Drag & drop or browse a file"}
+              </p>
+              {pendingFile && (
+                <p className="text-[11px] text-amber-600 mb-3">Will be uploaded on Save Changes</p>
+              )}
+              {!pendingFile && (
+                <p className="text-[11px] text-[#94A3B8] mb-3">Documents sent with Save Changes</p>
+              )}
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                className="hidden"
+                ref={docInputRef}
+                onChange={handleDocSelect}
+              />
+              <button
+                onClick={() => docInputRef.current?.click()}
+                className="px-3 py-1.5 border border-[#1849D6] text-[#1849D6] rounded-lg text-[13px] font-medium bg-white hover:bg-[#1849D6] hover:text-white transition-colors"
+              >
+                {pendingFile ? "Change File" : "Browse Files"}
+              </button>
+            </div>
+
+            {/* Documents list */}
+            {formData.documents && formData.documents.length > 0 ? (
+              <div className="flex flex-col gap-2">
+                <p className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wide">
+                  Documents ({formData.documents.length})
+                </p>
+                {formData.documents.map((doc, i) => (
+                  <a
+                    key={i}
+                    href={doc.url || doc.path || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-3 py-2 border border-[#E2E8F0] rounded-lg hover:bg-[#F8FAFC] transition-colors group"
+                  >
+                    <FileText size={16} className="text-[#1849D6] shrink-0" />
+                    <span className="text-[13px] text-[#22333B] truncate flex-1">
+                      {doc.name || doc.originalName || `Document ${i + 1}`}
+                    </span>
+                    {doc.pending ? (
+                      <span className="text-[11px] text-amber-600 font-medium">Pending save</span>
+                    ) : (
+                      <span className="text-[11px] text-[#94A3B8] group-hover:text-[#1849D6]">View →</span>
+                    )}
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[12px] text-[#94A3B8] text-center">No documents uploaded yet.</p>
+            )}
           </div>
+
+          {/* QR Code */}
           <div className="border border-[#E2E8F0] rounded-xl p-6 bg-white flex flex-col">
             <h3 className="font-bold text-[15px] text-[#22333B]">QR Code</h3>
-            <p className="text-[13px] text-[#6D6D6D] mb-5">
-              A Unique Qr code of your Health Card
-            </p>
+            <p className="text-[13px] text-[#6D6D6D] mb-5">A Unique QR code of your Health Card</p>
             <div className="flex-1 flex items-center justify-center">
               <img
-                src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=AyushCard"
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${formData.id}`}
                 alt="QR"
                 className="w-45 h-45 object-contain border-4 border-black rounded-lg p-1"
               />
@@ -666,114 +516,48 @@ const HealthCardDetails = () => {
             <table className="w-full text-left">
               <thead className="bg-[#F8FAFC]">
                 <tr>
-                  <th className="py-4 px-6 text-[12px] font-bold text-[#64748B] uppercase tracking-wider w-25">
-                    SR. NO
-                  </th>
-                  <th className="py-4 px-6 text-[12px] font-bold text-[#64748B] uppercase tracking-wider min-w-25">
-                    MEMBER NAME
-                  </th>
-                  <th className="py-4 px-6 text-[12px] font-bold text-[#64748B] uppercase tracking-wider min-w-25">
-                    RELATION
-                  </th>
-                  <th className="py-4 px-6 text-[12px] font-bold text-[#64748B] uppercase tracking-wider min-w-25">
-                    AGE
-                  </th>
-                  {isEditing && (
-                    <th className="py-4 px-6 text-[12px] font-bold text-[#64748B] uppercase tracking-wider w-24">
-                      ACTIONS
-                    </th>
-                  )}
+                  <th className="py-4 px-6 text-[12px] font-bold text-[#64748B] uppercase tracking-wider w-25">SR. NO</th>
+                  <th className="py-4 px-6 text-[12px] font-bold text-[#64748B] uppercase tracking-wider min-w-50">MEMBER NAME</th>
+                  <th className="py-4 px-6 text-[12px] font-bold text-[#64748B] uppercase tracking-wider min-w-37.5">RELATION</th>
+                  <th className="py-4 px-6 text-[12px] font-bold text-[#64748B] uppercase tracking-wider min-w-25">AGE</th>
+                  {isEditing && <th className="py-4 px-6 text-[12px] font-bold text-[#64748B] uppercase tracking-wider w-24">ACTIONS</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F1F5F9]">
                 {formData.members?.map((m, i) => (
                   <tr key={i} className="hover:bg-gray-50/50">
-                    <td className="py-4 px-6 text-[14px] text-[#475569]">
-                      {i + 1}
-                    </td>
-                    <td className="py-2 px-6">
+                    <td className="py-4 px-6 text-[14px] text-[#475569]">{i + 1}</td>
+                    <td className="py-4 px-6">
                       {isEditing ? (
-                        <input
-                          type="text"
-                          value={m.name}
-                          onChange={(e) => {
-                            const newMembers = [...formData.members];
-                            newMembers[i].name = e.target.value;
-                            setFormData({ ...formData, members: newMembers });
-                          }}
-                          className="w-full rounded px-3 py-2 text-[14px]"
-                          placeholder="Name"
-                        />
-                      ) : (
-                        <span className="text-[14px] font-semibold text-[#1E293B]">
-                          {m.name}
-                        </span>
-                      )}
+                        <input type="text" value={m.name || ""} placeholder="Name"
+                          onChange={(e) => { const nm = [...formData.members]; nm[i] = { ...nm[i], name: e.target.value }; setFormData({ ...formData, members: nm }); }}
+                          className="w-full border border-[#E2E8F0] rounded px-3 py-2 text-[14px]" />
+                      ) : <span className="text-[14px] font-semibold text-[#1E293B]">{m.name}</span>}
                     </td>
-                    <td className="py-2 px-6">
+                    <td className="py-4 px-6">
                       {isEditing ? (
-                        <input
-                          type="text"
-                          value={m.relation}
-                          onChange={(e) => {
-                            const newMembers = [...formData.members];
-                            newMembers[i].relation = e.target.value;
-                            setFormData({ ...formData, members: newMembers });
-                          }}
-                          className="w-full rounded px-3 py-2 text-[14px]"
-                          placeholder="Relation"
-                        />
-                      ) : (
-                        <span className="text-[14px] text-[#475569]">
-                          {m.relation}
-                        </span>
-                      )}
+                        <input type="text" value={m.relation || ""} placeholder="Relation"
+                          onChange={(e) => { const nm = [...formData.members]; nm[i] = { ...nm[i], relation: e.target.value }; setFormData({ ...formData, members: nm }); }}
+                          className="w-full border border-[#E2E8F0] rounded px-3 py-2 text-[14px]" />
+                      ) : <span className="text-[14px] text-[#475569]">{m.relation}</span>}
                     </td>
-                    <td className="py-2 px-6">
+                    <td className="py-4 px-6">
                       {isEditing ? (
-                        <input
-                          type="text"
-                          value={m.age}
-                          onChange={(e) => {
-                            const newMembers = [...formData.members];
-                            newMembers[i].age = e.target.value;
-                            setFormData({ ...formData, members: newMembers });
-                          }}
-                          className="w-full rounded px-3 py-2 text-[14px]"
-                          placeholder="Age"
-                        />
-                      ) : (
-                        <span className="text-[14px] text-[#475569]">
-                          {m.age}
-                        </span>
-                      )}
+                        <input type="text" value={m.age || ""} placeholder="Age"
+                          onChange={(e) => { const nm = [...formData.members]; nm[i] = { ...nm[i], age: e.target.value }; setFormData({ ...formData, members: nm }); }}
+                          className="w-full border border-[#E2E8F0] rounded px-3 py-2 text-[14px]" />
+                      ) : <span className="text-[14px] text-[#475569]">{m.age}</span>}
                     </td>
                     {isEditing && (
-                      <td className="py-2 px-6">
-                        <button
-                          onClick={() => {
-                            const newMembers = formData.members.filter(
-                              (_, idx) => idx !== i,
-                            );
-                            setFormData({ ...formData, members: newMembers });
-                          }}
-                          className="text-red-500 hover:text-red-700 text-[14px] font-medium"
-                        >
-                          Remove
-                        </button>
+                      <td className="py-4 px-6">
+                        <button onClick={() => setFormData({ ...formData, members: formData.members.filter((_, idx) => idx !== i) })}
+                          className="text-red-500 hover:text-red-700 text-[14px] font-medium">Remove</button>
                       </td>
                     )}
                   </tr>
                 ))}
                 {(!formData.members || formData.members.length === 0) && (
-                  <tr>
-                    <td
-                      colSpan={isEditing ? 5 : 4}
-                      className="py-8 text-center text-gray-400"
-                    >
-                      No members added yet.
-                    </td>
-                  </tr>
+                  <tr><td colSpan={isEditing ? 5 : 4} className="py-8 text-center text-gray-400">No members added yet.</td></tr>
                 )}
               </tbody>
             </table>
@@ -781,85 +565,36 @@ const HealthCardDetails = () => {
           {isEditing && (formData.members?.length || 0) < 7 && (
             <div className="p-4 border-t border-[#E2E8F0]">
               <button
-                onClick={() => {
-                  setFormData((prev) => ({
-                    ...prev,
-                    members: [
-                      ...(prev.members || []),
-                      { name: "", relation: "", age: "" },
-                    ],
-                  }));
-                }}
+                onClick={() => setFormData((prev) => ({ ...prev, members: [...(prev.members || []), { name: "", relation: "", age: "" }] }))}
                 className="text-[#F68E5F] font-normal text-[14px] flex items-center gap-1.5 hover:text-[#e57745] transition-colors"
               >
-                Add Member{" "}
-                <span className="text-lg leading-none pb-0.5">+</span>
+                Add Member <span className="text-lg leading-none pb-0.5">+</span>
               </button>
             </div>
           )}
         </div>
 
-        {/* Card Preview Section */}
+        {/* Card Preview */}
         <div className="border border-[#F1F5F9] rounded-xl bg-white overflow-hidden">
           <div className="p-4 border-b border-[#E2E8F0] flex justify-between items-center bg-white">
-            <h3 className="font-bold text-[16px] text-[#22333B]">
-              Card Preview
-            </h3>
+            <h3 className="font-bold text-[16px] text-[#22333B]">Card Preview</h3>
             <div className="flex bg-[#F8FAFC] p-1 rounded-lg">
-              <button
-                onClick={() => setCardSide("front")}
-                className={`px-6 py-1.5 rounded-md text-[13px] font-semibold transition-all ${cardSide === "front" ? "bg-white shadow-sm text-[#0F172A]" : "text-[#64748B] hover:text-[#0F172A]"}`}
-              >
-                Front
-              </button>
-              <button
-                onClick={() => setCardSide("back")}
-                className={`px-6 py-1.5 rounded-md text-[13px] font-semibold transition-all ${cardSide === "back" ? "bg-white shadow-sm text-[#0F172A]" : "text-[#64748B] hover:text-[#0F172A]"}`}
-              >
-                Back
-              </button>
+              {["front", "back"].map((side) => (
+                <button key={side} onClick={() => setCardSide(side)}
+                  className={`px-6 py-1.5 rounded-md text-[13px] font-semibold transition-all ${cardSide === side ? "bg-white shadow-sm text-[#0F172A]" : "text-[#64748B] hover:text-[#0F172A]"}`}>
+                  {side.charAt(0).toUpperCase() + side.slice(1)}
+                </button>
+              ))}
             </div>
           </div>
-
           <div className="bg-[#F8FAFC] p-12 flex flex-col items-center justify-center min-h-112.5">
-            <AyushCardPreview
-              data={formData}
-              side={cardSide}
-              onFlip={(side) => setCardSide(side)}
-            />
+            <AyushCardPreview data={formData} side={cardSide} onFlip={(side) => setCardSide(side)} />
             <p className="text-[13px] text-[#94A3B8] mt-10 flex items-center gap-2 font-medium">
-              <img src="/admin_images/click.svg" alt="click" /> Click the card
-              or use the buttons to flip • Preview reflects saved application
-              data
+              <img src="/admin_images/click.svg" alt="click" /> Click the card or use the buttons to flip • Preview reflects saved application data
             </p>
           </div>
         </div>
       </div>
-
-      {/* Full Screen Image Preview Modal */}
-      {previewImage && (
-        <div
-          className="fixed inset-0 z-100 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-          onClick={() => setPreviewImage(null)}
-        >
-          <div
-            className="relative w-[60vw] h-[60vh] max-w-4xl max-h-200 flex items-center justify-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setPreviewImage(null)}
-              className="absolute -top-10 -right-10 text-white hover:text-gray-300 p-2"
-            >
-              <X size={32} />
-            </button>
-            <img
-              src={previewImage}
-              alt="Document Full Preview"
-              className="w-full h-full object-contain rounded-lg"
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 };

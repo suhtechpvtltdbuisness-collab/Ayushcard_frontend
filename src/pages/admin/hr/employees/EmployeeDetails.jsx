@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Edit2 } from "lucide-react";
-import { getEmployees } from "./Employees";
+import { ArrowLeft, Edit2, Loader2 } from "lucide-react";
+import { getEmployees } from "../../../../data/mockData";
+import apiService from "../../../../api/service";
 
 const EmployeeDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   // Load data
   useEffect(() => {
@@ -30,28 +33,69 @@ const EmployeeDetails = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSave = () => {
-    const employees = getEmployees();
-    let formattedDate = formData.dateOfJoining;
-
-    // Convert YYYY-MM-DD back to DD-MM-YYYY if it came from native date picker
-    if (
-      formattedDate &&
-      formattedDate.includes("-") &&
-      formattedDate.split("-")[0].length === 4
-    ) {
-      const [year, month, day] = formattedDate.split("-");
-      formattedDate = `${day}-${month}-${year}`;
+  const formatTime = (timeStr) => {
+    if (!timeStr) return "09:00";
+    const match = timeStr.match(/(\d+):(\d+)\s*([AP]M)/i);
+    if (match) {
+      let hrs = parseInt(match[1]);
+      if (match[3].toUpperCase() === 'PM' && hrs < 12) hrs += 12;
+      if (match[3].toUpperCase() === 'AM' && hrs === 12) hrs = 0;
+      return `${hrs.toString().padStart(2, '0')}:${match[2]}`;
     }
+    return timeStr.substring(0, 5);
+  };
 
-    const updatedData = employees.map((e) =>
-      e.id === id ? { ...formData, dateOfJoining: formattedDate } : e,
-    );
+  const handleSave = async () => {
+    try {
+      setLoading(true);
+      setError("");
 
-    localStorage.setItem("employees_data", JSON.stringify(updatedData));
+      const employees = getEmployees();
+      let formattedDate = formData.dateOfJoining;
 
-    setFormData((prev) => ({ ...prev, dateOfJoining: formattedDate }));
-    setIsEditing(false);
+      // Convert YYYY-MM-DD back to DD-MM-YYYY if it came from native date picker
+      if (
+        formattedDate &&
+        formattedDate.includes("-") &&
+        formattedDate.split("-")[0].length === 4
+      ) {
+        const [year, month, day] = formattedDate.split("-");
+        formattedDate = `${day}-${month}-${year}`;
+      }
+
+      // Determine real ID
+      const targetId = formData._rawId || formData.id;
+
+      // Attempt API Call if it's a real MongoDB ID
+      if (!targetId.startsWith("EMP-")) {
+        const payload = {
+          name: formData.name,
+          email: formData.email,
+          role: "employee", // Hardcoded per API requirements
+          contact: formData.phone || "+1234567890",
+          location: formData.location,
+          salary: Number(formData.salary.replace(/\D/g, "")) || 0,
+          dateOfJoining: formData.dateOfJoining || new Date().toISOString().split('T')[0],
+          workStartTime: formatTime(formData.workingHoursFrom),
+          workEndTime: formatTime(formData.workingHoursTo)
+        };
+        await apiService.updateEmployee(targetId, payload);
+      }
+
+      // Sync local state visually
+      const updatedData = employees.map((e) =>
+        e.id === id ? { ...formData, dateOfJoining: formattedDate } : e,
+      );
+
+      localStorage.setItem("employees_data", JSON.stringify(updatedData));
+      setFormData((prev) => ({ ...prev, dateOfJoining: formattedDate }));
+      setIsEditing(false);
+    } catch (err) {
+      console.error("Employee update error:", err);
+      setError(err.response?.data?.message || err.message || "Failed to update employee");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!formData) return null;
@@ -82,7 +126,7 @@ const EmployeeDetails = () => {
         <div className="flex items-center gap-4">
           <button
             type="button"
-            onClick={() => navigate("/hr/employees")}
+            onClick={() => navigate("/admin/hr/employees")}
             className="w-10 h-10 border border-[#E5E7EB] rounded-full flex items-center justify-center text-[#4B5563] bg-white hover:bg-gray-50 transition-colors shadow-sm"
           >
             <ArrowLeft size={20} />
@@ -92,27 +136,32 @@ const EmployeeDetails = () => {
           </h2>
         </div>
 
-        <div className="flex gap-4">
+        <div className="flex gap-4 items-center">
+          {error && <span className="text-red-500 text-sm whitespace-nowrap">{error}</span>}
           {isEditing ? (
             <>
               <button
                 type="button"
+                disabled={loading}
                 onClick={() => {
                   setIsEditing(false);
                   const employees = getEmployees();
                   setFormData(
                     employees.find((e) => e.id === id) || employees[0],
                   );
+                  setError("");
                 }}
-                className="px-4 py-2.5 border border-[#F68E5F] text-[#F68E5F] bg-white rounded-lg text-[15px] font-medium hover:bg-gray-50 transition-colors"
+                className="px-4 py-2.5 border border-[#F68E5F] text-[#F68E5F] bg-white rounded-lg text-[15px] font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleSave}
-                className="px-4 py-2.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff7535] transition-colors"
+                disabled={loading}
+                className="px-4 py-2.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff7535] transition-colors flex items-center gap-2"
               >
+                {loading && <Loader2 size={16} className="animate-spin" />}
                 Save
               </button>
             </>
@@ -240,7 +289,7 @@ const EmployeeDetails = () => {
           </div>
           <div>
             <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
-              Working hours
+              Working Hours
             </label>
             <div className="flex items-center gap-3">
               <input

@@ -1,13 +1,20 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronDown, ArrowLeft, X, Plus } from "lucide-react";
-import { getHealthCards } from "./HealthCard";
+import { ChevronDown, ArrowLeft, Loader2, Plus, X } from "lucide-react";
+import apiService from "../../../api/service";
+
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 const CreateHealthCard = () => {
   const navigate = useNavigate();
   const fileInputFrontRef = useRef(null);
   const fileInputBackRef = useRef(null);
 
+  // Save/API state
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [pendingFileFront, setPendingFileFront] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
 
   const [formData, setFormData] = useState({
@@ -25,6 +32,7 @@ const CreateHealthCard = () => {
     altPhone: "",
     email: "",
     address: "",
+    cardNumber: "",
     issueDate: "",
     expiryDate: "",
     verificationDate: "",
@@ -79,7 +87,7 @@ const CreateHealthCard = () => {
         "totalMembers",
       ].includes(field)
     ) {
-      value = value.replace(/[^0-9.]/g, ""); // allow numbers and dot for payment
+      value = value.replace(/[^0-9.]/g, "");
     }
 
     if (field === "totalMembers" && Number(value) > 7) {
@@ -146,39 +154,106 @@ const CreateHealthCard = () => {
     const file = e.target.files[0];
     if (file && (file.type === "image/jpeg" || file.type === "image/png")) {
       const imageUrl = URL.createObjectURL(file);
-      setFormData((prev) => ({
-        ...prev,
-        [side === "front" ? "documentFront" : "documentBack"]: imageUrl,
-      }));
+      if (side === "front") {
+        setFormData((prev) => ({ ...prev, documentFront: imageUrl }));
+        setPendingFileFront(file);
+      } else {
+        setFormData((prev) => ({ ...prev, documentBack: imageUrl }));
+        // Back side currently preview-only as API supports single document
+      }
     } else {
       alert("Please upload a valid .jpg or .png image.");
     }
   };
 
   const handleRemoveImage = (side) => {
-    setFormData((prev) => ({
-      ...prev,
-      [side === "front" ? "documentFront" : "documentBack"]: "",
-    }));
+    if (side === "front") {
+      setFormData((prev) => ({ ...prev, documentFront: "" }));
+      setPendingFileFront(null);
+      if (fileInputFrontRef.current) fileInputFrontRef.current.value = "";
+    } else {
+      setFormData((prev) => ({ ...prev, documentBack: "" }));
+      if (fileInputBackRef.current) fileInputBackRef.current.value = "";
+    }
   };
 
-  const handleSave = () => {
-    const cards = getHealthCards();
+  // ── Save / Create Handler ──────────────────────────────────────────────────
+  const handleSave = async () => {
+    setSaveError("");
 
-    const newCard = {
-      ...formData,
-      id: `AC-${Math.floor(1000000 + Math.random() * 9000000)}`,
-      applicant:
-        `${formData.applicantFirstName || ""} ${formData.applicantMiddleName || ""} ${formData.applicantLastName || ""}`
-          .trim()
-          .replace(/\s+/g, " "),
+    // ── Client-side validation for backend required fields
+    if (!formData.applicantFirstName?.trim()) {
+      setSaveError("First name is required.");
+      return;
+    }
+    if (!formData.phone?.trim()) {
+      setSaveError("Phone number (Contact) is required.");
+      return;
+    }
+
+    // Map form fields → API payload
+    const payload = {
+      applicationDate: formData.dateApplied || "",
+      status: (() => {
+        const s = (formData.status || "").toLowerCase();
+        if (s.includes("not verified")) return "pending";
+        if (s.includes("pending")) return "pending";
+        if (s.includes("approved") || s.includes("verified")) return "approved";
+        if (s.includes("reject")) return "rejected";
+        if (s.includes("active")) return "active";
+        if (s.includes("expire")) return "expired";
+        return "pending";
+      })(),
+      firstName: formData.applicantFirstName.trim(),
+      middleName: formData.applicantMiddleName?.trim() || "",
+      lastName: formData.applicantLastName?.trim() || "",
+      contact: formData.phone.trim(),
+      alternateContact: formData.altPhone?.trim() || "",
+      email: formData.email?.trim() || "",
+      cardIssueDate: formData.issueDate || "",
+      cardExpiredDate: formData.expiryDate || "",
+      verificationDate: formData.verificationDate || "",
+      totalMember: formData.members?.length || 0,
+      totalAmount: parseFloat(formData.payment?.totalPaid || "0"),
+      members: formData.members || [],
+      address: formData.address || "",
+      gender: formData.gender || "",
+      dob: formData.dob || "",
+      relation: formData.relation || "",
+      relatedPerson: formData.relatedPerson || "",
     };
 
-    cards.unshift(newCard); // Add to the top of the list
-    localStorage.setItem("health_cards_data", JSON.stringify(cards));
+    const cardNoVal = formData.cardNumber?.trim();
+    if (cardNoVal) payload.cardNo = cardNoVal;
 
-    navigate("/health-card");
+    console.log("[CreateHealthCard] Sending payload to POST /api/cards:", payload);
+
+    setSaveLoading(true);
+    try {
+      // Create with front document primarily if available, or just as JSON
+      const result = await apiService.createHealthCard(payload, pendingFileFront);
+      console.log("[CreateHealthCard] API success:", result);
+      
+      // If we have a back document, we might need a separate update if the API doesn't support multiple ones in create
+      // For now, let's assume it supports the 'documents' field as an array or handles it
+      
+      navigate("/admin/health-card");
+    } catch (err) {
+      const status = err?.response?.status;
+      const serverMsg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "Unknown error";
+      console.error("[CreateHealthCard] API error:", {
+        status, serverMsg, responseData: err?.response?.data, payload,
+      });
+      setSaveError(`API Error ${status ? `(${status})` : ""}: ${serverMsg}`);
+    } finally {
+      setSaveLoading(false);
+    }
   };
+
 
   return (
     <div
@@ -189,7 +264,7 @@ const CreateHealthCard = () => {
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate(-1)}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+            className="w-10 h-10 flex items-center justify-center border border-gray-200 rounded-full hover:bg-gray-50 transition-colors shadow-sm"
           >
             <ArrowLeft size={20} className="text-gray-600" />
           </button>
@@ -201,23 +276,37 @@ const CreateHealthCard = () => {
         </div>
         <div className="flex gap-3">
           <button
-            onClick={() => navigate("/health-card")}
+            onClick={() => navigate("/admin/health-card")}
             className="px-4 py-1.5 border border-gray-200 rounded-lg text-[15px] font-medium text-[#374151] hover:bg-gray-50 bg-white"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            className="px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff702d] transition-colors"
+            disabled={saveLoading}
+            className="px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff702d] transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            Create
+            {saveLoading && <Loader2 size={14} className="animate-spin" />}
+            {saveLoading ? "Creating…" : "Create"}
           </button>
         </div>
       </div>
 
+      {/* API Error Banner */}
+      {saveError && (
+        <div className="mb-4 flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-[13px]">
+          <span className="font-semibold shrink-0">Error:</span>
+          <span>{saveError}</span>
+          <button
+            onClick={() => setSaveError("")}
+            className="ml-auto text-red-400 hover:text-red-600 shrink-0 text-[16px] leading-none"
+          >✕</button>
+        </div>
+      )}
+
       <div className="space-y-6">
         {/* Application Details Section */}
-        <div className="border border-[#E2E8F0] rounded-xl p-6 bg-white">
+        <div className="border border-[#E2E8F0] rounded-xl p-6 bg-white shadow-sm">
           <h3 className="font-bold text-[16px] text-[#22333B] mb-3">
             Application Details
           </h3>
@@ -274,13 +363,14 @@ const CreateHealthCard = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-3">
             <div>
               <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Applicant's first name
+                Applicant's first name <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 value={formData.applicantFirstName || ""}
                 onChange={(e) => handleChange(e, "applicantFirstName")}
                 disabled={!isEditing}
+                required
                 className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
               />
             </div>
@@ -386,13 +476,14 @@ const CreateHealthCard = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-3">
             <div>
               <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Phone Number
+                Phone Number <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 value={formData.phone || ""}
                 onChange={(e) => handleChange(e, "phone")}
                 disabled={!isEditing}
+                required
                 className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
               />
             </div>
@@ -500,7 +591,7 @@ const CreateHealthCard = () => {
             </div>
             <div>
               <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Total Amount Paid
+                Total Amount Paid (₹)
               </label>
               <input
                 type="text"
@@ -513,15 +604,15 @@ const CreateHealthCard = () => {
         </div>
 
         {/* Upload Layout */}
-        <div className="border border-[#E2E8F0] rounded-xl p-6 bg-white flex flex-col">
+        <div className="border border-[#E2E8F0] rounded-xl p-6 bg-white flex flex-col shadow-sm">
           <h3 className="font-bold text-[15px] text-[#22333B]">Image Upload</h3>
           <p className="text-[13px] text-[#6D6D6D] mb-5">
-            Add your documents here, and you can upload up to 5 files max
+            Add your documents here (Aadhar front/back or other ID)
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Front Side Upload */}
-            <div className="border border-dashed border-[#1849D6] rounded-xl flex flex-col items-center justify-center p-8 bg-[#FFFFFF] relative overflow-hidden min-h-50">
+            <div className="border border-dashed border-[#1849D6] rounded-xl flex flex-col items-center justify-center p-8 bg-[#FFFFFF] relative overflow-hidden min-h-[200px]">
               {formData.documentFront ? (
                 <div className="w-full h-full absolute inset-0 group">
                   <img
@@ -574,7 +665,7 @@ const CreateHealthCard = () => {
             </div>
 
             {/* Back Side Upload */}
-            <div className="border border-dashed border-[#1849D6] rounded-xl flex flex-col items-center justify-center p-8 bg-[#FFFFFF] relative overflow-hidden min-h-50">
+            <div className="border border-dashed border-[#1849D6] rounded-xl flex flex-col items-center justify-center p-8 bg-[#FFFFFF] relative overflow-hidden min-h-[200px]">
               {formData.documentBack ? (
                 <div className="w-full h-full absolute inset-0 group">
                   <img
@@ -630,10 +721,11 @@ const CreateHealthCard = () => {
           <p className="text-[12px] text-[#6D6D6D] mt-6">
             Only supports .jpg, .png files
           </p>
+
         </div>
 
         {/* Members Table */}
-        <div className="border border-[#E2E8F0] rounded-xl bg-white overflow-hidden mb-5">
+        <div className="border border-[#E2E8F0] rounded-xl bg-white overflow-hidden mb-5 shadow-sm">
           <div className="p-4 border border-[#E2E8F0]">
             <h3 className="font-bold text-[15px] text-[#22333B]">
               Included Members ({formData.members?.length || 0})
@@ -677,11 +769,11 @@ const CreateHealthCard = () => {
                             const newMembers = [...formData.members];
                             newMembers[i].name = e.target.value.replace(
                               /[^a-zA-Z\s]/g,
-                              "",
+                              ""
                             );
                             setFormData({ ...formData, members: newMembers });
                           }}
-                          className="w-full rounded px-3 py-2 text-[14px]"
+                          className="w-full border border-gray-200 rounded px-3 py-2 text-[14px] focus:outline-none focus:border-[#F68E5F]"
                           placeholder="Name"
                         />
                       ) : (
@@ -699,11 +791,11 @@ const CreateHealthCard = () => {
                             const newMembers = [...formData.members];
                             newMembers[i].relation = e.target.value.replace(
                               /[^a-zA-Z\s]/g,
-                              "",
+                              ""
                             );
                             setFormData({ ...formData, members: newMembers });
                           }}
-                          className="w-full rounded px-3 py-2 text-[14px]"
+                          className="w-full border border-gray-200 rounded px-3 py-2 text-[14px] focus:outline-none focus:border-[#F68E5F]"
                           placeholder="Relation"
                         />
                       ) : (
@@ -721,11 +813,11 @@ const CreateHealthCard = () => {
                             const newMembers = [...formData.members];
                             newMembers[i].age = e.target.value.replace(
                               /\D/g,
-                              "",
+                              ""
                             );
                             setFormData({ ...formData, members: newMembers });
                           }}
-                          className="w-full rounded px-3 py-2 text-[14px]"
+                          className="w-full border border-gray-200 rounded px-3 py-2 text-[14px] focus:outline-none focus:border-[#F68E5F]"
                           placeholder="Age"
                         />
                       ) : (
@@ -739,7 +831,7 @@ const CreateHealthCard = () => {
                         <button
                           onClick={() => {
                             const newMembers = formData.members.filter(
-                              (_, idx) => idx !== i,
+                              (_, idx) => idx !== i
                             );
                             setFormData({ ...formData, members: newMembers });
                           }}
@@ -755,9 +847,9 @@ const CreateHealthCard = () => {
                   <tr>
                     <td
                       colSpan={isEditing ? 5 : 4}
-                      className="py-4 text-center text-gray-400"
+                      className="py-10 text-center text-gray-400 text-sm italic"
                     >
-                      No members added yet.
+                      No members added yet. Add family members to include them in the health card.
                     </td>
                   </tr>
                 )}
@@ -789,23 +881,23 @@ const CreateHealthCard = () => {
       {/* Full Screen Image Preview Modal */}
       {previewImage && (
         <div
-          className="fixed inset-0 z-100 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
           onClick={() => setPreviewImage(null)}
         >
           <div
-            className="relative w-[60vw] h-[60vh] max-w-4xl max-h-200 flex items-center justify-center"
+            className="relative w-[80vw] h-[80vh] max-w-5xl max-h-[800px] flex items-center justify-center p-4 bg-white rounded-lg border-2 border-white/20"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => setPreviewImage(null)}
-              className="absolute -top-10 -right-10 text-white hover:text-gray-300 p-2"
+              className="absolute -top-12 -right-12 text-white hover:text-gray-300 p-2 transition-colors"
             >
-              <X size={32} />
+              <X size={40} />
             </button>
             <img
               src={previewImage}
               alt="Document Full Preview"
-              className="w-full h-full object-contain rounded-lg"
+              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
             />
           </div>
         </div>

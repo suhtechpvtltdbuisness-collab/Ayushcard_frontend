@@ -1,135 +1,198 @@
-import React, { useState, useRef, useEffect } from "react";
-import { Bell, X } from "lucide-react";
+import React, { useState, useRef, useEffect } from 'react';
+import { Bell, LogOut, ChevronDown, Mail, Phone, Building, Calendar, ShieldCheck } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const getInitials = (name) => {
+  if (!name) return 'A';
+  return name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+};
+
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good Morning';
+  if (hour < 17) return 'Good Afternoon';
+  return 'Good Evening';
+};
+
+// API response shape:
+// { success, message, data: { user: { name, role, email, ... }, accessToken } }
+// Login.jsx stores data.data.user as 'user' key in storage
+const getStoredUser = () => {
+  try {
+    const raw = localStorage.getItem('user') || sessionStorage.getItem('user');
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+};
+
+const clearAuth = () => {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  sessionStorage.removeItem('token');
+  sessionStorage.removeItem('user');
+};
+
+// ─── Topbar ───────────────────────────────────────────────────────────────────
 const Topbar = () => {
-  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-  const notificationRef = useRef(null);
+  const [user] = useState(getStoredUser);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef(null);
+  const navigate = useNavigate();
 
-  const notifications = [
-    {
-      id: 1,
-      title: "New Application",
-      message:
-        "A new Health Card application has been submitted by Amit Kumar.",
-      time: "10 min ago",
-      unread: true,
-    },
-    {
-      id: 2,
-      title: "Donation Received",
-      message: "A donation of ₹5,000 has been received from Renu Verma.",
-      time: "1 hour ago",
-      unread: true,
-    },
-    {
-      id: 3,
-      title: "System Update",
-      message: "The system will undergo maintenance at 12:00 AM.",
-      time: "5 hours ago",
-      unread: false,
-    },
-  ];
-
-  // Close when clicking outside
+  // Close dropdown on outside click
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (
-        notificationRef.current &&
-        !notificationRef.current.contains(event.target)
-      ) {
-        setIsNotificationOpen(false);
+    const handler = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setShowDropdown(false);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  return (
-    <div
-      className="flex justify-between items-center h-22.5 px-8 border-b border-[#F3F4F6] bg-[#FFFFFF]"
-      style={{ fontFamily: "Inter, sans-serif" }}
-    >
-      <h1 className="text-[22px] font-bold text-[#22333B]">
-        Good Morning Vivek!
-      </h1>
+  const handleLogout = () => {
+    clearAuth();           // clear both localStorage & sessionStorage
+    setShowDropdown(false);
+    navigate('/login');    // go to login page
+  };
 
-      <div className="flex items-center gap-4">
-        {/* Notification Bell with Dropdown */}
-        <div className="relative" ref={notificationRef}>
+  // Exact field mapping from API response.data.user object:
+  // user.name, user.role, user.email, user.phone, user.department, user.createdAt
+  const displayName = user?.name || user?.fullName || user?.username;
+  const displayRole = user?.role || user?.userType;
+  const displayEmail = user?.email || '';
+  const displayPhone = user?.phone || user?.mobile || '';
+  const displayDept = user?.department || '';
+  const joinDate = user?.createdAt || user?.joinedAt || '';
+  const isAdmin = user?.isAdmin || false;
+
+  return (
+    <div className="flex justify-between items-center h-[72px] px-4 sm:px-8 border-b border-[#F3F4F6] bg-white relative z-30">
+
+      {/* ── Left: Greeting ─────────────────────────────── */}
+      <div className="min-w-0 flex-1 mr-4">
+        <h1 className="text-base sm:text-[22px] font-bold text-[#22333B] truncate">
+          <span className="hidden sm:inline">{getGreeting()}, </span>
+          <span className="text-[#F68E5F]">{displayName}</span>
+          <span>!</span>
+        </h1>
+      </div>
+
+      {/* ── Right: Bell + Profile ─────────────────────── */}
+      <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+
+        {/* Notification Bell */}
+        <button className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#F3F4F6] flex items-center justify-center hover:bg-gray-200 transition-colors">
+          <Bell size={16} className="text-[#22333B]" />
+        </button>
+
+        {/* Profile Button + Dropdown */}
+        <div className="relative" ref={dropdownRef}>
           <button
-            onClick={() => setIsNotificationOpen(!isNotificationOpen)}
-            className="w-10 h-10 rounded-full bg-[#F2F4F3] flex items-center justify-center text-[#4B5563] hover:bg-gray-200 transition-colors relative cursor-pointer"
+            onClick={() => setShowDropdown((p) => !p)}
+            className="flex items-center gap-2 sm:gap-3 hover:opacity-80 transition-opacity"
           >
-            <Bell size={18} className="text-[#22333B]" />
-            {notifications.some((n) => n.unread) && (
-              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-[#F68E5F] rounded-full"></span>
-            )}
+            {/* Avatar Circle with Initials */}
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-[#F68E5F] to-[#e47b4d] flex items-center justify-center text-white text-sm font-bold shadow-sm shrink-0">
+              {getInitials(displayName)}
+            </div>
+
+            {/* Name + Role */}
+            <div className="flex flex-col text-left">
+              <span className="text-sm font-bold text-[#22333B] leading-tight truncate max-w-[100px] sm:max-w-none">
+                {displayName || "Loading..."}
+              </span>
+              <span className="text-[10px] sm:text-xs text-[#9CA3AF] capitalize leading-tight">
+                {displayRole || "User"}
+              </span>
+            </div>
+
+            <ChevronDown
+              size={14}
+              className={`text-[#9CA3AF] hidden sm:block transition-transform duration-200 ${showDropdown ? 'rotate-180' : ''}`}
+            />
           </button>
 
-          {/* Notification Dropdown */}
-          {isNotificationOpen && (
-            <div className="absolute right-0 mt-3 w-80 bg-[#FFFCFB] border border-[#F3F4F6] rounded-xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-              <div className="flex justify-between items-center px-4 py-3 border-b border-[#F2F4F3] bg-[#FFFCFB]">
-                <h3 className="font-semibold text-[#22333B] text-[15px]">
-                  Notifications
-                </h3>
-                <button
-                  onClick={() => setIsNotificationOpen(false)}
-                  className="text-gray-400 hover:text-[#22333B] transition-colors cursor-pointer"
-                >
-                  <X size={16} />
-                </button>
+          {/* ── Dropdown Menu ────────────────────── */}
+          {showDropdown && (
+            <div className="absolute right-0 mt-3 w-72 bg-white rounded-2xl shadow-2xl border border-[#F3F4F6] z-50 overflow-hidden">
+
+              {/* Header with Avatar + Name + Role */}
+              <div className="px-5 py-4 bg-gradient-to-br from-[#FFF7F4] to-white border-b border-[#F3F4F6]">
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#F68E5F] to-[#e47b4d] flex items-center justify-center text-white text-lg font-bold shadow-md shrink-0">
+                    {getInitials(displayName)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-bold text-[#22333B] truncate">{displayName}</p>
+                      {isAdmin && (
+                        <ShieldCheck size={13} className="text-[#F68E5F] shrink-0" />
+                      )}
+                    </div>
+                    <p className="text-xs text-[#F68E5F] capitalize font-semibold">{displayRole}</p>
+                    {displayEmail && (
+                      <p className="text-xs text-[#9CA3AF] truncate mt-0.5">{displayEmail}</p>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              <div className="max-h-[320px] overflow-y-auto">
-                {notifications.length > 0 ? (
-                  notifications.map((notification) => (
-                    <div
-                      key={notification.id}
-                      className={`p-4 border-b border-[#F2F4F3] hover:bg-[#F2F4F3] cursor-pointer transition-colors ${notification.unread ? "bg-[#FFFCFB]" : "bg-[#FFFCFB]"}`}
-                    >
-                      <div className="flex justify-between items-start mb-1">
-                        <h4
-                          className={`text-[14px] ${notification.unread ? "font-semibold text-[#22333B]" : "font-medium text-[#22333B]"}`}
-                        >
-                          {notification.title}
-                        </h4>
-                        {notification.unread && (
-                          <span className="w-2 h-2 rounded-full bg-[#F68E5F] mt-1.5 shrink-0 shadow-sm shadow-[#F68E5F]/30"></span>
-                        )}
-                      </div>
-                      <p className="text-[13px] text-[#22333B]/80 line-clamp-2 leading-relaxed mb-2">
-                        {notification.message}
-                      </p>
-                      <span className="text-[11px] text-[#22333B]/60 font-medium">
-                        {notification.time}
+              {/* Profile Details */}
+              {(displayEmail || displayPhone || displayDept || joinDate) && (
+                <div className="px-5 py-3 space-y-2.5 border-b border-[#F3F4F6]">
+                  {displayEmail && (
+                    <div className="flex items-center gap-2.5 text-xs text-[#6B7280]">
+                      <Mail size={13} className="text-[#F68E5F] shrink-0" />
+                      <span className="truncate">{displayEmail}</span>
+                    </div>
+                  )}
+                  {displayPhone && (
+                    <div className="flex items-center gap-2.5 text-xs text-[#6B7280]">
+                      <Phone size={13} className="text-[#F68E5F] shrink-0" />
+                      <span>{displayPhone}</span>
+                    </div>
+                  )}
+                  {displayDept && (
+                    <div className="flex items-center gap-2.5 text-xs text-[#6B7280]">
+                      <Building size={13} className="text-[#F68E5F] shrink-0" />
+                      <span>{displayDept}</span>
+                    </div>
+                  )}
+                  {joinDate && (
+                    <div className="flex items-center gap-2.5 text-xs text-[#6B7280]">
+                      <Calendar size={13} className="text-[#F68E5F] shrink-0" />
+                      <span>
+                        Joined{' '}
+                        {new Date(joinDate).toLocaleDateString('en-IN', {
+                          day: 'numeric', month: 'short', year: 'numeric',
+                        })}
                       </span>
                     </div>
-                  ))
-                ) : (
-                  <div className="p-6 text-center text-[#22333B]/60 text-[14px]">
-                    No new notifications
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
 
-              <div className="border-t border-[#F2F4F3] p-3 text-center bg-[#FFFCFB]">
-                <button className="text-[13px] font-bold text-[#F68E5F] hover:text-[#e07b4d] transition-colors cursor-pointer">
-                  View all notifications
+              {/* Sign Out Button */}
+              <div className="p-2">
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-red-500 hover:bg-red-50 rounded-xl transition-colors font-semibold"
+                >
+                  <LogOut size={15} />
+                  <span>Sign Out</span>
                 </button>
               </div>
             </div>
           )}
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-[#D1D5DB]"></div>
-          <div className="flex flex-col">
-            <span className="text-[15px] font-bold text-[#22333B]">
-              Admin User
-            </span>
-            <span className="text-[13px] text-[#22333B]/60">Super Admin</span>
-          </div>
         </div>
       </div>
     </div>

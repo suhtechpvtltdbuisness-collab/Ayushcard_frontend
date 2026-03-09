@@ -35,6 +35,7 @@ import HospitalMap from "./components/pages/about-dedi/hospitaldedipages/Hospita
 
 // Admin Interface
 import AdminLayout from "./layouts/AdminLayout";
+import ProtectedRoute from "./components/layout/ProtectedRoute";
 import Dashboard from "./pages/admin/Dashboard";
 import HealthCard from "./pages/admin/HealthCard/HealthCard";
 import HealthCardDetails from "./pages/admin/HealthCard/HealthCardDetails";
@@ -98,6 +99,7 @@ function App() {
         />
 
         {/* Associated Hospitals Page */}
+        {/* Associated Hospitals Page */}
         <Route
           path="/associated-hospitals"
           element={
@@ -130,6 +132,7 @@ function App() {
         /> */}
 
         {/* Contact us Page */}
+        {/* Contact us Page */}
         <Route
           path="/contact"
           element={
@@ -141,32 +144,27 @@ function App() {
           }
         />
 
-        {/* Unified Application Dashboard */}
-        <Route element={<AdminLayout />}>
-          <Route path="/dashboard" element={<Dashboard />} />
-
-          <Route path="/health-card" element={<HealthCard />} />
-          <Route path="/health-card/create" element={<CreateHealthCard />} />
-          <Route path="/health-card/:id" element={<HealthCardDetails />} />
-
-          <Route path="/partners" element={<Partners />} />
-          <Route path="/partners/create" element={<CreatePartner />} />
-          <Route path="/partners/:id" element={<PartnerDetails />} />
-
-          <Route path="/donations" element={<Donations />} />
-          <Route path="/donations/:id" element={<DonationDetails />} />
-
-          {/* HR & Payroll */}
-          <Route path="/hr/employees" element={<Employees />} />
-          <Route path="/hr/employees/create" element={<CreateEmployee />} />
-          <Route path="/hr/employees/:id" element={<EmployeeDetails />} />
-          <Route path="/hr/salary" element={<Salary />} />
-          <Route path="/hr/salary/create" element={<CreateSalary />} />
-          <Route path="/hr/salary/:id" element={<SalaryDetails />} />
-
-          {/* System */}
-          <Route path="/help" element={<HelpSupport />} />
-          <Route path="/reports" element={<Reports />} />
+        {/* Admin Dashboard — requires valid (non-expired) JWT */}
+        <Route element={<ProtectedRoute />}>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="health-card" element={<HealthCard />} />
+            <Route path="health-card/create" element={<CreateHealthCard />} />
+            <Route path="health-card/:id" element={<HealthCardDetails />} />
+            <Route path="partners" element={<Partners />} />
+            <Route path="partners/create" element={<CreatePartner />} />
+            <Route path="partners/:id" element={<PartnerDetails />} />
+            <Route path="donations" element={<Donations />} />
+            <Route path="donations/:id" element={<DonationDetails />} />
+            <Route path="hr/employees" element={<Employees />} />
+            <Route path="hr/employees/create" element={<CreateEmployee />} />
+            <Route path="hr/employees/:id" element={<EmployeeDetails />} />
+            <Route path="hr/salary" element={<Salary />} />
+            <Route path="hr/salary/create" element={<CreateSalary />} />
+            <Route path="hr/salary/:id" element={<SalaryDetails />} />
+            <Route path="reports" element={<Reports />} />
+            <Route path="help-support" element={<HelpSupport />} />
+          </Route>
         </Route>
       </Routes>
     </Router>
