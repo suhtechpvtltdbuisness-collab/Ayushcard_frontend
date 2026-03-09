@@ -60,7 +60,7 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
   return (
     <div className="flex items-center gap-2">
       <button
-        onClick={() => navigate(`/admin/hr/salary/${item.id}`)}
+        onClick={() => navigate(`/hr/salary/${item.id}`)}
         className="text-[#F68E5F] hover:text-[#ff7535] cursor-pointer transition-colors p-1.5"
       >
         <Eye size={20} />
@@ -269,7 +269,7 @@ const Salary = () => {
           </button>
 
           <button
-            onClick={() => navigate("/admin/hr/salary/create")}
+            onClick={() => navigate("/hr/salary/create")}
             className="flex lg:hidden px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff7535] transition-colors items-center gap-2"
           >
             Add New Salary Entry <Plus size={16} />
@@ -324,7 +324,7 @@ const Salary = () => {
 
         {/* Create Button (Desktop only) */}
         <button
-          onClick={() => navigate("/admin/hr/salary/create")}
+          onClick={() => navigate("/hr/salary/create")}
           className="hidden lg:flex px-5 py-2.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[16px] font-medium hover:bg-[#ff7535] transition-colors items-center gap-2 whitespace-nowrap"
         >
           Add New Salary Entry <Plus size={16} />

@@ -83,7 +83,7 @@ const SalaryDetails = () => {
         <div className="flex items-center gap-4">
           <button
             type="button"
-            onClick={() => navigate("/admin/hr/salary")}
+            onClick={() => navigate("/hr/salary")}
             className="w-10 h-10 border border-[#E5E7EB] rounded-full flex items-center justify-center text-[#4B5563] bg-white hover:bg-gray-50 transition-colors shadow-sm"
           >
             <ArrowLeft size={20} />

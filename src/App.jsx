@@ -60,7 +60,6 @@ function App() {
   return (
     <Router>
       <Routes>
-
         {/* Auth routes */}
         <Route path="/login" element={<Login />} />
 
@@ -98,7 +97,7 @@ function App() {
           }
         />
 
-         {/* Associated Hospitals Page */}
+        {/* Associated Hospitals Page */}
         <Route
           path="/associated-hospitals"
           element={
@@ -130,7 +129,7 @@ function App() {
           }
         /> */}
 
-          {/* Contact us Page */}
+        {/* Contact us Page */}
         <Route
           path="/contact"
           element={
@@ -142,29 +141,33 @@ function App() {
           }
         />
 
-        {/* Admin Dashboard */}
-        <Route path="/admin" element={<AdminLayout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="health-card" element={<HealthCard />} />
-          <Route path="health-card/create" element={<CreateHealthCard />} />
-          <Route path="health-card/:id" element={<HealthCardDetails />} />
-          <Route path="partners" element={<Partners />} />
-          <Route path="partners/create" element={<CreatePartner />} />
-          <Route path="partners/:id" element={<PartnerDetails />} />
-          <Route path="donations" element={<Donations />} />
-          <Route path="donations/:id" element={<DonationDetails />} />
-          <Route path="hr/employees" element={<Employees />} />
-          <Route path="hr/employees/create" element={<CreateEmployee />} />
-          <Route path="hr/employees/:id" element={<EmployeeDetails />} />
-          
-          <Route path="hr/salary" element={<Salary />} />
-          <Route path="hr/salary/create" element={<CreateSalary />} />
-          <Route path="hr/salary/:id" element={<SalaryDetails />} />
-          {/* Add admin sub-routes*/}
-          <Route path="help" element={<HelpSupport />} />
-          <Route path="reports" element={<Reports />} />
-        </Route>
+        {/* Unified Application Dashboard */}
+        <Route element={<AdminLayout />}>
+          <Route path="/dashboard" element={<Dashboard />} />
 
+          <Route path="/health-card" element={<HealthCard />} />
+          <Route path="/health-card/create" element={<CreateHealthCard />} />
+          <Route path="/health-card/:id" element={<HealthCardDetails />} />
+
+          <Route path="/partners" element={<Partners />} />
+          <Route path="/partners/create" element={<CreatePartner />} />
+          <Route path="/partners/:id" element={<PartnerDetails />} />
+
+          <Route path="/donations" element={<Donations />} />
+          <Route path="/donations/:id" element={<DonationDetails />} />
+
+          {/* HR & Payroll */}
+          <Route path="/hr/employees" element={<Employees />} />
+          <Route path="/hr/employees/create" element={<CreateEmployee />} />
+          <Route path="/hr/employees/:id" element={<EmployeeDetails />} />
+          <Route path="/hr/salary" element={<Salary />} />
+          <Route path="/hr/salary/create" element={<CreateSalary />} />
+          <Route path="/hr/salary/:id" element={<SalaryDetails />} />
+
+          {/* System */}
+          <Route path="/help" element={<HelpSupport />} />
+          <Route path="/reports" element={<Reports />} />
+        </Route>
       </Routes>
     </Router>
   );
