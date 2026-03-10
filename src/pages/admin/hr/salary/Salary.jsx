@@ -51,7 +51,7 @@ const Salary = () => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [itemToDelete, setItemToDelete] = useState(null);
   const [selectedRows, setSelectedRows] = useState([]);
-  const ITEMS_PER_PAGE = 6;
+  const ITEMS_PER_PAGE = 10;
 
   const handleDeleteConfirm = () => {
     if (itemToDelete) {
