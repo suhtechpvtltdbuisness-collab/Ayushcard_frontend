@@ -39,7 +39,9 @@ const apiToForm = (card) => ({
   address: card.address || "",
   gender: card.gender || "",
   dob: card.dob || "",
-  profileImage: card.profileImage || "",
+  relation: card.relation || "",
+  relatedPerson: card.relatedPerson || "",
+  profileImage: card.profileImage || (Array.isArray(card.documents) && card.documents.length > 0 ? card.documents[0].path : ""),
   documents: Array.isArray(card.documents) ? card.documents : [],
   // NGO details for preview
   ngoLocation: card.ngoLocation || "Mangla Vihar Kanpur - 208015",
@@ -66,6 +68,8 @@ const formToApi = (f) => ({
   address: f.address,
   gender: f.gender,
   dob: f.dob,
+  relation: f.relation,
+  relatedPerson: f.relatedPerson,
 });
 
 const HealthCardDetails = () => {
@@ -378,6 +382,58 @@ const HealthCardDetails = () => {
                 onChange={(e) => handleChange(e, "email")} disabled={!isEditing}
                 className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`} />
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
+            <div>
+              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Gender</label>
+              <div className="relative">
+                <select value={formData.gender || ""}
+                  onChange={(e) => handleChange(e, "gender")} disabled={!isEditing}
+                  className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none appearance-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}>
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Date of birth</label>
+              <input type="date" value={formatDateForInput(formData.dob)}
+                onChange={(e) => handleDateChange(e, "dob")} disabled={!isEditing}
+                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`} />
+            </div>
+            <div>
+              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Relation</label>
+              <div className="relative">
+                <select value={formData.relation || ""}
+                  onChange={(e) => handleChange(e, "relation")} disabled={!isEditing}
+                  className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none appearance-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}>
+                  <option value="">Select Relation</option>
+                  <option value="Self">Self</option>
+                  <option value="Spouse">Spouse</option>
+                  <option value="Child">Child</option>
+                </select>
+                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
+            <div>
+              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Related person</label>
+              <input type="text" value={formData.relatedPerson || ""}
+                onChange={(e) => handleChange(e, "relatedPerson")} disabled={!isEditing}
+                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`} />
+            </div>
+          </div>
+
+          <div className="mb-5">
+            <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Address</label>
+            <textarea rows={2} value={formData.address || ""}
+              onChange={(e) => handleChange(e, "address")} disabled={!isEditing}
+              className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none resize-none ${!isEditing ? "bg-gray-50" : "bg-white"}`} />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
