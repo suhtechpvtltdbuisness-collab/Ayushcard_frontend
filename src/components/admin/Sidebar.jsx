@@ -1,11 +1,6 @@
 import React, { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import {
-  LayoutDashboard,
-  CreditCard,
-  HelpCircle,
-  LogOut,
-} from "lucide-react";
+import { LayoutDashboard, CreditCard, HelpCircle, LogOut } from "lucide-react";
 
 const Sidebar = () => {
   const [isHovered, setIsHovered] = useState(false);
@@ -15,40 +10,40 @@ const Sidebar = () => {
   const userRole = localStorage.getItem("userRole") || "Admin";
 
   const clearAuth = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    sessionStorage.removeItem('token');
-    sessionStorage.removeItem('user');
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    sessionStorage.removeItem("token");
+    sessionStorage.removeItem("user");
     localStorage.removeItem("userRole");
   };
 
   const handleLogout = () => {
     clearAuth();
-    navigate('/login');
+    navigate("/login");
   };
 
-  const basePath = "/admin"; // Matching the actual routing in App.jsx
+  const basePath = userRole === "Employee" ? "/employee" : "/admin";
 
   const mainMenuItems = [
-    { name: "Dashboard", icon: LayoutDashboard, path: `/admin` },
-    { name: "Health Card", icon: CreditCard, path: `/admin/health-card` },
+    { name: "Dashboard", icon: LayoutDashboard, path: `${basePath}` },
+    { name: "Health Card", icon: CreditCard, path: `${basePath}/health-card` },
     {
       name: "Partners",
       customIcon: "/admin_images/partner.svg",
-      path: `/admin/partners`,
+      path: `${basePath}/partners`,
     },
     {
       name: "Donations",
       customIcon: "/admin_images/donations.svg",
-      path: `/admin/donations`,
+      path: `${basePath}/donations`,
     },
     {
       name: "HR & Payroll",
       customIcon: "/admin_images/hr_payroll.svg",
-      path: `/admin/hr`,
+      path: `${basePath}/hr`,
       subItems: [
-        { name: "Employees", path: `/admin/hr/employees` },
-        { name: "Salary", path: `/admin/hr/salary` },
+        { name: "Employees", path: `${basePath}/hr/employees` },
+        { name: "Salary", path: `${basePath}/hr/salary` },
       ],
     },
   ];
@@ -64,18 +59,21 @@ const Sidebar = () => {
     {
       name: "Reports",
       customIcon: "/admin_images/reports.svg",
-      path: `/admin/reports`,
+      path: `${basePath}/reports`,
     },
-    { name: "Help & Support", icon: HelpCircle, path: `/admin/help-support` },
+    {
+      name: "Help & Support",
+      icon: HelpCircle,
+      path: `${basePath}/help-support`,
+    },
   ];
 
   const renderNavLinks = (items) => {
     return items.map((item) => {
       const isParentActive =
-        item.subItems && (
-          location.pathname === item.path || 
-          location.pathname.startsWith(item.path + "/")
-        );
+        item.subItems &&
+        (location.pathname === item.path ||
+          location.pathname.startsWith(item.path + "/"));
 
       return (
         <div key={item.name} className="flex flex-col">
@@ -83,9 +81,10 @@ const Sidebar = () => {
             to={item.subItems ? item.subItems[0].path : item.path}
             end={item.path === basePath}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 mx-4 rounded-lg text-sm font-medium transition-colors ${isActive || isParentActive
-                ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
-                : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
+              `flex items-center gap-3 px-4 py-3 mx-4 rounded-lg text-sm font-medium transition-colors ${
+                isActive || isParentActive
+                  ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
+                  : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
               }`
             }
           >
@@ -127,9 +126,10 @@ const Sidebar = () => {
                   <NavLink
                     to={subItem.path}
                     className={({ isActive }) =>
-                      `pl-12 py-1.5 text-sm font-medium transition-colors border-l-2 ml-4 ${isActive
-                        ? "text-[#F68E5F] border-[#F68E5F]"
-                        : "text-[#6B7280] border-transparent hover:text-[#F68E5F]"
+                      `pl-12 py-1.5 text-sm font-medium transition-colors border-l-2 ml-4 ${
+                        isActive
+                          ? "text-[#F68E5F] border-[#F68E5F]"
+                          : "text-[#6B7280] border-transparent hover:text-[#F68E5F]"
                       }`
                     }
                   >
@@ -174,12 +174,16 @@ const Sidebar = () => {
         </nav>
       </div>
 
-      <div className="mt-auto p-4 border-t border-gray-50 flex-shrink-0">
+      <div className="mt-auto p-4 border-t border-gray-50 shrink-0">
         <button
           onClick={handleLogout}
           className="flex items-center gap-3 px-4 py-3 rounded-lg text-[16px] font-medium text-[#22333B] hover:bg-red-50 hover:text-red-500 transition-colors w-full group"
         >
-          <LogOut size={20} strokeWidth={2} className="text-[#22333B] group-hover:text-red-500 transition-colors" />
+          <LogOut
+            size={20}
+            strokeWidth={2}
+            className="text-[#22333B] group-hover:text-red-500 transition-colors"
+          />
           <span>Logout</span>
         </button>
       </div>
@@ -219,10 +223,9 @@ const Sidebar = () => {
             <div className="flex flex-col gap-2 w-full px-3">
               {filteredMainMenuItems.map((item) => {
                 const isParentActive =
-                  item.subItems && (
-                    location.pathname === item.path || 
-                    location.pathname.startsWith(item.path + "/")
-                  );
+                  item.subItems &&
+                  (location.pathname === item.path ||
+                    location.pathname.startsWith(item.path + "/"));
 
                 return (
                   <NavLink
@@ -230,9 +233,10 @@ const Sidebar = () => {
                     to={item.subItems ? item.subItems[0].path : item.path}
                     end={item.path === basePath}
                     className={({ isActive }) =>
-                      `flex justify-center items-center w-10 h-10 rounded-lg transition-colors ${isActive || isParentActive
-                        ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
-                        : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
+                      `flex justify-center items-center w-10 h-10 rounded-lg transition-colors ${
+                        isActive || isParentActive
+                          ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
+                          : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
                       }`
                     }
                   >
@@ -277,9 +281,10 @@ const Sidebar = () => {
                   to={item.path}
                   end={item.path === basePath}
                   className={({ isActive }) =>
-                    `flex justify-center items-center w-10 h-10 rounded-lg transition-colors ${isActive
-                      ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
-                      : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
+                    `flex justify-center items-center w-10 h-10 rounded-lg transition-colors ${
+                      isActive
+                        ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
+                        : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
                     }`
                   }
                 >
@@ -315,7 +320,7 @@ const Sidebar = () => {
 
           {/* The Overlay Sidebar */}
           <div
-            className={`fixed left-0 top-0 h-screen w-64 bg-[#FFFFFF] shadow-[4px_0_24px_rgba(0,0,0,0.1)] border-r border-gray-200 transition-transform duration-300 ease-in-out flex flex-col justify-between cursor-default z-[100] ${isHovered ? "translate-x-0" : "-translate-x-full"}`}
+            className={`fixed left-0 top-0 h-screen w-64 bg-[#FFFFFF] shadow-[4px_0_24px_rgba(0,0,0,0.1)] border-r border-gray-200 transition-transform duration-300 ease-in-out flex flex-col justify-between cursor-default z-100 ${isHovered ? "translate-x-0" : "-translate-x-full"}`}
           >
             {sidebarContent}
           </div>

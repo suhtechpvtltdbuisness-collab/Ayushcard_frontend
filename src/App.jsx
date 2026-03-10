@@ -48,6 +48,19 @@ import DonationDetails from "./pages/admin/Donations/DonationDetails";
 import HelpSupport from "./pages/admin/HelpSupport/HelpSupport";
 import Reports from "./pages/admin/Reports/Reports";
 
+// Employee Interface
+import EmployeeDashboard from "./pages/employee/Dashboard";
+import EmployeeHealthCard from "./pages/employee/HealthCard/HealthCard";
+import EmployeeHealthCardDetails from "./pages/employee/HealthCard/HealthCardDetails";
+import EmployeeCreateHealthCard from "./pages/employee/HealthCard/CreateHealthCard";
+import EmployeePartners from "./pages/employee/Partners/Partners";
+import EmployeePartnerDetails from "./pages/employee/Partners/PartnerDetails";
+import EmployeeCreatePartner from "./pages/employee/Partners/CreatePartner";
+import EmployeeDonations from "./pages/employee/Donations/Donations";
+import EmployeeDonationDetails from "./pages/employee/Donations/DonationDetails";
+import EmployeeHelpSupport from "./pages/employee/HelpSupport/HelpSupport";
+import EmployeeReports from "./pages/employee/Reports/Reports";
+
 // HR & Payroll
 import Employees from "./pages/admin/hr/employees/Employees";
 import EmployeeDetails from "./pages/admin/hr/employees/EmployeeDetails";
@@ -164,6 +177,29 @@ function App() {
             <Route path="hr/salary/:id" element={<SalaryDetails />} />
             <Route path="reports" element={<Reports />} />
             <Route path="help-support" element={<HelpSupport />} />
+          </Route>
+        </Route>
+
+        {/* Employee Dashboard */}
+        <Route element={<ProtectedRoute />}>
+          <Route path="/employee" element={<AdminLayout />}>
+            <Route index element={<EmployeeDashboard />} />
+            <Route path="health-card" element={<EmployeeHealthCard />} />
+            <Route
+              path="health-card/create"
+              element={<EmployeeCreateHealthCard />}
+            />
+            <Route
+              path="health-card/:id"
+              element={<EmployeeHealthCardDetails />}
+            />
+            <Route path="partners" element={<EmployeePartners />} />
+            <Route path="partners/create" element={<EmployeeCreatePartner />} />
+            <Route path="partners/:id" element={<EmployeePartnerDetails />} />
+            <Route path="donations" element={<EmployeeDonations />} />
+            <Route path="donations/:id" element={<EmployeeDonationDetails />} />
+            <Route path="reports" element={<EmployeeReports />} />
+            <Route path="help-support" element={<EmployeeHelpSupport />} />
           </Route>
         </Route>
       </Routes>
