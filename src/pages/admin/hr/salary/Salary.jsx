@@ -221,7 +221,7 @@ const Salary = () => {
 
   return (
     <div
-      className="flex flex-col h-[calc(100vh-170px)]"
+      className="flex flex-col min-h-[calc(100vh-170px)]"
       style={{ fontFamily: "Inter, sans-serif" }}
     >
       {/* Header */}
