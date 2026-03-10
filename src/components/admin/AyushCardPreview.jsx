@@ -64,12 +64,21 @@ const AyushCardPreview = ({ data, side = "front", onFlip }) => {
                 label="Name"
                 value={
                   data?.applicant ||
-                  [data?.applicantFirstName, data?.applicantMiddleName, data?.applicantLastName]
-                    .filter(Boolean).join(" ") ||
+                  [
+                    data?.applicantFirstName,
+                    data?.applicantMiddleName,
+                    data?.applicantLastName,
+                  ]
+                    .filter(Boolean)
+                    .join(" ") ||
                   "—"
                 }
               />
-              <Row label="W/o" value={data?.relatedPerson || "—"} muted={!data?.relatedPerson} />
+              <Row
+                label="W/o"
+                value={data?.relatedPerson || "—"}
+                muted={!data?.relatedPerson}
+              />
               <Row label="DOB" value={data?.dob || "—"} muted={!data?.dob} />
               <Row label="Phone" value={data?.phone || "—"} />
               <Row label="Reg Date" value={data?.dateApplied || "—"} />
@@ -147,7 +156,8 @@ const AyushCardPreview = ({ data, side = "front", onFlip }) => {
                     </h2>
                   </div>
                   <p className="text-[8px] m-0 font-medium">
-                    Card No: {data?.cardNo || data?.cardNumber || data?.id || "—"}
+                    Card No:{" "}
+                    {data?.cardNo || data?.cardNumber || data?.id || "—"}
                   </p>
                 </div>
               </div>
@@ -187,36 +197,25 @@ const AyushCardPreview = ({ data, side = "front", onFlip }) => {
                   </tr>
                 </thead>
                 <tbody className="text-[8px] font-medium text-black">
-                  {(data?.members?.length > 0
-                    ? data.members
-                    : [
-                      { name: "Parmanand", age: 41, relation: "Spouse" },
-                      { name: "Ankit", age: 16, relation: "Son" },
-                      { name: "Ragini", age: 15, relation: "Daughter" },
-                      { name: "Shalini", age: 12, relation: "Daughter" },
-                      { name: "Nandini", age: 9, relation: "Daughter" },
-                    ]
-                  )
-                    .slice(0, 5)
-                    .map((m, i) => (
-                      <tr
-                        key={i}
-                        className="border-b border-gray-200 last:border-0 hover:bg-slate-50"
-                      >
-                        <td className="py-1.5 px-1 border-r border-gray-200">
-                          {i + 1}
-                        </td>
-                        <td className="py-1.5 px-1 border-r border-gray-200 text-left truncate max-w-13.75 font-semibold">
-                          {m.name}
-                        </td>
-                        <td className="py-1.5 px-1 border-r border-gray-200">
-                          {m.age}
-                        </td>
-                        <td className="py-1.5 px-1 truncate max-w-11.25">
-                          {m.relation}
-                        </td>
-                      </tr>
-                    ))}
+                  {(data?.members || []).slice(0, 5).map((m, i) => (
+                    <tr
+                      key={i}
+                      className="border-b border-gray-200 last:border-0 hover:bg-slate-50"
+                    >
+                      <td className="py-1.5 px-1 border-r border-gray-200">
+                        {i + 1}
+                      </td>
+                      <td className="py-1.5 px-1 border-r border-gray-200 text-left truncate max-w-13.75 font-semibold">
+                        {m.name}
+                      </td>
+                      <td className="py-1.5 px-1 border-r border-gray-200">
+                        {m.age}
+                      </td>
+                      <td className="py-1.5 px-1 truncate max-w-11.25">
+                        {m.relation}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
