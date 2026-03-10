@@ -51,10 +51,20 @@ const Login = () => {
 
       navigate("/admin");
     } catch (err) {
-      const message =
-        err.response?.data?.message ||
-        err.response?.data?.error ||
-        "Invalid email or password. Please try again.";
+      let message = 'Invalid email or password. Please try again.';
+      
+      if (err.response?.data?.message) {
+          message = err.response.data.message;
+      } else if (err.response?.data?.error) {
+          if (typeof err.response.data.error === 'string') {
+              message = err.response.data.error;
+          } else if (err.response.data.error.message) {
+              message = err.response.data.error.message;
+          }
+      } else if (err.message) {
+          message = err.message;
+      }
+      
       setError(message);
     } finally {
       setIsLoading(false);
