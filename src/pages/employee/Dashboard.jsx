@@ -6,7 +6,6 @@ import {
   HandCoins,
   Users,
   ChevronRight,
-  Activity,
   Building,
   Heart,
   Download,
