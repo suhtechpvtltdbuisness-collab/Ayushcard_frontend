@@ -168,3 +168,14 @@ export const getSalaries = () => {
   }
   return [];
 };
+
+export const markCardsAsExported = (ids) => {
+  const cards = getHealthCards();
+  const updatedCards = cards.map((c) => {
+    if (ids.includes(c.id) || ids.includes(c._id) || ids.includes(c.applicationId)) {
+      return { ...c, status: "exported" };
+    }
+    return c;
+  });
+  localStorage.setItem("employee_mock_healthcards", JSON.stringify(updatedCards));
+};

@@ -26,7 +26,16 @@ const Sidebar = () => {
 
   const mainMenuItems = [
     { name: "Dashboard", icon: LayoutDashboard, path: `${basePath}` },
-    { name: "Health Card", icon: CreditCard, path: `${basePath}/health-card` },
+    {
+      name: "Health Card",
+      icon: CreditCard,
+      path: `${basePath}/health-card`,
+      subItems: [
+        { name: "Health Card Apply", path: `${basePath}/health-card` },
+        { name: "Verified Cards", path: `${basePath}/health-card/verified` },
+        { name: "Exported Cards", path: `${basePath}/health-card/exported` },
+      ],
+    },
     {
       name: "Partners",
       customIcon: "/admin_images/partner.svg",
@@ -125,6 +134,7 @@ const Sidebar = () => {
                 <div key={subItem.name} className="flex px-4 mx-4">
                   <NavLink
                     to={subItem.path}
+                    end={subItem.path === `${basePath}/health-card`}
                     className={({ isActive }) =>
                       `pl-12 py-1.5 text-sm font-medium transition-colors border-l-2 ml-4 ${
                         isActive
@@ -231,7 +241,10 @@ const Sidebar = () => {
                   <NavLink
                     key={item.name}
                     to={item.subItems ? item.subItems[0].path : item.path}
-                    end={item.path === basePath}
+                    end={
+                      item.path === basePath ||
+                      item.path === `${basePath}/health-card`
+                    }
                     className={({ isActive }) =>
                       `flex justify-center items-center w-10 h-10 rounded-lg transition-colors ${
                         isActive || isParentActive
