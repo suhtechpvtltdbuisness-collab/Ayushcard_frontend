@@ -7,6 +7,9 @@ import Footer from "./components/layout/Footer";
 // Auth
 import Login from "./pages/auth/Login";
 
+// Public
+import CardVerify from "./pages/public/CardVerify";
+
 // Home sections
 import HeroSection from "./components/sections/home/HeroSection";
 import About from "./components/sections/home/About";
@@ -80,6 +83,9 @@ function App() {
       <Routes>
         {/* Auth routes */}
         <Route path="/login" element={<Login />} />
+
+        {/* Public QR verification page (no login required) */}
+        <Route path="/verify/:cardId" element={<CardVerify />} />
 
         {/* Home Page */}
         <Route
@@ -161,8 +167,8 @@ function App() {
           }
         />
 
-        {/* Admin Dashboard — requires valid (non-expired) JWT */}
-        <Route element={<ProtectedRoute />}>
+        {/* Admin Dashboard — requires valid (non-expired) JWT and Admin role */}
+        <Route element={<ProtectedRoute allowedRole="Admin" />}>
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="health-card" element={<HealthCard />} />
@@ -193,7 +199,8 @@ function App() {
         </Route>
 
         {/* Employee Dashboard */}
-        <Route element={<ProtectedRoute />}>
+        {/* Employee Dashboard — requires valid (non-expired) JWT and Employee role */}
+        <Route element={<ProtectedRoute allowedRole="Employee" />}>
           <Route path="/employee" element={<AdminLayout />}>
             <Route index element={<EmployeeDashboard />} />
             <Route path="health-card" element={<EmployeeHealthCard />} />

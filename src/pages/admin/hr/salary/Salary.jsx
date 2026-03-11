@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { Search, Eye, Trash2, Download, Plus, ArrowUpDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { exportToCSV } from "../../../../utils/exportUtils";
+import { useToast } from "../../../../components/ui/Toast";
 
 import { getSalaries } from "../../../../data/mockData";
 
@@ -44,6 +45,7 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
 
 const Salary = () => {
   const navigate = useNavigate();
+  const { toastWarn } = useToast();
   const [salaries, setSalaries] = useState(getSalaries());
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
@@ -182,7 +184,7 @@ const Salary = () => {
 
   const handleExport = () => {
     if (selectedRows.length === 0) {
-      alert("Please select at least one item to export.");
+      toastWarn("Please select at least one item to export.");
       return;
     }
     const dataToExport = selectedRows.map((index) => processedData[index]);

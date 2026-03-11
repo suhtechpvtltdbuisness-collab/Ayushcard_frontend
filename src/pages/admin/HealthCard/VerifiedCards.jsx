@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Search, Eye, Trash2, Plus, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { getHealthCards } from "../../../data/mockData";
+import apiService from "../../../api/service";
 import ExportPrintModal from "../../../components/admin/ExportPrintModal";
+import { useToast } from "../../../components/ui/Toast";
 
 const normalizeCard = (card) => ({
   ...card,
@@ -27,6 +28,8 @@ const normalizeCard = (card) => ({
       case "approved":
         return "Verified";
       case "active":
+        return "Verified";
+      case "verified":
         return "Verified";
       case "pending":
         return "Not verified";
@@ -104,6 +107,7 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
 
 export default function VerifiedCards() {
   const navigate = useNavigate();
+  const { toastWarn } = useToast();
 
   const [healthCards, setHealthCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -124,13 +128,19 @@ export default function VerifiedCards() {
   const fetchCards = async () => {
     try {
       setLoading(true);
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      const raw = getHealthCards() || [];
+      const res = await apiService.getHealthCards();
+      const raw = Array.isArray(res?.data?.cards)
+        ? res.data.cards
+        : Array.isArray(res?.data)
+          ? res.data
+          : Array.isArray(res)
+            ? res
+            : [];
       const normalized = raw.map(normalizeCard);
       // ONLY SHOW VERIFIED CARDS
       setHealthCards(normalized.filter((c) => c.status === "Verified"));
     } catch (err) {
-      console.error(err);
+      console.error("[VerifiedCards] Failed to fetch:", err);
     } finally {
       setLoading(false);
     }
@@ -141,8 +151,8 @@ export default function VerifiedCards() {
     setDeleteLoading(true);
     setDeleteError("");
     try {
-      // Mock API call
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      const mongoId = itemToDelete._id || itemToDelete.id;
+      await apiService.deleteHealthCard(mongoId);
 
       setHealthCards((prev) =>
         prev.filter(
@@ -152,7 +162,7 @@ export default function VerifiedCards() {
       setSelectedRows([]);
       setItemToDelete(null);
     } catch (err) {
-      console.error("[VerifiedCards] Mock delete failed:", err);
+      console.error("[VerifiedCards] Delete failed:", err);
       setDeleteError("Delete failed. Please try again.");
     } finally {
       setDeleteLoading(false);
@@ -192,7 +202,7 @@ export default function VerifiedCards() {
 
   const handleExportClick = () => {
     if (selectedRows.length === 0) {
-      alert("Please select at least one verified card to export for printing.");
+      toastWarn("Please select at least one verified card to export for printing.");
       return;
     }
     setIsExportModalOpen(true);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { MapPin, Phone, Mail } from "lucide-react";
 
-const AyushCardPreview = ({ data, side = "front", onFlip }) => {
+const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) => {
   const [isFlipped, setIsFlipped] = useState(side === "back");
 
   useEffect(() => {
@@ -17,12 +17,12 @@ const AyushCardPreview = ({ data, side = "front", onFlip }) => {
   /* ================= FRONT ================= */
 
   const Front = () => (
-    <div className="absolute inset-0 backface-hidden">
+    <div className={`absolute inset-0 backface-hidden`} style={{ backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}>
       {/* Golden Wrapper */}
-      <div className="h-full w-full bg-[#E5B556] rounded-[36px] py-4.5">
-        {/* Main Card (stops before the footer) */}
+      <div className="h-full w-full bg-[#E5B556] rounded-[36px] py-[18px]">
+        {/* Main Card */}
         <div
-          className="absolute top-4.5 left-0 w-full h-[calc(100%-18px-45px)] bg-linear-to-r from-[#CC2B2B] to-[#F59E0B] px-6 py-5 text-white flex flex-col z-10"
+          className="absolute top-[18px] left-0 w-full h-[calc(100%-18px-45px)] bg-linear-to-r from-[#CC2B2B] to-[#F59E0B] px-6 py-5 text-white flex flex-col z-10"
           style={{ borderTopLeftRadius: "28px", borderTopRightRadius: "28px" }}
         >
           {/* Header */}
@@ -51,9 +51,9 @@ const AyushCardPreview = ({ data, side = "front", onFlip }) => {
 
           {/* Body */}
           <div className="flex gap-4 flex-1 h-2/3">
-            <div className="w-27.5 bg-white rounded-xl overflow-hidden border-2 border-black">
+            <div className="w-[110px] bg-white rounded-xl overflow-hidden border-2 border-black">
               <img
-                src={data?.profileImage || "/gallery1.svg"}
+                src={data?.profileImage || (Array.isArray(data?.documents) && data.documents.length > 0 ? data.documents[0].path : null) || "/gallery1.svg"}
                 alt="profile"
                 className="w-full h-full object-cover"
               />
@@ -65,9 +65,9 @@ const AyushCardPreview = ({ data, side = "front", onFlip }) => {
                 value={
                   data?.applicant ||
                   [
-                    data?.applicantFirstName,
-                    data?.applicantMiddleName,
-                    data?.applicantLastName,
+                    data?.firstName || data?.applicantFirstName,
+                    data?.middleName || data?.applicantMiddleName,
+                    data?.lastName || data?.applicantLastName,
                   ]
                     .filter(Boolean)
                     .join(" ") ||
@@ -76,20 +76,27 @@ const AyushCardPreview = ({ data, side = "front", onFlip }) => {
               />
               <Row
                 label="W/o"
-                value={data?.relatedPerson || "—"}
-                muted={!data?.relatedPerson}
+                value={data?.relatedPerson || data?.relation || "—"}
+                muted={!data?.relatedPerson && !data?.relation}
               />
               <Row label="DOB" value={data?.dob || "—"} muted={!data?.dob} />
-              <Row label="Phone" value={data?.phone || "—"} />
-              <Row label="Reg Date" value={data?.dateApplied || "—"} />
+              <Row label="Phone" value={data?.phone || data?.contact || "—"} />
+              <Row label="Reg Date" value={data?.dateApplied || data?.applicationDate || "—"} />
             </div>
 
-            <div className="w-28.75 bg-white rounded-xl p-2 flex items-center justify-center">
-              <img
-                src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=AyushCard"
-                alt="qr"
-                className="w-full h-full border-2 border-black rounded"
-              />
+            <div className="w-[115px] bg-white rounded-xl p-2 flex items-center justify-center">
+              {(() => {
+                const cardId = data?.applicationId || data?.cardNo || data?._id || data?.id || "unknown";
+                const verifyUrl = `${window.location.origin}/verify/${encodeURIComponent(cardId)}`;
+                return (
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(verifyUrl)}`}
+                    alt="qr"
+                    className="w-full h-full border-2 border-black rounded"
+                    crossOrigin="anonymous"
+                  />
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -121,8 +128,12 @@ const AyushCardPreview = ({ data, side = "front", onFlip }) => {
 
   const Back = () => (
     <div
-      className="absolute inset-0 backface-hidden"
-      style={{ transform: "rotateY(180deg)" }}
+      className={`absolute inset-0 backface-hidden`}
+      style={{
+        backfaceVisibility: "hidden",
+        WebkitBackfaceVisibility: "hidden",
+        transform: exportMode ? "rotate(180deg)" : "rotateY(180deg)"
+      }}
     >
       {/* Golden Wrapper */}
       <div className="h-full w-full bg-[#E5B556] rounded-[36px] relative shadow-lg">
@@ -135,7 +146,7 @@ const AyushCardPreview = ({ data, side = "front", onFlip }) => {
           }}
         >
           {/* Rotated Wrapper */}
-          <div className="absolute top-1/2 left-1/2 w-71 h-137 -translate-x-1/2 -translate-y-1/2 -rotate-90 flex flex-col justify-end pt-5">
+          <div className="absolute top-1/2 left-1/2 w-[284px] h-[548px] -translate-x-1/2 -translate-y-1/2 -rotate-90 flex flex-col justify-end pt-5">
             {/* Header */}
             <div className="flex justify-between items-start w-full mb-4 ">
               <div className="flex items-center gap-2">
@@ -237,17 +248,17 @@ const AyushCardPreview = ({ data, side = "front", onFlip }) => {
                 <span className="text-[8px] font-bold tracking-wider drop-shadow-sm">
                   ISSUE DATE
                 </span>
-                <div className="bg-white text-black p-1.5 text-[8px] font-semibold flex-1 w-37.5 rounded border border-gray-300 shadow-sm leading-tight flex flex-col justify-center">
+                <div className="bg-white text-black p-1.5 text-[8px] font-semibold flex-1 w-[150px] rounded border border-gray-300 shadow-sm leading-tight flex flex-col justify-center">
                   <div className="flex items-center">
                     <span className="w-16">Date</span>:{" "}
                     <span className="ml-1 font-medium">
-                      {data?.issueDate || "—"}
+                      {data?.issueDate || data?.cardIssueDate || "—"}
                     </span>
                   </div>
                   <div className="flex items-center mt-1">
                     <span className="w-16">Expiry Date</span>:{" "}
                     <span className="ml-1 font-medium">
-                      {data?.expiryDate || "—"}
+                      {data?.expiryDate || data?.cardExpiredDate || "—"}
                     </span>
                   </div>
                 </div>
@@ -276,21 +287,27 @@ const AyushCardPreview = ({ data, side = "front", onFlip }) => {
   /* ================= RETURN ================= */
 
   return (
-    <div className="flex justify-center py-10">
+    <div className="flex justify-center items-center w-full h-full">
       <div
-        className="w-145 h-85 relative cursor-pointer"
+        className="w-[580px] h-[340px] relative cursor-pointer"
         onClick={handleFlip}
-        style={{ perspective: "1000px" }}
+        style={{ perspective: exportMode ? "none" : "1000px" }}
       >
         <div
-          className="w-full h-full relative transition-transform duration-700"
+          className="w-full h-full relative preserve-3d transition-transform duration-700"
           style={{
             transformStyle: "preserve-3d",
-            transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
+            transform: exportMode ? "none" : (isFlipped ? "rotateY(180deg)" : "rotateY(0deg)"),
           }}
         >
-          <Front />
-          <Back />
+          {exportMode ? (
+            side === "front" ? <Front /> : <Back />
+          ) : (
+            <div className="w-full h-full relative preserve-3d">
+              <Front />
+              <Back />
+            </div>
+          )}
         </div>
       </div>
     </div>

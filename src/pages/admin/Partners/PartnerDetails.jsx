@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Search, Plus, X, Trash2 } from 'lucide-react';
 import apiService from '../../../api/service';
+import { useToast } from '../../../components/ui/Toast';
 
 const AddDoctorModal = ({ isOpen, onClose, onAdd, saving }) => {
   const [formData, setFormData] = useState({
@@ -165,6 +166,7 @@ const PartnerDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { toastError } = useToast();
   const [isEditing, setIsEditing] = useState(location.state?.editMode || false);
   const [isDoctorModalOpen, setIsDoctorModalOpen] = useState(false);
 
@@ -255,7 +257,7 @@ const PartnerDetails = () => {
       setIsEditing(false);
       fetchData();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update partner details.');
+      toastError(err.response?.data?.message || 'Failed to update partner details.');
     } finally {
       setSaving(false);
     }
@@ -282,7 +284,7 @@ const PartnerDetails = () => {
       await apiService.createDoctor(docPayload);
       fetchData(); // refresh doctors list
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to add doctor.');
+      toastError(err.response?.data?.message || 'Failed to add doctor.');
     } finally {
       setSaving(false);
     }
@@ -294,7 +296,7 @@ const PartnerDetails = () => {
       await apiService.deleteDoctor(docId);
       setDoctors(prev => prev.filter(d => (d._id || d.id) !== docId));
     } catch {
-      alert('Failed to remove doctor.');
+      toastError('Failed to remove doctor.');
     }
   };
 

@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Search, Eye, Trash2, Plus, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { getHealthCards } from "../../../data/mockData";
+import apiService from "../../../api/service";
 import ExportPrintModal from "../../../components/admin/ExportPrintModal";
+import { useToast } from "../../../components/ui/Toast";
 
 const normalizeCard = (card) => ({
   ...card,
@@ -88,6 +89,7 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
 
 export default function ExportedCards() {
   const navigate = useNavigate();
+  const { toastWarn } = useToast();
 
   const [healthCards, setHealthCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -108,13 +110,19 @@ export default function ExportedCards() {
   const fetchCards = async () => {
     try {
       setLoading(true);
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      const raw = getHealthCards() || [];
+      const res = await apiService.getHealthCards();
+      const raw = Array.isArray(res?.data?.cards)
+        ? res.data.cards
+        : Array.isArray(res?.data)
+          ? res.data
+          : Array.isArray(res)
+            ? res
+            : [];
       const normalized = raw.map(normalizeCard);
       // ONLY SHOW EXPORTED CARDS
       setHealthCards(normalized.filter((c) => c.status === "Exported"));
     } catch (err) {
-      console.error(err);
+      console.error("[ExportedCards] Failed to fetch:", err);
     } finally {
       setLoading(false);
     }
@@ -125,8 +133,8 @@ export default function ExportedCards() {
     setDeleteLoading(true);
     setDeleteError("");
     try {
-      // Mock API call
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      const mongoId = itemToDelete._id || itemToDelete.id;
+      await apiService.deleteHealthCard(mongoId);
 
       setHealthCards((prev) =>
         prev.filter(
@@ -136,7 +144,7 @@ export default function ExportedCards() {
       setSelectedRows([]);
       setItemToDelete(null);
     } catch (err) {
-      console.error("[ExportedCards] Mock delete failed:", err);
+      console.error("[ExportedCards] Delete failed:", err);
       setDeleteError("Delete failed. Please try again.");
     } finally {
       setDeleteLoading(false);
@@ -176,7 +184,7 @@ export default function ExportedCards() {
 
   const handleExportClick = () => {
     if (selectedRows.length === 0) {
-      alert("Please select at least one exported card to export again.");
+      toastWarn("Please select at least one exported card to export again.");
       return;
     }
     setIsExportModalOpen(true);

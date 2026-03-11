@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Search, Plus, X, Upload, Camera } from 'lucide-react';
 import apiService from '../../../api/service';
+import { useToast } from '../../../components/ui/Toast';
 
 const AddDoctorModal = ({ isOpen, onClose, onAdd, saving }) => {
   const [formData, setFormData] = useState({
@@ -163,6 +164,7 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd, saving }) => {
 
 const CreatePartner = () => {
   const navigate = useNavigate();
+  const { toastWarn } = useToast();
   const [isDoctorModalOpen, setIsDoctorModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -263,8 +265,8 @@ const CreatePartner = () => {
       console.log('Final resolved orgId for doctors:', orgId);
 
       if (!orgId) {
-        alert("Organization created, but couldn't find the ID in response: " + JSON.stringify(orgRes));
-        return; // stop execution so user can see it
+        toastWarn("Organization created, but couldn't find the ID in response.");
+        return;
       }
 
       if (orgId && doctors.length > 0) {
