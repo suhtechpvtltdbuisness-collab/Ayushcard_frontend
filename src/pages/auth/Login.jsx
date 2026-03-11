@@ -15,20 +15,6 @@ const Login = () => {
     e.preventDefault();
     setError("");
 
-    if (activeTab === "Employee") {
-      // Mock employee login directly
-      const dummyToken = "dummy.eyJyb2xlIjoiRW1wbG95ZWUifQ.dummy"; // valid base64 JSON payload without `exp` avoids expiration
-      const dummyUser = { name: "Mock Employee", role: "Employee" };
-
-      const store = keepLogged ? localStorage : sessionStorage;
-      store.setItem("token", dummyToken);
-      store.setItem("user", JSON.stringify(dummyUser));
-      localStorage.setItem("userRole", "Employee");
-
-      navigate("/employee");
-      return;
-    }
-
     setIsLoading(true);
     try {
       const data = await apiService.login(email, password);
@@ -41,15 +27,30 @@ const Login = () => {
       const refreshToken =
         data?.data?.refreshToken || data?.refreshToken || null;
 
+      let userRole = userData?.role || activeTab;
+      userRole = userRole.charAt(0).toUpperCase() + userRole.slice(1).toLowerCase();
+
+      // Ensure the user is logging in from the correct tab based on their actual role
+      if (activeTab === "Employee" && userRole !== "Employee") {
+        throw new Error("Access denied: You are an Admin. Please login from the Admin tab.");
+      }
+      if (activeTab === "Admin" && userRole === "Employee") {
+        throw new Error("Access denied: You are an Employee. Please login from the Employee tab.");
+      }
+
       // Save to localStorage (keep logged in) or sessionStorage (session only)
       const store = keepLogged ? localStorage : sessionStorage;
       store.setItem("token", accessToken);
       store.setItem("user", JSON.stringify(userData));
       if (refreshToken) store.setItem("refreshToken", refreshToken);
+      
+      localStorage.setItem("userRole", userRole);
 
-      localStorage.setItem("userRole", activeTab);
-
-      navigate("/admin");
+      if (userRole === "Employee") {
+        navigate("/employee");
+      } else {
+        navigate("/admin");
+      }
     } catch (err) {
       let message = 'Invalid email or password. Please try again.';
       

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { Search, Eye, Trash2, Download, ArrowUpDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { exportToCSV } from "../../../utils/exportUtils";
+import { useToast } from "../../../components/ui/Toast";
 
 import { getDonations } from "../../../data/mockData";
 
@@ -26,6 +27,7 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
 
 const Donations = () => {
   const navigate = useNavigate();
+  const { toastWarn } = useToast();
   const [donations, setDonations] = useState(getDonations());
   const [searchQuery, setSearchQuery] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
@@ -170,7 +172,7 @@ const Donations = () => {
 
   const handleExport = () => {
     if (selectedRows.length === 0) {
-      alert("Please select at least one item to export.");
+      toastWarn("Please select at least one item to export.");
       return;
     }
     const dataToExport = selectedRows.map((index) => processedData[index]);

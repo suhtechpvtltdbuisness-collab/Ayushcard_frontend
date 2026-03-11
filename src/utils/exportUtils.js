@@ -1,8 +1,9 @@
 export const exportToCSV = (data, filename) => {
   if (!data || !data.length) {
-    alert("No data available to export.");
+    console.warn("No data available to export.");
     return;
   }
+
 
   const headers = Object.keys(data[0]);
   const csvRows = [];

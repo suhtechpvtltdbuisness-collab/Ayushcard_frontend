@@ -3,6 +3,7 @@ import { Search, Eye, Trash2, Download, Plus, ArrowUpDown, Loader2 } from "lucid
 import { useNavigate } from "react-router-dom";
 import { exportToCSV } from "../../../../utils/exportUtils";
 import apiService from "../../../../api/service";
+import { useToast } from "../../../../components/ui/Toast";
 
 import { getEmployees } from "../../../../data/mockData";
 const ActionButtons = ({ item, navigate, onDelete }) => {
@@ -26,6 +27,7 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
 
 const Employees = () => {
   const navigate = useNavigate();
+  const { toastWarn } = useToast();
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -216,7 +218,7 @@ const Employees = () => {
 
   const handleExport = () => {
     if (selectedRows.length === 0) {
-      alert("Please select at least one item to export.");
+      toastWarn("Please select at least one item to export.");
       return;
     }
     const dataToExport = selectedRows.map((index) => processedData[index]);

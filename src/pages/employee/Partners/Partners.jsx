@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { Search, Plus, Eye, Trash2, Download, ArrowUpDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { exportToCSV } from "../../../utils/exportUtils";
+import { useToast } from "../../../components/ui/Toast";
 
 export const getPartners = () => {
   const stored = localStorage.getItem("partners_data");
@@ -148,6 +149,7 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
 
 const Partners = () => {
   const navigate = useNavigate();
+  const { toastWarn } = useToast();
   const [partners, setPartners] = useState(getPartners());
   const [activeFilter, setActiveFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
@@ -288,7 +290,7 @@ const Partners = () => {
 
   const handleExport = () => {
     if (selectedRows.length === 0) {
-      alert("Please select at least one item to export.");
+      toastWarn("Please select at least one item to export.");
       return;
     }
     const dataToExport = selectedRows.map((index) => processedData[index]);

@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, ChevronDown, Plus, Loader2 } from "lucide-react";
-import { getHealthCards } from "../../../data/mockData";
 import AyushCardPreview from "../../../components/admin/AyushCardPreview";
+import apiService from "../../../api/service";
+import { useToast } from "../../../components/ui/Toast";
 
 const generateId = () => `AC-${Math.floor(1000000 + Math.random() * 9000000)}`;
 const formatDate = (date) =>
@@ -10,6 +11,7 @@ const formatDate = (date) =>
 
 const CreateHealthCard = () => {
   const navigate = useNavigate();
+  const { toastWarn, toastError } = useToast();
 
   // Step state
   const [currentStep, setCurrentStep] = useState(1);
@@ -20,6 +22,10 @@ const CreateHealthCard = () => {
   // Standard form refs
   const fileInputFrontRef = useRef(null);
   const fileInputBackRef = useRef(null);
+
+  // Store actual File objects for API upload
+  const documentFrontFileRef = useRef(null);
+  const documentBackFileRef = useRef(null);
 
   // Save/API state
   const [saveLoading, setSaveLoading] = useState(false);
@@ -154,23 +160,27 @@ const CreateHealthCard = () => {
 
   const handleImageUpload = (e, side) => {
     const file = e.target.files[0];
-    if (file && (file.type === "image/jpeg" || file.type === "image/png")) {
+    if (file) {
       const imageUrl = URL.createObjectURL(file);
       if (side === "front") {
+        documentFrontFileRef.current = file;
         setFormData((prev) => ({ ...prev, documentFront: imageUrl }));
       } else {
+        documentBackFileRef.current = file;
         setFormData((prev) => ({ ...prev, documentBack: imageUrl }));
       }
     } else {
-      alert("Please upload a valid .jpg or .png image.");
+      toastWarn("Please upload a valid file.");
     }
   };
 
   const handleRemoveImage = (side) => {
     if (side === "front") {
+      documentFrontFileRef.current = null;
       setFormData((prev) => ({ ...prev, documentFront: "" }));
       if (fileInputFrontRef.current) fileInputFrontRef.current.value = "";
     } else {
+      documentBackFileRef.current = null;
       setFormData((prev) => ({ ...prev, documentBack: "" }));
       if (fileInputBackRef.current) fileInputBackRef.current.value = "";
     }
@@ -186,7 +196,7 @@ const CreateHealthCard = () => {
     if (currentStep === 1) {
       // Validate step 1 minimums
       if (!formData.applicantFirstName?.trim() || !formData.phone?.trim()) {
-        alert("First name and Phone number are required to proceed.");
+        toastWarn("First name and Phone number are required to proceed.");
         return;
       }
       setCurrentStep(2);
@@ -195,7 +205,7 @@ const CreateHealthCard = () => {
     } else if (currentStep === 3) {
       if (!paymentCompleted) {
         if (!paymentMethod) {
-          alert("Please select a payment method.");
+          toastWarn("Please select a payment method.");
           return;
         }
         await performSave();
@@ -213,12 +223,39 @@ const CreateHealthCard = () => {
     setSaveLoading(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000)); // simulate network delay
+      // Build card data payload matching API model
+      // Employees always submit with 'pending' status — admin verifies
+      const cardData = {
+        firstName: formData.applicantFirstName.trim(),
+        lastName: formData.applicantLastName?.trim() || "",
+        middleName: formData.applicantMiddleName?.trim() || "",
+        email: formData.email?.trim() || "",
+        contact: formData.phone.trim(),
+        alternateContact: formData.altPhone?.trim() || "",
+        totalAmount: parseFloat(formData.payment?.totalPaid || "120"),
+        applicationDate: formData.dateApplied || new Date().toISOString().split("T")[0],
+        gender: formData.gender || "",
+        dob: formData.dob || "",
+        relation: formData.relation || "",
+        relatedPerson: formData.relatedPerson || "",
+        address: formData.address || "",
+        cardNo: formData.cardNumber || "",
+        cardIssueDate: formData.issueDate || "",
+        cardExpiredDate: formData.expiryDate || "",
+        verificationDate: formData.verificationDate || "",
+        status: "pending", // Employee cannot set status — admin verifies
+        paymentMethod: paymentMethod,
+        members: formData.members || [],
+      };
 
-      // We no longer save to localStorage here, we wait until Step 4 Close button is clicked
+      // Use the front document file if available, otherwise back document
+      const documentFile = documentFrontFileRef.current || documentBackFileRef.current || null;
+
+      await apiService.createHealthCard(cardData, documentFile);
       setPaymentCompleted(true);
-    } catch {
-      setSaveError("Simulation failed. Please try again.");
+    } catch (err) {
+      console.error("Health card create error:", err);
+      setSaveError(err.response?.data?.message || err.message || "Failed to create health card. Please try again.");
     } finally {
       setSaveLoading(false);
     }
@@ -1474,50 +1511,8 @@ const CreateHealthCard = () => {
   };
 
   const handleFinalSave = () => {
-    // Save to localStorage ONLY when closing the final step
-    const payload = {
-      applicationDate: formData.dateApplied || "",
-      status: (() => {
-        const s = (formData.status || "").toLowerCase();
-        if (s.includes("not verified")) return "pending";
-        if (s.includes("pending")) return "pending";
-        if (s.includes("approved") || s.includes("verified")) return "approved";
-        if (s.includes("reject")) return "rejected";
-        if (s.includes("active")) return "active";
-        if (s.includes("expire")) return "expired";
-        return "pending";
-      })(),
-      firstName: formData.applicantFirstName.trim(),
-      middleName: formData.applicantMiddleName?.trim() || "",
-      lastName: formData.applicantLastName?.trim() || "",
-      contact: formData.phone.trim(),
-      alternateContact: formData.altPhone?.trim() || "",
-      email: formData.email?.trim() || "",
-      cardIssueDate: formData.issueDate || "",
-      cardExpiredDate: formData.expiryDate || "",
-      verificationDate: formData.verificationDate || "",
-      totalMember: formData.members?.length || 0,
-      totalAmount: parseFloat(formData.payment?.totalPaid || "0"),
-      members: formData.members || [],
-      address: formData.address || "",
-      gender: formData.gender || "",
-      dob: formData.dob || "",
-      relation: formData.relation || "",
-      relatedPerson: formData.relatedPerson || "",
-      cardNo: formData.cardNumber || formData.id,
-      paymentMethod: paymentMethod, // cash or online
-    };
-
-    const existing = getHealthCards() || [];
-    const newCard = {
-      ...payload,
-      id: formData.id,
-      applicationId: formData.id,
-    };
-    localStorage.setItem(
-      "employee_mock_healthcards",
-      JSON.stringify([newCard, ...existing]),
-    );
+    // Card was already saved via API in performSave (Step 3)
+    // Just navigate back to health card list
     navigate("/employee/health-card");
   };
 
