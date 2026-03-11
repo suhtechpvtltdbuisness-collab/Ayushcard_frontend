@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import {
   CreditCard,
   Stethoscope,
@@ -11,6 +12,8 @@ import {
 } from "lucide-react";
 
 const Dashboard = () => {
+  const navigate = useNavigate();
+
   return (
     <div>
       {/* Top Metrics Row */}
@@ -270,21 +273,30 @@ const Dashboard = () => {
             Quick Actions
           </h2>
           <div className="flex flex-col gap-3">
-            <button className="w-full flex items-center justify-between p-4 bg-[#F68E5F] text-[#FFFCFB] rounded-lg hover:bg-[#e47b4d] transition-colors shadow-sm">
+            <button
+              onClick={() => navigate("/admin/health-card/create")}
+              className="w-full flex items-center justify-between p-4 bg-[#F68E5F] text-[#FFFCFB] rounded-lg hover:bg-[#e47b4d] transition-colors shadow-sm"
+            >
               <div className="flex items-center gap-3">
                 <CreditCard size={20} />
                 <span className="font-semibold text-sm">Add New Card</span>
               </div>
               <ChevronRight size={20} />
             </button>
-            <button className="w-full flex items-center justify-between p-4 bg-[#F2F4F3] text-[#22333B] rounded-lg hover:bg-[#e6e9e7] transition-colors shadow-sm border border-transparent hover:border-gray-200">
+            <button
+              onClick={() => navigate("/admin/partners/create")}
+              className="w-full flex items-center justify-between p-4 bg-[#F2F4F3] text-[#22333B] rounded-lg hover:bg-[#e6e9e7] transition-colors shadow-sm border border-transparent hover:border-gray-200"
+            >
               <div className="flex items-center gap-3">
                 <Building size={20} />
                 <span className="font-semibold text-sm">Register Hospital</span>
               </div>
               <ChevronRight size={20} className="text-gray-400" />
             </button>
-            <button className="w-full flex items-center justify-between p-4 bg-[#F2F4F3] text-[#22333B] rounded-lg hover:bg-[#e6e9e7] transition-colors shadow-sm border border-transparent hover:border-gray-200">
+            <button
+              onClick={() => navigate("/admin/hr/employees/create")}
+              className="w-full flex items-center justify-between p-4 bg-[#F2F4F3] text-[#22333B] rounded-lg hover:bg-[#e6e9e7] transition-colors shadow-sm border border-transparent hover:border-gray-200"
+            >
               <div className="flex items-center gap-3">
                 <img
                   src="/admin_images/hr_payroll.svg"
@@ -295,7 +307,10 @@ const Dashboard = () => {
               </div>
               <ChevronRight size={20} className="text-gray-400" />
             </button>
-            <button className="w-full flex items-center justify-between p-4 bg-[#F2F4F3] text-[#22333B] rounded-lg hover:bg-[#e6e9e7] transition-colors shadow-sm border border-transparent hover:border-gray-200">
+            <button
+              onClick={() => navigate("/admin/reports")}
+              className="w-full flex items-center justify-between p-4 bg-[#F2F4F3] text-[#22333B] rounded-lg hover:bg-[#e6e9e7] transition-colors shadow-sm border border-transparent hover:border-gray-200"
+            >
               <div className="flex items-center gap-3">
                 <Download size={20} />
                 <span className="font-semibold text-sm">

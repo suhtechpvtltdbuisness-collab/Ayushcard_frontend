@@ -295,7 +295,7 @@ const Dashboard = () => {
             </button>
             <button
               onClick={() => navigate("/employee")}
-              className="w-full flex items-center justify-between p-4 bg-[#F2F4F3] text-[#22333B] rounded-lg hover:bg-[#e6e9e7] transition-colors shadow-sm border border-transparent hover:border-gray-200"
+              className="w-full flex items-center justify-between p-4 bg-[#F2F4F3] text-[#22333B] cursor-not-allowed rounded-lg shadow-sm"
             >
               <div className="flex items-center gap-3">
                 <img

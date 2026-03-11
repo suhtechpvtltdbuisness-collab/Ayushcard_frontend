@@ -40,6 +40,8 @@ import Dashboard from "./pages/admin/Dashboard";
 import HealthCard from "./pages/admin/HealthCard/HealthCard";
 import HealthCardDetails from "./pages/admin/HealthCard/HealthCardDetails";
 import CreateHealthCard from "./pages/admin/HealthCard/CreateHealthCard";
+import AdminVerifiedCards from "./pages/admin/HealthCard/VerifiedCards";
+import AdminExportedCards from "./pages/admin/HealthCard/ExportedCards";
 import Partners from "./pages/admin/Partners/Partners";
 import PartnerDetails from "./pages/admin/Partners/PartnerDetails";
 import CreatePartner from "./pages/admin/Partners/CreatePartner";
@@ -53,6 +55,8 @@ import EmployeeDashboard from "./pages/employee/Dashboard";
 import EmployeeHealthCard from "./pages/employee/HealthCard/HealthCard";
 import EmployeeHealthCardDetails from "./pages/employee/HealthCard/HealthCardDetails";
 import EmployeeCreateHealthCard from "./pages/employee/HealthCard/CreateHealthCard";
+import VerifiedCards from "./pages/employee/HealthCard/VerifiedCards";
+import ExportedCards from "./pages/employee/HealthCard/ExportedCards";
 import EmployeePartners from "./pages/employee/Partners/Partners";
 import EmployeePartnerDetails from "./pages/employee/Partners/PartnerDetails";
 import EmployeeCreatePartner from "./pages/employee/Partners/CreatePartner";
@@ -162,6 +166,14 @@ function App() {
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="health-card" element={<HealthCard />} />
+            <Route
+              path="health-card/verified"
+              element={<AdminVerifiedCards />}
+            />
+            <Route
+              path="health-card/exported"
+              element={<AdminExportedCards />}
+            />
             <Route path="health-card/create" element={<CreateHealthCard />} />
             <Route path="health-card/:id" element={<HealthCardDetails />} />
             <Route path="partners" element={<Partners />} />
@@ -185,6 +197,8 @@ function App() {
           <Route path="/employee" element={<AdminLayout />}>
             <Route index element={<EmployeeDashboard />} />
             <Route path="health-card" element={<EmployeeHealthCard />} />
+            <Route path="health-card/verified" element={<VerifiedCards />} />
+            <Route path="health-card/exported" element={<ExportedCards />} />
             <Route
               path="health-card/create"
               element={<EmployeeCreateHealthCard />}
