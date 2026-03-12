@@ -10,7 +10,7 @@ import {
   Plus,
 } from "lucide-react";
 import AyushCardPreview from "../../../components/admin/AyushCardPreview";
-import { getHealthCards } from "../../../data/mockData";
+import apiService from "../../../api/service";
 
 // Map API response fields → form fields
 const apiToForm = (card) => ({
@@ -107,24 +107,41 @@ const HealthCardDetails = () => {
       setLoading(true);
       setFetchErr("");
       try {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
-        const allLocal = getHealthCards() || [];
-        const raw = allLocal.find(
-          (c) => c._id === id || c.applicationId === id || c.id === id,
-        ) || {
-          applicationId: id,
-          firstName: "Mock",
-          lastName: "Applicant",
-          status: "pending",
-          totalMember: 0,
-          members: [],
-        };
-
+        let res;
+        try {
+          res = await apiService.getHealthCardById(id);
+        } catch (err) {
+          if (err?.response?.status === 404) {
+             res = await apiService.getHealthCardByCardNo(id);
+          } else {
+             throw err;
+          }
+        }
+        
+        const rawArray = Array.isArray(res?.data?.data) ? res.data.data : [];
+        const raw = rawArray[0] || res?.data?.card || res?.data?.data || res?.data || res;
         const mapped = apiToForm(raw);
         setFormData(mapped);
+
+        // Fetch members
+        const mongoId = raw._id || id;
+        try {
+          const mRes = await apiService.getCardMembers(mongoId);
+          const mRaw =
+            Array.isArray(mRes.data?.data) ? mRes.data.data :
+            Array.isArray(mRes.data?.data?.members) ? mRes.data.data.members :
+            Array.isArray(mRes.data) ? mRes.data :
+            Array.isArray(mRes?.data) ? mRes.data :
+            Array.isArray(mRes?.data?.members) ? mRes.data.members :
+            Array.isArray(mRes) ? mRes : [];
+          if (mRaw.length > 0) {
+            setFormData((prev) => ({ ...prev, members: mRaw }));
+          }
+        } catch (mErr) {
+          console.warn("[HealthCardDetails] members fetch failed", mErr);
+        }
       } catch (err) {
-        console.error("[HealthCardDetails] mock fetch failed:", err);
+        console.error("[HealthCardDetails] fetch failed:", err);
         setFetchErr("Could not load card.");
         setFormData(null);
       } finally {
@@ -226,37 +243,21 @@ const HealthCardDetails = () => {
     }));
   };
 
-  // Save — Mock Simulation
+  // Save changes via API
   const handleSave = async () => {
     setSaveLoading(true);
     setSaveError("");
     try {
       const payload = formToApi(formData);
-      console.log("[HealthCardDetails] MOCK saving:", {
-        status: payload.status,
-      });
-
-      await new Promise((resolve) => setTimeout(resolve, 800));
-
-      // Mock Saving logic
-      const existing = getHealthCards() || [];
-      const updatedList = existing.map((c) => {
-        if (c._id === id || c.id === id || c.applicationId === id) {
-          return { ...c, ...payload };
-        }
-        return c;
-      });
-      localStorage.setItem(
-        "employee_mock_healthcards",
-        JSON.stringify(updatedList),
-      );
-      console.log("[HealthCardDetails] MOCK save stored.", { payload });
+      
+      const mongoId = formData._id || formData.id || id;
+      await apiService.updateHealthCard(mongoId, payload, pendingFile);
 
       setIsEditing(false);
       navigate(".", { replace: true, state: { editMode: false } });
     } catch (err) {
-      console.error("[HealthCardDetails] mock save failed:", err);
-      setSaveError("Simulation Save failed.");
+      console.error("[HealthCardDetails] save failed:", err);
+      setSaveError("Failed to update health card.");
     } finally {
       setSaveLoading(false);
     }

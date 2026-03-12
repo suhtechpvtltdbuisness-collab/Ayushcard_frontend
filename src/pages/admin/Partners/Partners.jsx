@@ -3,6 +3,7 @@ import { Search, Plus, Eye, Trash2, Download, ArrowUpDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { exportToCSV } from '../../../utils/exportUtils';
 import apiService from '../../../api/service';
+import { useToast } from '../../../components/ui/Toast';
 
 // getPartners removed as it was unused and causing lint errors.
 // Component now uses apiService directly.
@@ -39,6 +40,7 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
 
 const Partners = () => {
   const navigate = useNavigate();
+  const { toastWarn, toastError } = useToast();
   const [partners, setPartners] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -83,7 +85,7 @@ const Partners = () => {
         setSelectedRows([]);
         setItemToDelete(null);
       } catch (err) {
-        alert(err.response?.data?.message || 'Failed to delete partner.');
+        toastError(err.response?.data?.message || 'Failed to delete partner.');
       }
     }
   };
@@ -203,7 +205,7 @@ const Partners = () => {
 
   const handleExport = () => {
     if (selectedRows.length === 0) {
-      alert("Please select at least one item to export.");
+      toastWarn("Please select at least one item to export.");
       return;
     }
     const dataToExport = selectedRows.map((index) => processedData[index]);

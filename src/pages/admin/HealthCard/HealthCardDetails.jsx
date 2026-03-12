@@ -93,12 +93,20 @@ const HealthCardDetails = () => {
       setLoading(true);
       setFetchErr("");
       try {
-        const res = await apiService.getHealthCardById(id);
-        // Response: { success, data: { card: {...} } } OR { data: {...} }
-        const raw =
-          res?.data?.card ||   // { data: { card: {} } }
-          res?.data ||         // { data: {} }
-          res;                 // raw object
+        let res;
+        try {
+          // If the ID looks like a custom ID rather than mongo ObjectId, try to fetch by cardNo first
+          res = await apiService.getHealthCardById(id);
+        } catch (err) {
+          if (err?.response?.status === 404) {
+             res = await apiService.getHealthCardByCardNo(id);
+          } else {
+             throw err;
+          }
+        }
+        // Response: { success, data: { card: {...} } } OR { data: {} } OR { data: [{...}] }
+        const rawArray = Array.isArray(res?.data?.data) ? res.data.data : [];
+        const raw = rawArray[0] || res?.data?.card || res?.data?.data || res?.data || res;
         const mapped = apiToForm(raw);
         setFormData(mapped);
 

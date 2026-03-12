@@ -11,8 +11,8 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { exportToCSV } from "../../../utils/exportUtils";
-
-import { getHealthCards } from "../../../data/mockData";
+import { useToast } from "../../../components/ui/Toast";
+import apiService from "../../../api/service";
 
 // Normalize an API card object to the shape the table expects
 const normalizeCard = (card) => ({
@@ -129,6 +129,7 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
 
 const HealthCard = () => {
   const navigate = useNavigate();
+  const { toastWarn } = useToast();
 
   const [healthCards, setHealthCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -152,14 +153,20 @@ const HealthCard = () => {
     try {
       setLoading(true);
       setFetchError("");
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      const raw = getHealthCards() || [];
+      const res = await apiService.getHealthCards();
+      const raw = Array.isArray(res?.data?.cards)
+        ? res.data.cards
+        : Array.isArray(res?.data)
+          ? res.data
+          : Array.isArray(res)
+            ? res
+            : [];
+      
       const normalized = raw.map(normalizeCard);
       setHealthCards(normalized);
     } catch (err) {
-      console.error("[HealthCard] MOCK fetch failed:", err);
-      setFetchError("Could not load mock cards.");
+      console.error("[HealthCard] API fetch failed:", err);
+      setFetchError("Could not load cards from server.");
     } finally {
       setLoading(false);
     }
@@ -170,7 +177,8 @@ const HealthCard = () => {
     setDeleteLoading(true);
     setDeleteError("");
     try {
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      const mongoId = itemToDelete._id || itemToDelete.id;
+      await apiService.deleteHealthCard(mongoId);
 
       setHealthCards((prev) =>
         prev.filter(
@@ -180,7 +188,7 @@ const HealthCard = () => {
       setSelectedRows([]);
       setItemToDelete(null);
     } catch (err) {
-      console.error("[HealthCard] MOCK delete failed:", err);
+      console.error("[HealthCard] Delete failed:", err);
       setDeleteError("Delete failed. Please try again.");
     } finally {
       setDeleteLoading(false);
@@ -321,7 +329,7 @@ const HealthCard = () => {
 
   const handleExport = () => {
     if (selectedRows.length === 0) {
-      alert("Please select at least one item to export.");
+      toastWarn("Please select at least one item to export.");
       return;
     }
     const dataToExport = selectedRows.map((index) => processedData[index]);

@@ -22,13 +22,26 @@ import { isTokenValid, msUntilExpiry, clearTokens } from "../../utils/auth";
  */
 import { Outlet } from "react-router-dom";
 
-const ProtectedRoute = () => {
+const ProtectedRoute = ({ allowedRole }) => {
     const navigate = useNavigate();
     const logoutTimerRef = useRef(null);
 
+    // ── Helper: get current role ───────────────────────────────────────────
+    const getUserRole = () => {
+        const storedRole = localStorage.getItem("userRole");
+        if (storedRole) return storedRole.charAt(0).toUpperCase() + storedRole.slice(1).toLowerCase();
+        
+        const user = JSON.parse(localStorage.getItem("user") || "{}");
+        if (user.role) return user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase();
+        
+        return null;
+    };
+
+    const userRole = getUserRole();
+
     // ── Helper: clear tokens and go to /login ────────────────────────────────
     const logout = (reason = "") => {
-        if (reason) console.warn("[ProtectedRoute] Auto-logout:", reason);
+        if (reason) console.warn("[ProtectedRoute] Logout:", reason);
         clearTokens();
         navigate("/login", { replace: true });
     };
@@ -44,25 +57,29 @@ const ProtectedRoute = () => {
         }
         if (ms === Infinity) return; // no-expiry token — skip scheduling
 
-        // Fire 1 second after actual expiry (isTokenValid uses 30 s buffer,
-        // so the timer fires when the token is still technically ~29 s old —
-        // good enough to guarantee a redirect before any API call fails).
         logoutTimerRef.current = setTimeout(() => {
             logout("token lifetime reached");
         }, ms);
     };
 
     useEffect(() => {
-        // ── 1. Immediate check on mount ─────────────────────────────────────────
         if (!isTokenValid()) {
             logout("no valid token on mount");
             return;
         }
 
-        // ── 2. Schedule proactive logout timer ──────────────────────────────────
+        // Role check
+        if (allowedRole && userRole !== allowedRole) {
+            console.error(`[ProtectedRoute] Access denied. Required: ${allowedRole}, Found: ${userRole}`);
+            // Don't log out, just redirect to their correct dashboard or login
+            if (userRole === "Admin") navigate("/admin", { replace: true });
+            else if (userRole === "Employee") navigate("/employee", { replace: true });
+            else navigate("/login", { replace: true });
+            return;
+        }
+
         scheduleLogout();
 
-        // ── 3. Cross-tab logout: if another tab removes the token ────────────────
         const handleStorage = (e) => {
             if (e.key === "token" && !e.newValue) {
                 logout("token removed in another tab");
@@ -70,8 +87,7 @@ const ProtectedRoute = () => {
         };
         window.addEventListener("storage", handleStorage);
 
-        // ── 4. Listen for the forceLogout event fired by service.js ─────────────
-        const handleForceLogout = () => logout("server forced logout (401 / refresh failed)");
+        const handleForceLogout = () => logout("server forced logout");
         window.addEventListener("auth:logout", handleForceLogout);
 
         return () => {
@@ -80,14 +96,18 @@ const ProtectedRoute = () => {
             window.removeEventListener("auth:logout", handleForceLogout);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [allowedRole, userRole]);
 
-    // Not authenticated — redirect instantly
+    // Initial basic check
     if (!isTokenValid()) {
         return <Navigate to="/login" replace />;
     }
 
-    // Authenticated — render child routes
+    // Role check for initial render
+    if (allowedRole && userRole !== allowedRole) {
+        return <Navigate to={userRole === "Admin" ? "/admin" : (userRole === "Employee" ? "/employee" : "/login")} replace />;
+    }
+
     return <Outlet />;
 };
 

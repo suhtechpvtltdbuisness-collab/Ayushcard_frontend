@@ -12,8 +12,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import apiService from "../../../api/service";
 import { exportToCSV } from "../../../utils/exportUtils";
-
-import { getHealthCards } from "../../../data/mockData";
+import { useToast } from "../../../components/ui/Toast";
 
 // Normalize an API card object to the shape the table expects
 const normalizeCard = (card) => ({
@@ -119,6 +118,7 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
 
 const HealthCard = () => {
   const navigate = useNavigate();
+  const { toastWarn } = useToast();
 
   const [healthCards, setHealthCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -155,8 +155,7 @@ const HealthCard = () => {
       setHealthCards(normalized);
     } catch (err) {
       console.error("[HealthCard] GET /api/cards failed:", err?.response?.data || err?.message);
-      setFetchError("Could not load cards from server. Showing local data.");
-      setHealthCards(getHealthCards().map(normalizeCard));
+      setFetchError("Could not load cards from server.");
     } finally {
       setLoading(false);
     }
@@ -316,7 +315,7 @@ const HealthCard = () => {
 
   const handleExport = () => {
     if (selectedRows.length === 0) {
-      alert("Please select at least one item to export.");
+      toastWarn("Please select at least one item to export.");
       return;
     }
     const dataToExport = selectedRows.map((index) => processedData[index]);
