@@ -8,9 +8,9 @@ const Footer = () => {
         <div className="flex flex-col md:flex-row gap-12 md:gap-8">
 
           {/* Logo + Description */}
-          <div className="md:w-64 flex-shrink-0">
+          <div className="md:w-64 shrink-0">
             <img
-              src="/logo.svg"
+              src="/logo_whitebg.svg"
               alt="BKBS Trust"
               className="w-14 h-14 rounded-full object-contain mb-4"
             />
@@ -58,19 +58,19 @@ const Footer = () => {
               <h4 className="text-white font-semibold text-sm mb-4">Contact Us</h4>
               <ul className="space-y-3 text-sm">
                 <li className="flex items-center gap-2">
-                  <Phone className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  <Phone className="w-4 h-4 text-gray-400 shrink-0" />
                   <a href="tel:+919918802030" className="hover:text-orange-400 transition-colors">+91 99188 02030</a>
                 </li>
                 <li className="flex items-center gap-2">
-                  <MessageCircle className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  <MessageCircle className="w-4 h-4 text-gray-400 shrink-0" />
                   <a href="https://wa.me/919918802030" className="hover:text-orange-400 transition-colors">+91 99188 02030</a>
                 </li>
                 <li className="flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  <Mail className="w-4 h-4 text-gray-400 shrink-0" />
                   <a href="mailto:mishravivek5789@gmail.com" className="hover:text-orange-400 transition-colors">mishravivek5789@gmail.com</a>
                 </li>
                 <li className="flex items-start gap-2">
-                  <MapPin className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
+                  <MapPin className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
                   <span>1A New PAC Line Mangla<br />Vihar Kanpur-208018</span>
                 </li>
               </ul>

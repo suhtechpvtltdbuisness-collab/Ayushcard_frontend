@@ -36,6 +36,9 @@ import NearbyHospitals from "./components/pages/about-dedi/hospitaldedipages/Nea
 import ContactInfo from "./components/pages/about-dedi/hospitaldedipages/ContactInfo";
 import HospitalMap from "./components/pages/about-dedi/hospitaldedipages/HospitalMap";
 
+// Ayush Card Page
+import AyushCardPage from "./pages/AyushCardPage";
+
 // Admin Interface
 import AdminLayout from "./layouts/AdminLayout";
 import ProtectedRoute from "./components/layout/ProtectedRoute";
@@ -104,7 +107,6 @@ function App() {
             </>
           }
         />
-
         {/* About Page */}
         <Route
           path="/about"
@@ -120,8 +122,6 @@ function App() {
             </>
           }
         />
-
-        {/* Associated Hospitals Page */}
         {/* Associated Hospitals Page */}
         <Route
           path="/associated-hospitals"
@@ -133,7 +133,8 @@ function App() {
             </>
           }
         />
-
+        {/* Ayush Card Page */}
+        <Route path="/ayush-card" element={<AyushCardPage />} />
         {/* Hospital Detail Page */}
         {/* <Route
           path="/hospitals/:id"
@@ -153,7 +154,6 @@ function App() {
             </>
           }
         /> */}
-
         {/* Contact us Page */}
         {/* Contact us Page */}
         <Route
@@ -197,7 +197,6 @@ function App() {
             <Route path="help-support" element={<HelpSupport />} />
           </Route>
         </Route>
-
         {/* Employee Dashboard */}
         {/* Employee Dashboard — requires valid (non-expired) JWT and Employee role */}
         <Route element={<ProtectedRoute allowedRole="Employee" />}>
