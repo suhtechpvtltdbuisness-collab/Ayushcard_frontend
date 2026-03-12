@@ -14,9 +14,15 @@ import {
   Check,
   ScanLine,
 } from "lucide-react";
+import { useToast } from "../../ui/Toast";
+import apiService from "../../../api/service";
+import { Scanner } from '@yudiel/react-qr-scanner';
 
 const ApplyAyushCardModal = ({ isOpen, onClose }) => {
   const [currentStep, setCurrentStep] = useState(1);
+  const { toastWarn, toastError } = useToast();
+  const [submitting, setSubmitting] = useState(false);
+  const [applicationId, setApplicationId] = useState(null);
   // Step 1 State
   const [activeTab, setActiveTab] = useState(null); // 'scan' | 'upload'
   const [docFront, setDocFront] = useState(null);
@@ -43,6 +49,72 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
   // Step 3 State (Members)
   const [members, setMembers] = useState([]);
   const [activeMemberTab, setActiveMemberTab] = useState(0); // 0 is head, 1+ is members
+
+  const parseAadhaarQR = (text) => {
+    try {
+      const isXML = text.includes("<?xml") || text.includes("PrintLetterBarcodeData");
+      if (isXML) {
+        const uidMatch = text.match(/uid="([^"]+)"/i);
+        const nameMatch = text.match(/name="([^"]+)"/i);
+        const genderMatch = text.match(/gender="([^"]+)"/i);
+        const dobMatch = text.match(/dob="([^"]+)"/i);
+        const yobMatch = text.match(/yob="([^"]+)"/i);
+        
+        let dobStr = dobMatch ? dobMatch[1] : (yobMatch ? `01/01/${yobMatch[1]}` : "");
+        if (dobStr && dobStr.includes("/")) {
+          const parts = dobStr.split("/");
+          if (parts.length === 3) dobStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        } else if (dobStr && dobStr.includes("-") && dobStr.split("-")[0].length !== 4) {
+          const parts = dobStr.split("-");
+          if (parts.length === 3) dobStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+        
+        return {
+          uid: uidMatch ? uidMatch[1] : "",
+          name: nameMatch ? nameMatch[1] : "",
+          gender: genderMatch ? (genderMatch[1] === 'M' ? 'Male' : genderMatch[1] === 'F' ? 'Female' : 'Other') : "",
+          dob: dobStr,
+        };
+      }
+    } catch (e) { console.error("Aadhaar parse error", e); }
+    return null;
+  };
+
+  const handleScan = (result) => {
+    if (result && result.length > 0) {
+      const raw = result[0].rawValue;
+      const parsed = parseAadhaarQR(raw);
+      if (parsed) {
+        setFamilyHead(prev => ({
+          ...prev,
+          fullName: parsed.name || prev.fullName,
+          aadhaarNumber: parsed.uid || prev.aadhaarNumber,
+          gender: parsed.gender || prev.gender,
+          dob: parsed.dob || prev.dob
+        }));
+        
+        // Use a generic Aadhaar placeholder if actual image isn't available from QR
+        const placeholderUrl = "https://th.bing.com/th/id/OIP.XGvUf3m_7B-E-5_y_XW1OAHaEK?rs=1&pid=ImgDetMain"; 
+        
+        setDocFront({ 
+          name: "Scanned Aadhaar Front.jpg", 
+          size: "QR Scanned", 
+          url: placeholderUrl 
+        });
+        setDocBack({ 
+          name: "Scanned Aadhaar Back.jpg", 
+          size: "QR Scanned", 
+          url: placeholderUrl 
+        });
+        
+        toastWarn("Aadhaar details scanned and autofilled!");
+        setActiveTab("upload"); // Shift to upload so user sees the checkmarks
+      } else {
+        toastError("Unsupported QR or Not Aadhaar. Please input manually.");
+        setActiveTab("upload");
+      }
+    }
+  };
 
   const handleHeadChange = (e) => {
     let { name, value } = e.target;
@@ -130,17 +202,15 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     // Step 1 validation: Must have uploaded a document AND filled basic details
     if (currentStep === 1) {
       if (!docFront || !docBack) {
-        alert(
-          "Please upload both front and back sides of the identity document.",
-        );
+        toastWarn("Please upload both front and back sides of the identity document.");
         return;
       }
       if (!headImage) {
-        alert("Please upload the family head photo.");
+        toastWarn("Please upload the family head photo.");
         return;
       }
       const fg = familyHead;
@@ -152,15 +222,15 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
         !fg.aadhaarNumber ||
         !fg.emailAddress
       ) {
-        alert("Please fill all the family head details.");
+        toastWarn("Please fill all the family head details.");
         return;
       }
       if (fg.contactNumber.length < 10) {
-        alert("Please enter a valid 10 digit contact number.");
+        toastWarn("Please enter a valid 10 digit contact number.");
         return;
       }
       if (fg.aadhaarNumber.length < 12) {
-        alert("Please enter a valid 12 digit aadhaar number.");
+        toastWarn("Please enter a valid 12 digit aadhaar number.");
         return;
       }
 
@@ -184,30 +254,129 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
           !p.aadhaarNumber ||
           !p.emailAddress
         ) {
-          alert(`Please fill all details for Member ${i + 1}`);
+          toastWarn(`Please fill all details for Member ${i + 1}`);
           return;
         }
         if (p.contactNumber.length < 10) {
-          alert(
-            `Please enter a valid 10 digit contact number for Member ${i + 1}`,
-          );
+          toastWarn(`Please enter a valid 10 digit contact number for Member ${i + 1}`);
           return;
         }
         if (p.aadhaarNumber.length < 12) {
-          alert(
-            `Please enter a valid 12 digit aadhaar number for Member ${i + 1}`,
-          );
+          toastWarn(`Please enter a valid 12 digit aadhaar number for Member ${i + 1}`);
           return;
         }
       }
     }
 
-    // Step 4 validation: Payment screenshot
+    // Step 4: validate + submit to API
     if (currentStep === 4) {
       if (!paymentScreenshot) {
-        alert("Please upload the payment screenshot before continuing.");
+        toastWarn("Please upload the payment screenshot before continuing.");
         return;
       }
+
+      // Build the API payload
+      const today = new Date().toISOString().split('T')[0];
+      const cardExpiry = new Date();
+      cardExpiry.setFullYear(cardExpiry.getFullYear() + 1);
+      const cardExpiryDate = cardExpiry.toISOString().split('T')[0];
+
+      // Split fullName into firstName / middleName / lastName
+      const nameParts = familyHead.fullName.trim().split(' ').filter(Boolean);
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+      const middleName = nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '';
+
+      const payload = {
+        applicationDate: today,
+        status: 'pending',
+        firstName,
+        middleName,
+        lastName,
+        contact: familyHead.contactNumber,
+        alternateContact: '',
+        email: familyHead.emailAddress,
+        relation: 'Self',
+        relatedPerson: familyHead.fullName,
+        cardIssueDate: today,
+        cardExpiredDate: cardExpiryDate,
+        verificationDate: today,
+        totalMember: 1 + members.length,
+        totalAmount: estimatedFee,
+        documents: [
+          docFront && {
+            filename: docFront.name,
+            originalName: docFront.name,
+            path: docFront.url || `/uploads/${docFront.name}`,
+            size: 0,
+            mimetype: 'image/jpeg',
+            type: 'aadhaar_front',
+            uploadedAt: new Date().toISOString(),
+          },
+          docBack && {
+            filename: docBack.name,
+            originalName: docBack.name,
+            path: docBack.url || `/uploads/${docBack.name}`,
+            size: 0,
+            mimetype: 'image/jpeg',
+            type: 'aadhaar_back',
+            uploadedAt: new Date().toISOString(),
+          },
+          headImage && {
+            filename: 'family_head_photo.jpg',
+            originalName: 'family_head_photo.jpg',
+            path: headImage, // This is the base64/blob URL
+            size: 0,
+            mimetype: 'image/jpeg',
+            type: 'profile_photo',
+            uploadedAt: new Date().toISOString(),
+          }
+        ].filter(Boolean),
+        isPrint: false,
+        members: members.map((m) => {
+          const mParts = m.fullName.trim().split(' ').filter(Boolean);
+          return {
+            name: m.fullName,
+            relation: 'Family Member',
+            age: m.dob
+              ? Math.floor((Date.now() - new Date(m.dob).getTime()) / (1000 * 60 * 60 * 24 * 365))
+              : 0,
+          };
+        }),
+        payment: {
+          transactionId: `TXN${Date.now()}${Math.floor(Math.random() * 10000)}`,
+          method: 'online',
+          totalAmount: estimatedFee,
+          date: new Date().toISOString(),
+        },
+      };
+
+      try {
+        setSubmitting(true);
+        const res = await apiService.submitCardApplication(payload);
+        // Try to extract the applicationId from various response shapes
+        const appId =
+          res?.applicationId ||
+          res?.data?.applicationId ||
+          res?.cardUser?.applicationId ||
+          res?.data?.cardUser?.applicationId ||
+          res?._id ||
+          res?.data?._id ||
+          null;
+        setApplicationId(appId);
+        setCurrentStep(5);
+        document.querySelector('.custom-scrollbar')?.scrollTo(0, 0);
+      } catch (err) {
+        console.error('Card application submission error:', err);
+        toastError(
+          err.response?.data?.message ||
+          err.message ||
+          'Failed to submit application. Please try again.'
+        );
+      } finally {
+        setSubmitting(false);
+      }
+      return;
     }
 
     if (currentStep < 5) {
@@ -373,146 +542,115 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                     </p>
                   </div>
 
-                  <div className="flex flex-col md:flex-row items-stretch gap-4 mb-6 relative">
-                    {/* Mobile/Tablet Scan Document Button */}
-                    <label
-                      htmlFor="scanDocument"
-                      className={`flex-1 md:hidden flex flex-col items-center justify-center py-6 px-4 rounded-xl transition-all duration-300 border ${
-                        activeTab === "scan"
-                          ? "border-[#fa8112] bg-[#faf3e1]"
-                          : "border-gray-200 bg-white"
-                      } cursor-pointer`}
-                      onClick={() => setActiveTab("scan")}
-                    >
-                      <div className="w-[45px] h-[45px] bg-[#fa8112] rounded-[14px] flex items-center justify-center text-white mb-3 shadow-sm">
-                        <ScanLine size={24} strokeWidth={2.5} />
+                  <div className="flex flex-col gap-4 mb-6 relative w-full items-center justify-center">
+                    {activeTab === "scan" ? (
+                      <div className="w-full flex flex-col items-center justify-center p-6 rounded-xl border border-[#fa8112] bg-[#faf3e1]">
+                        <h4 className="font-semibold text-[16px] text-[#222222] mb-4 text-center">
+                          Scan Aadhaar QR Code
+                        </h4>
+                        <div className="w-full max-w-sm rounded-[14px] overflow-hidden border-4 border-white shadow-sm bg-black mb-4 aspect-square flex items-center justify-center relative">
+                          <Scanner 
+                             onScan={handleScan}
+                             formats={['qr_code']}
+                          />
+                        </div>
+                        <p className="text-[12px] text-gray-500 text-center mb-4">
+                          Point your camera at the QR code on the back of your Aadhaar card.
+                        </p>
+                        <button
+                          onClick={() => setActiveTab(null)}
+                          className="px-6 py-2 border border-[#FA8112] text-[#FA8112] font-semibold rounded-lg bg-white hover:bg-orange-50 transition-colors"
+                        >
+                          Cancel Scanning
+                        </button>
                       </div>
-                      <h4 className="font-semibold text-[16px] text-[#222222] mb-1">
-                        Scan Document
-                      </h4>
-                      <p className="text-[12px] text-gray-500 text-center">
-                        Use your camera to scan the document live
-                      </p>
-                      <input
-                        type="file"
-                        id="scanDocument"
-                        accept="image/*"
-                        capture="environment"
-                        className="hidden"
-                        onChange={(e) => handleDocumentUpload(e, "front")}
-                      />
-                    </label>
+                    ) : activeTab === "upload" ? (
+                      <div className="w-full border-2 border-[#fa8112] bg-[#faf3e1] p-6 rounded-xl">
+                        <h4 className="font-semibold text-[16px] text-[#222222] mb-4 text-center">
+                           Upload Document (JPG/PNG)
+                        </h4>
+                        <div className="flex flex-col sm:flex-row gap-4">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              docFrontInputRef.current?.click();
+                            }}
+                            className={`flex-1 flex flex-col items-center justify-center py-6 px-4 rounded-xl transition-all shadow-sm ${
+                              docFront
+                                ? "bg-white border-2 border-green-500"
+                                : "bg-white border hover:border-[#fa8112]"
+                            }`}
+                          >
+                            <div className={`w-10 h-10 ${docFront ? "bg-green-500" : "bg-[#fa8112]"} rounded-full flex items-center justify-center text-white mb-3`}>
+                              {docFront ? <Check size={20} className="text-white" /> : <UploadCloud size={20} />}
+                            </div>
+                            <span className="text-[14px] font-semibold text-[#222222]">Front Side</span>
+                            <span className="text-[12px] text-gray-500 truncate w-full px-1 text-center max-w-[150px] mt-1">
+                              {docFront ? docFront.name : "Choose File"}
+                            </span>
+                          </button>
 
-                    {/* Disabled Desktop Scan Document Button */}
-                    <button
-                      className={`hidden md:flex flex-1 flex-col items-center justify-center py-6 px-4 rounded-xl transition-all duration-300 border ${
-                        activeTab === "scan"
-                          ? "border-[#fa8112] bg-[#faf3e1]"
-                          : "border-gray-200 bg-white"
-                      } opacity-50 cursor-not-allowed`}
-                    >
-                      <div className="w-[45px] h-[45px] bg-[#fa8112] rounded-[14px] flex items-center justify-center text-white mb-3 shadow-sm">
-                        <ScanLine size={24} strokeWidth={2.5} />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              docBackInputRef.current?.click();
+                            }}
+                            className={`flex-1 flex flex-col items-center justify-center py-6 px-4 rounded-xl transition-all shadow-sm ${
+                              docBack
+                                ? "bg-white border-2 border-green-500"
+                                : "bg-white border hover:border-[#fa8112]"
+                            }`}
+                          >
+                            <div className={`w-10 h-10 ${docBack ? "bg-green-500" : "bg-[#fa8112]"} rounded-full flex items-center justify-center text-white mb-3`}>
+                              {docBack ? <Check size={20} className="text-white" /> : <UploadCloud size={20} />}
+                            </div>
+                            <span className="text-[14px] font-semibold text-[#222222]">Back Side</span>
+                            <span className="text-[12px] text-gray-500 truncate w-full px-1 text-center max-w-[150px] mt-1">
+                              {docBack ? docBack.name : "Choose File"}
+                            </span>
+                          </button>
+                        </div>
+                        <div className="flex justify-center mt-6">
+                           <button onClick={() => setActiveTab(null)} className="text-sm text-gray-500 hover:text-black font-semibold underline">Go Back</button>
+                        </div>
                       </div>
-                      <h4 className="font-semibold text-[16px] text-[#222222] mb-1">
-                        Scan Document
-                      </h4>
-                      <p className="text-[12px] text-gray-500 text-center">
-                        Use your camera to scan the document live
-                      </p>
-                    </button>
+                    ) : (
+                      <div className="flex flex-col sm:flex-row w-full gap-4 relative justify-center items-stretch">
+                        <button
+                          onClick={() => setActiveTab("scan")}
+                          className="flex-1 flex flex-col items-center justify-center py-8 px-6 rounded-xl border-gray-200 border bg-white hover:border-[#fa8112] hover:bg-orange-50 cursor-pointer shadow-sm transition-all"
+                        >
+                          <div className="w-[50px] h-[50px] bg-[#fa8112] rounded-[16px] flex items-center justify-center text-white mb-4 shadow text-center">
+                            <ScanLine size={24} strokeWidth={2.5} />
+                          </div>
+                          <h4 className="font-bold text-[16px] text-[#222222] mb-1">
+                            Scan Aadhaar QR
+                          </h4>
+                          <p className="text-[13px] text-gray-500 text-center">
+                            Scan using camera to auto-fill details <br/>(Replaces manual upload)
+                          </p>
+                        </button>
 
-                    <div className="flex items-center justify-center text-gray-400 font-bold text-sm">
-                      OR
-                    </div>
+                        <div className="flex items-center justify-center font-bold text-gray-400 text-sm py-2 sm:py-0">
+                          OR
+                        </div>
 
-                    <div
-                      className={`flex-2 flex flex-col items-center justify-center p-4 rounded-xl transition-all duration-300 border ${
-                        activeTab === "upload"
-                          ? "border-[#fa8112] bg-[#faf3e1]"
-                          : "border-gray-200 bg-white hover:bg-gray-50 cursor-pointer"
-                      }`}
-                      onClick={() =>
-                        activeTab !== "upload" && setActiveTab("upload")
-                      }
-                    >
-                      {activeTab !== "upload" ? (
-                        <>
-                          <div className="w-[45px] h-[45px] bg-[#fa8112] rounded-[14px] flex items-center justify-center text-white mb-3 shadow-sm">
+                        <button
+                          onClick={() => setActiveTab("upload")}
+                          className="flex-1 flex flex-col items-center justify-center py-8 px-6 rounded-xl border-gray-200 border bg-white hover:border-[#fa8112] hover:bg-orange-50 cursor-pointer shadow-sm transition-all"
+                        >
+                          <div className="w-[50px] h-[50px] bg-[#fa8112] rounded-[16px] flex items-center justify-center text-white mb-4 shadow text-center">
                             <UploadCloud size={24} strokeWidth={2.5} />
                           </div>
-                          <h4 className="font-semibold text-[16px] text-[#222222] mb-1">
-                            Upload Document
+                          <h4 className="font-bold text-[16px] text-[#222222] mb-1">
+                            Upload Manually
                           </h4>
-                          <p className="text-[12px] text-gray-500 text-center">
-                            Select JPG, JPEG, PNG from your device
+                          <p className="text-[13px] text-gray-500 text-center">
+                            Upload PNG/JPG of Identity Proof
                           </p>
-                        </>
-                      ) : (
-                        <div className="w-full">
-                          <h4 className="font-semibold text-[16px] text-[#222222] mb-4 text-center">
-                            Upload Document
-                          </h4>
-                          <div className="flex flex-col sm:flex-row gap-3">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                docFrontInputRef.current?.click();
-                              }}
-                              className={`flex-1 flex flex-col items-center justify-center py-4 px-2 rounded-lg border transition-all ${
-                                docFront
-                                  ? "border-[#F8F1F1] bg-[#FFFCFB]"
-                                  : "border-[#fa8112] bg-white hover:bg-[#faf3e1]"
-                              }`}
-                            >
-                              <div
-                                className={`w-8 h-8 ${docFront ? "bg-[#fa8112]" : "bg-[#fa8112]"} rounded-lg flex items-center justify-center text-white mb-2`}
-                              >
-                                {docFront ? (
-                                  <Check size={16} />
-                                ) : (
-                                  <UploadCloud size={16} />
-                                )}
-                              </div>
-                              <span className="text-[13px] font-medium text-[#222222]">
-                                Front Side
-                              </span>
-                              <span className="text-[10px] text-gray-500 truncate w-full px-1 text-center max-w-[120px]">
-                                {docFront ? docFront.name : "Choose File"}
-                              </span>
-                            </button>
-
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                docBackInputRef.current?.click();
-                              }}
-                              className={`flex-1 flex flex-col items-center justify-center py-4 px-2 rounded-lg border transition-all ${
-                                docBack
-                                  ? "border-[#F8F1F1] bg-[#FFFCFB]"
-                                  : "border-[#fa8112] bg-white hover:bg-[#faf3e1]"
-                              }`}
-                            >
-                              <div
-                                className={`w-8 h-8 ${docBack ? "bg-[#fa8112]" : "bg-[#fa8112]"} rounded-lg flex items-center justify-center text-white mb-2`}
-                              >
-                                {docBack ? (
-                                  <Check size={16} />
-                                ) : (
-                                  <UploadCloud size={16} />
-                                )}
-                              </div>
-                              <span className="text-[13px] font-medium text-[#222222]">
-                                Back Side
-                              </span>
-                              <span className="text-[10px] text-gray-500 truncate w-full px-1 text-center max-w-[120px]">
-                                {docBack ? docBack.name : "Choose File"}
-                              </span>
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-col items-center justify-center mt-6 mb-8 w-full max-w-md mx-auto">
@@ -963,8 +1101,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                           <div className="w-full md:w-[240px] h-[150px] bg-gray-200 rounded-lg flex items-center justify-center relative overflow-hidden group">
                             {docFront ? (
                               <>
-                                {docFront.url &&
-                                docFront.url.startsWith("blob:") ? (
+                                {docFront.url ? (
                                   <img
                                     src={docFront.url}
                                     className="w-full h-full object-cover"
@@ -1015,8 +1152,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                           <div className="w-full md:w-[240px] h-[150px] bg-gray-200 rounded-lg flex items-center justify-center relative overflow-hidden group">
                             {docBack ? (
                               <>
-                                {docBack.url &&
-                                docBack.url.startsWith("blob:") ? (
+                                {docBack.url ? (
                                   <img
                                     src={docBack.url}
                                     className="w-full h-full object-cover"
@@ -1486,11 +1622,16 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
               <div className="flex-1 flex justify-end">
                 <button
                   onClick={handleNext}
-                  className="flex items-center gap-2 bg-[#fa8112] hover:bg-[#e0720f] shadow-md active:scale-95 text-white font-medium pl-6 pr-2 py-2 rounded-full transition-all duration-300"
+                  disabled={submitting}
+                  className="flex items-center gap-2 bg-[#fa8112] hover:bg-[#e0720f] shadow-md active:scale-95 text-white font-medium pl-6 pr-2 py-2 rounded-full transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  Continue
+                  {submitting ? 'Submitting...' : 'Continue'}
                   <span className="flex items-center justify-center bg-white rounded-full w-8 h-8 ml-2">
-                    <ArrowRight className="w-5 h-5 text-[#fa8112]" />
+                    {submitting ? (
+                      <div className="w-4 h-4 border-2 border-[#fa8112] border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <ArrowRight className="w-5 h-5 text-[#fa8112]" />
+                    )}
                   </span>
                 </button>
               </div>
@@ -1523,7 +1664,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                 Application Reference Number
               </p>
               <p className="text-[20px] font-bold text-[#fa8112] tracking-wider">
-                BKBST-2026-74544
+                {applicationId || 'BKBST-' + Date.now().toString().slice(-8)}
               </p>
             </div>
 

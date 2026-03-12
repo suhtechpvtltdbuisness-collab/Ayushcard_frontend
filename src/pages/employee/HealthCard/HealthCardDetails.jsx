@@ -794,7 +794,7 @@ const HealthCardDetails = () => {
             <div className="flex-1 flex items-center justify-center border-t border-gray-100 border-dashed pt-4">
               <div className="p-3 border border-[#E2E8F0] rounded-xl bg-white shadow-xs inline-flex items-center justify-center w-[140px] h-[140px]">
                 <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${formData.id}`}
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`${window.location.origin}/verify/${formData.id}`)}`}
                   alt="QR"
                   className="w-35 h-30 object-contain border-4 border-black rounded-lg p-1"
                 />
