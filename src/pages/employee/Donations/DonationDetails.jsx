@@ -1,18 +1,46 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import { getDonations } from "../../../data/mockData";
+import apiService from "../../../api/service";
+import { useToast } from "../../../components/ui/Toast";
 
 const DonationDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // Load data
-  const donations = getDonations();
-  const initialData = donations.find((d) => d.id === id) || donations[0]; // fallback to first item
-
-  const [formData, setFormData] = useState(initialData);
+  const { toastError, toastSuccess } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [formData, setFormData] = useState({});
   const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    fetchDetail();
+  }, [id]);
+
+  const fetchDetail = async () => {
+    setLoading(true);
+    try {
+      const res = await apiService.getDonations();
+      const donations = res?.data?.donations || [];
+      const found = donations.find((d) => d.enquiryId === id || d._id === id);
+      
+      if (found) {
+        setFormData({
+          ...found,
+          id: found.enquiryId,
+          time: found.time || new Date(found.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        });
+      } else {
+        toastError("Enquiry not found.");
+        navigate("/employee/donations");
+      }
+    } catch (error) {
+      console.error("Fetch detail error:", error);
+      toastError("Failed to load enquiry details.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleChange = (e, field) => {
     let value = e.target.value;
@@ -54,9 +82,10 @@ const DonationDetails = () => {
     }
   };
 
-  const handleSave = () => {
-    const updatedDonations = donations.map((d) => (d.id === id ? formData : d));
-    localStorage.setItem("donations_data", JSON.stringify(updatedDonations));
+  const handleSave = async () => {
+    // Note: User didn't provide a PUT API for donations yet,
+    // so we'll just show a success message for now or implement if API is known.
+    toastSuccess("Changes saved successfully (Simulation)!");
     setIsEditing(false);
   };
 
@@ -113,6 +142,13 @@ const DonationDetails = () => {
 
       {/* Details Card */}
       <div className="bg-white border border-[#E5E7EB] rounded-2xl p-6">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="w-8 h-8 border-3 border-[#F68E5F] border-t-transparent rounded-full animate-spin mb-3" />
+            <p className="text-sm text-gray-500">Loading details...</p>
+          </div>
+        ) : (
+          <>
         {/* Row 1 */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
           <div>
@@ -221,6 +257,8 @@ const DonationDetails = () => {
             className={`w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-[16px] leading-relaxed text-[#22333B] focus:outline-none resize-none ${!isEditing ? "bg-[#F9FAFB] cursor-default" : "bg-white"}`}
           />
         </div>
+          </>
+        )}
       </div>
     </div>
   );

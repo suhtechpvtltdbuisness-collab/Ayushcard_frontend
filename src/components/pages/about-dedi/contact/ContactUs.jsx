@@ -1,7 +1,12 @@
-import React, { useState } from "react";
 import { ArrowUpRight, Phone } from "lucide-react";
+import { useToast } from "../../../ui/Toast";
+import apiService from "../../../../api/service";
 
 const ContactUs = () => {
+  const { toastWarn, toastError, toastSuccess } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -14,9 +19,58 @@ const ContactUs = () => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Form submitted:", form);
+    
+    // Validation
+    if (form.phone.length < 10) {
+      toastWarn("Please enter a valid contact number.");
+      return;
+    }
+
+    setLoading(true);
+    
+    // Auto-generate date/time info to match the expectation of the donation API
+    const now = new Date();
+    const dateStr = `${String(now.getDate()).padStart(2, "0")}-${String(now.getMonth() + 1).padStart(2, "0")}-${now.getFullYear()}`;
+    
+    let hours = now.getHours();
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    const ampm = hours >= 12 ? "PM" : "AM";
+    hours = hours % 12 || 12;
+    const timeStr = `${hours}:${minutes} ${ampm}`;
+
+    const payload = {
+      name: form.name,
+      email: form.email,
+      contact: form.phone,
+      location: "Contact Page", // default location for contact page source
+      message: `[Subject: ${form.subject}] ${form.message}`,
+      date: dateStr,
+      time: timeStr,
+      enquiryId: `ENQ-${Math.floor(1000 + Math.random() * 9000)}`
+    };
+
+    try {
+      await apiService.submitDonation(payload);
+      toastSuccess("Your inquiry has been sent successfully!");
+      setSubmitted(true);
+      setForm({
+        name: "",
+        email: "",
+        phone: "",
+        subject: "General Inquiry",
+        message: "",
+      });
+    } catch (error) {
+      console.error("Contact submission error:", error);
+      toastError(
+        error?.response?.data?.message || 
+        "Failed to send inquiry. Please try again later."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const helpItems = [
@@ -135,11 +189,16 @@ const ContactUs = () => {
               <div>
                 <button
                   type="submit"
-                  className="flex items-center gap-2 bg-[#F68E5F] hover:bg-[#F68E5F] active:scale-95 text-white text-sm font-semibold pl-5 pr-1 py-1 rounded-full transition-all duration-200 shadow-md"
+                  disabled={loading}
+                  className="flex items-center gap-2 bg-[#F68E5F] hover:bg-[#F68E5F] active:scale-95 text-white text-sm font-semibold pl-5 pr-1 py-1 rounded-full transition-all duration-200 shadow-md disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  Submit Form
+                  {loading ? "Submitting..." : "Submit Form"}
                   <span className="flex items-center justify-center bg-white rounded-full w-8 h-8">
-                    <ArrowUpRight className="w-4 h-4 text-[#F68E5F]" />
+                    {loading ? (
+                       <div className="w-4 h-4 border-2 border-[#F68E5F] border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <ArrowUpRight className="w-4 h-4 text-[#F68E5F]" />
+                    )}
                   </span>
                 </button>
               </div>

@@ -8,6 +8,14 @@ const api = axios.create({
     timeout: 10000,
 });
 
+// ─── PUBLIC AXIOS INSTANCE (no auth) ───────────────────────────────────────
+// Used for unauthenticated endpoints such as the home-page card application
+const publicApi = axios.create({
+    baseURL: import.meta.env.VITE_API_BASE_URL || '',
+    headers: { 'Content-Type': 'application/json' },
+    timeout: 15000,
+});
+
 // ─── STORAGE HELPERS ───────────────────────────────────────────────────────
 
 const storage = {
@@ -328,6 +336,28 @@ const apiService = {
     // POST /api/salaries
     createSalary: async (salaryData) => {
         const response = await api.post('/api/salaries', salaryData);
+        return response.data;
+    },
+
+    // ─── PUBLIC CARD APPLICATION (home page) ──────────────────────────────
+
+    // POST /api/cards/card-users  (no auth required — public endpoint)
+    submitCardApplication: async (payload) => {
+        const response = await publicApi.post('/api/cards/card-users', payload);
+        return response.data;
+    },
+
+    // ─── PUBLIC DONATION (home page) ──────────────────────────────
+    
+    // POST /api/donations (no auth required — public endpoint)
+    submitDonation: async (payload) => {
+        const response = await publicApi.post('/api/donations', payload);
+        return response.data;
+    },
+
+    // GET /api/donations (authenticated)
+    getDonations: async (params = {}) => {
+        const response = await api.get('/api/donations', { params });
         return response.data;
     },
 

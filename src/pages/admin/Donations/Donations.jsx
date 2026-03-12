@@ -1,10 +1,9 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Search, Eye, Trash2, Download, ArrowUpDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { exportToCSV } from "../../../utils/exportUtils";
 import { useToast } from "../../../components/ui/Toast";
-
-import { getDonations } from "../../../data/mockData";
+import apiService from "../../../api/service";
 
 const ActionButtons = ({ item, navigate, onDelete }) => {
   return (
@@ -27,8 +26,9 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
 
 const Donations = () => {
   const navigate = useNavigate();
-  const { toastWarn } = useToast();
-  const [donations, setDonations] = useState(getDonations());
+  const { toastWarn, toastError } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [donations, setDonations] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [dateRangeFilter, setDateRangeFilter] = useState("");
@@ -37,6 +37,29 @@ const Donations = () => {
   const [itemToDelete, setItemToDelete] = useState(null);
   const [selectedRows, setSelectedRows] = useState([]);
   const ITEMS_PER_PAGE = 10;
+
+  useEffect(() => {
+    fetchDonations();
+  }, []);
+
+  const fetchDonations = async () => {
+    setLoading(true);
+    try {
+      const res = await apiService.getDonations();
+      // Map backend fields to frontend fields for compatibility
+      const mappedData = (res?.data?.donations || []).map(item => ({
+        ...item,
+        id: item.enquiryId, // Use enquiryId as display ID
+        time: item.time || new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }));
+      setDonations(mappedData);
+    } catch (error) {
+      console.error("Fetch donations error:", error);
+      toastError("Failed to load donation enquiries.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleDeleteConfirm = () => {
     if (itemToDelete) {
@@ -58,21 +81,31 @@ const Donations = () => {
 
   const processedData = useMemo(() => {
     let result = [...donations].filter(item => {
-      const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.contact.includes(searchQuery);
+      const name = item.name || "";
+      const id = item.id || "";
+      const contact = item.contact || "";
+
+      const matchesSearch = name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        contact.includes(searchQuery);
 
       const matchesLocation = locationFilter ? item.location === locationFilter : true;
 
+      // Dynamic Date Filtering
       let matchesDate = true;
-      if (dateRangeFilter === "today") {
-        matchesDate = item.date === "20-02-2026"; 
-      } else if (dateRangeFilter === "week") {
-        matchesDate = ["15-02-2026", "18-02-2026", "20-02-2026"].includes(
-          item.date,
-        );
-      } else if (dateRangeFilter === "month") {
-        matchesDate = item.date.includes("-02-2026");
+      if (dateRangeFilter) {
+        const itemDate = new Date(item.createdAt);
+        const now = new Date();
+        const diffTime = Math.abs(now - itemDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (dateRangeFilter === "today") {
+          matchesDate = itemDate.toDateString() === now.toDateString();
+        } else if (dateRangeFilter === "week") {
+          matchesDate = diffDays <= 7;
+        } else if (dateRangeFilter === "month") {
+          matchesDate = diffDays <= 30;
+        }
       }
 
       return matchesSearch && matchesLocation && matchesDate;
@@ -274,7 +307,12 @@ const Donations = () => {
 
       {/* Table */}
       <div className="bg-white border border-[#D9D9D9] rounded-2xl overflow-hidden flex flex-col flex-1 min-h-0">
-        {paginatedData.length > 0 ? (
+        {loading ? (
+          <div className="flex-1 flex flex-col items-center justify-center py-12">
+            <div className="w-10 h-10 border-4 border-[#F68E5F] border-t-transparent rounded-full animate-spin mb-4" />
+            <p className="text-[#6B7280]">Loading enquiries...</p>
+          </div>
+        ) : paginatedData.length > 0 ? (
           <div className="overflow-y-auto overflow-x-auto flex-1">
             <table className="w-full text-left border-collapse relative">
               <thead className="sticky top-0 z-10 bg-[#FFFFFF]">
@@ -288,7 +326,7 @@ const Donations = () => {
                     />
                   </th>
                   <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-17.5 text-center">Sr.no</th>
-                  {renderSortableHeader('Enquiry ID', 'id', 'center', 'w-[130px]')}
+                  {renderSortableHeader('Enquiry ID', 'id', 'center', 'w-[140px]')}
                   {renderSortableHeader('Name', 'name', 'center', 'min-w-[140px]')}
                   {renderSortableHeader('Contact', 'contact', 'center', 'w-[140px]')}
                   {renderSortableHeader('Date', 'date', 'center', 'w-[120px]')}
@@ -312,7 +350,7 @@ const Donations = () => {
                         />
                       </td>
                       <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">{globalIndex + 1}</td>
-                      <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">{row.id}</td>
+                      <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center whitespace-nowrap">{row.id}</td>
                       <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">{row.name}</td>
                       <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">{row.contact}</td>
                       <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">{row.date}</td>

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { X, ArrowUpRight, CheckCircle2 } from "lucide-react";
+import { useToast } from "../../ui/Toast";
+import apiService from "../../../api/service";
 
 const DonationFormModal = ({ isOpen, onClose }) => {
   const [formData, setFormData] = useState({
@@ -13,6 +15,8 @@ const DonationFormModal = ({ isOpen, onClose }) => {
     message: "",
   });
 
+  const { toastWarn, toastError, toastSuccess } = useToast();
+  const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
@@ -67,17 +71,34 @@ const DonationFormModal = ({ isOpen, onClose }) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     // Final validation for contact number
     if (formData.contactNumber.length !== 10) {
-      alert("Please enter a valid 10-digit contact number.");
+      toastWarn("Please enter a valid 10-digit contact number.");
       return;
     }
 
-    console.log("Donation Enquiry Submitted:", formData);
-    setSubmitted(true);
+    setLoading(true);
+    try {
+      // Map contactNumber to contact for the API
+      const payload = {
+        ...formData,
+        contact: formData.contactNumber
+      };
+      await apiService.submitDonation(payload);
+      toastSuccess("Donation enquiry submitted successfully!");
+      setSubmitted(true);
+    } catch (error) {
+      console.error("Donation submission error:", error);
+      toastError(
+        error?.response?.data?.message || 
+        "Failed to submit donation enquiry. Please try again later."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -209,11 +230,16 @@ const DonationFormModal = ({ isOpen, onClose }) => {
               <div className="md:col-span-2 flex justify-end mt-4">
                 <button
                   type="submit"
-                  className="flex items-center gap-3 bg-[#F68E5F] hover:bg-[#e87a4a] active:scale-95 text-white text-sm font-bold pl-7 pr-1.5 py-1.5 rounded-full transition-all duration-300 shadow-lg group"
+                  disabled={loading}
+                  className="flex items-center gap-3 bg-[#F68E5F] hover:bg-[#e87a4a] active:scale-95 text-white text-sm font-bold pl-7 pr-1.5 py-1.5 rounded-full transition-all duration-300 shadow-lg group disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  Submit Form
+                  {loading ? "Submitting..." : "Submit Form"}
                   <span className="flex items-center justify-center bg-white rounded-full w-9 h-9 group-hover:rotate-45 transition-transform duration-300">
-                    <ArrowUpRight className="w-5 h-5 text-[#F68E5F]" />
+                    {loading ? (
+                      <div className="w-5 h-5 border-2 border-[#F68E5F] border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <ArrowUpRight className="w-5 h-5 text-[#F68E5F]" />
+                    )}
                   </span>
                 </button>
               </div>

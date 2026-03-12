@@ -2,127 +2,15 @@ import React, { useState, useMemo } from "react";
 import { Search, Plus, Eye, Trash2, Download, ArrowUpDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { exportToCSV } from "../../../utils/exportUtils";
+import apiService from "../../../api/service";
 import { useToast } from "../../../components/ui/Toast";
-
-export const getPartners = () => {
-  const stored = localStorage.getItem("partners_data");
-  if (stored) {
-    const parsed = JSON.parse(stored);
-    // If it has too many items from previous test, regenerate it
-    if (parsed.length <= 25) return parsed;
-  }
-
-  const initialData = Array.from({ length: 14 }).map((_, i) => {
-    const types = ["Hospital", "Pathology Lab", "Clinic", "Nursing Home"];
-    const statuses = ["Not verified", "Verified", "Inactive"];
-    return {
-      id: `P-${1001456 + i}`,
-      type: types[i % types.length],
-      orgName: "Care Hospital",
-      primaryContact: "8373849574",
-      location: "Kanpur,UP",
-      status: statuses[i % statuses.length],
-      rating: (4.0 + (i % 10) / 10).toFixed(1),
-      members: 850 + i * 10,
-      details: {
-        registrationNumber: `HOSP/2020/00${(i % 9) + 1}`,
-        partnerId: `PTE-00${(i % 9) + 1}`,
-        establishmentYear: "2005-01-01",
-        bedCapacity: 1200 + i * 10,
-        staffCount: 420 + i * 5,
-        ambulanceService: "5 Ambulances Available",
-        emergencyServices: "available 24/7",
-      },
-      specializations: [
-        "Cardiology",
-        "Neurology",
-        "Orthopedics",
-        "Pediatrics",
-        "Oncology",
-        "Gynecology",
-      ],
-      doctors: [
-        {
-          id: 1,
-          name: "Dr. Sarah Wilson",
-          specialty: "CARDIOLOGIST",
-          days: ["Mon", "Wed", "Fri"],
-          timeFrom: "09:00 AM",
-          timeTo: "01:00 PM",
-          image: "female",
-        },
-        {
-          id: 2,
-          name: "Dr. James Miller",
-          specialty: "NEUROLOGIST",
-          days: ["Tue", "Thu", "Sat"],
-          timeFrom: "10:00 AM",
-          timeTo: "04:00 PM",
-          image: "male",
-        },
-        {
-          id: 3,
-          name: "Dr. Elena Petrova",
-          specialty: "PEDIATRICIAN",
-          days: ["Mon", "Tue", "Wed", "Thu", "Fri"],
-          timeFrom: "08:00 AM",
-          timeTo: "12:00 PM",
-          image: "female",
-        },
-      ],
-    };
-  });
-  localStorage.setItem("partners_data", JSON.stringify(initialData));
-  return initialData;
-};
-
-const StatusBadge = ({ status }) => {
-  let bg = "";
-  let dot = "";
-  let text = "";
-
-  switch (status) {
-    case "Not verified":
-      bg = "bg-[#FFA10033]";
-      dot = "bg-[#FFA100]";
-      text = "text-[#FFA100]";
-      break;
-    case "Verified":
-      bg = "bg-[#76DB1E33]";
-      dot = "bg-[#76DB1E]";
-      text = "text-[#76DB1E]";
-      break;
-    case "Inactive":
-      bg = "bg-[#FF383C33]";
-      dot = "bg-[#FF383C]";
-      text = "text-[#FF383C]";
-      break;
-    default:
-      bg = "bg-gray-100";
-      dot = "bg-gray-400";
-      text = "text-gray-600";
-  }
-
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-normal ${bg} ${text}`}
-    >
-      <span className={`w-1.5 h-1.5 rounded-full ${dot}`}></span>
-      {status}
-    </span>
-  );
-};
 
 const ActionButtons = ({ item, navigate, onDelete }) => {
   return (
     <div className="flex items-center gap-4">
       <div className="w-21 flex justify-center">
         <button
-          onClick={() =>
-            navigate(`/employee/partners/${item.id}`, {
-              state: { editMode: true },
-            })
-          }
+          onClick={() => navigate(`/employee/partners/${item._id || item.id}`, { state: { editMode: true } })}
           className="flex items-center justify-center gap-1.5 px-2 py-1 bg-[#2C2C2C] text-[#FFFCFB] rounded-lg text-sm font-normal hover:bg-[#1F2937]"
         >
           Edit
@@ -131,7 +19,7 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
       </div>
       <div className="flex items-center gap-2">
         <button
-          onClick={() => navigate(`/employee/partners/${item.id}`)}
+          onClick={() => navigate(`/employee/partners/${item._id || item.id}`)}
           className="text-[#F68E5F] hover:text-[#ff6e2b] cursor-pointer transition-colors p-1.5"
         >
           <Eye size={20} />
@@ -149,9 +37,9 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
 
 const Partners = () => {
   const navigate = useNavigate();
-  const { toastWarn } = useToast();
-  const [partners, setPartners] = useState(getPartners());
-  const [activeFilter, setActiveFilter] = useState("All");
+  const { toastWarn, toastError } = useToast();
+  const [partners, setPartners] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
@@ -159,13 +47,43 @@ const Partners = () => {
   const [selectedRows, setSelectedRows] = useState([]);
   const ITEMS_PER_PAGE = 10;
 
-  const handleDeleteConfirm = () => {
+  React.useEffect(() => {
+    fetchPartners();
+  }, []);
+
+  const fetchPartners = async () => {
+    try {
+      setLoading(true);
+      const res = await apiService.getOrganizations();
+      let list = [];
+      if (Array.isArray(res)) {
+        list = res;
+      } else if (res?.data?.organizations && Array.isArray(res.data.organizations)) {
+        list = res.data.organizations;
+      } else if (res?.data && Array.isArray(res.data)) {
+        list = res.data;
+      } else if (res?.organizations && Array.isArray(res.organizations)) {
+        list = res.organizations;
+      }
+      setPartners(list);
+    } catch (err) {
+      console.error("Failed to load partners", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
     if (itemToDelete) {
-      const updatedData = partners.filter((p) => p.id !== itemToDelete.id);
-      setPartners(updatedData);
-      localStorage.setItem("partners_data", JSON.stringify(updatedData));
-      setSelectedRows([]);
-      setItemToDelete(null);
+      try {
+        const idToDelete = itemToDelete._id || itemToDelete.id;
+        await apiService.deleteOrganization(idToDelete);
+        setPartners((prev) => prev.filter((p) => (p._id || p.id) !== idToDelete));
+        setSelectedRows([]);
+        setItemToDelete(null);
+      } catch (err) {
+        toastError(err.response?.data?.message || "Failed to delete partner.");
+      }
     }
   };
 
@@ -178,19 +96,17 @@ const Partners = () => {
   };
 
   const processedData = useMemo(() => {
-    let result = [...partners].filter((item) => {
-      const matchesSearch =
-        item.orgName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.primaryContact.includes(searchQuery);
+    let result = [...(Array.isArray(partners) ? partners : [])].filter((item) => {
+      const itemName = item.name || item.orgName || "";
+      const itemId = item._id || item.id || item.partnerId || "";
+      const itemContact = item.contact || item.primaryContact || "";
 
-      if (activeFilter === "All") return matchesSearch;
-      if (activeFilter === "Not Verified")
-        return matchesSearch && item.status === "Not verified";
-      return (
-        matchesSearch &&
-        item.status.toLowerCase() === activeFilter.toLowerCase()
-      );
+      const matchesSearch =
+        itemName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        itemId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        itemContact.includes(searchQuery);
+
+      return matchesSearch;
     });
 
     if (sortConfig.key) {
@@ -217,14 +133,11 @@ const Partners = () => {
     }
 
     return result;
-  }, [partners, searchQuery, activeFilter, sortConfig]);
+  }, [partners, searchQuery, sortConfig]);
 
   const totalPages = Math.ceil(processedData.length / ITEMS_PER_PAGE) || 1;
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedData = processedData.slice(
-    startIndex,
-    startIndex + ITEMS_PER_PAGE,
-  );
+  const paginatedData = processedData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   const renderPaginationButtons = () => {
     let pages = [];
@@ -234,34 +147,15 @@ const Partners = () => {
       if (currentPage <= 4) {
         pages = [1, 2, 3, 4, 5, "...", totalPages];
       } else if (currentPage >= totalPages - 3) {
-        pages = [
-          1,
-          "...",
-          totalPages - 4,
-          totalPages - 3,
-          totalPages - 2,
-          totalPages - 1,
-          totalPages,
-        ];
+        pages = [1, "...", totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
       } else {
-        pages = [
-          1,
-          "...",
-          currentPage - 1,
-          currentPage,
-          currentPage + 1,
-          "...",
-          totalPages,
-        ];
+        pages = [1, "...", currentPage - 1, currentPage, currentPage + 1, "...", totalPages];
       }
     }
 
     return pages.map((page, idx) =>
       page === "..." ? (
-        <span
-          key={idx}
-          className="w-7 h-7 flex items-center justify-center text-[#9CA3AF]"
-        >
+        <span key={idx} className="w-7 h-7 flex items-center justify-center text-[#9CA3AF]">
           ...
         </span>
       ) : (
@@ -269,14 +163,12 @@ const Partners = () => {
           key={idx}
           onClick={() => setCurrentPage(page)}
           className={`w-7 h-7 flex items-center justify-center rounded-md text-sm font-medium transition-colors ${
-            currentPage === page
-              ? "bg-[#374151] text-[#FFFCFB]"
-              : "text-[#4B5563] hover:bg-gray-100"
+            currentPage === page ? "bg-[#374151] text-[#FFFCFB]" : "text-[#4B5563] hover:bg-gray-100"
           }`}
         >
           {page}
         </button>
-      ),
+      )
     );
   };
 
@@ -299,23 +191,16 @@ const Partners = () => {
 
   const handleSelectRow = (globalIndex) => {
     setSelectedRows((prev) =>
-      prev.includes(globalIndex)
-        ? prev.filter((i) => i !== globalIndex)
-        : [...prev, globalIndex],
+      prev.includes(globalIndex) ? prev.filter((i) => i !== globalIndex) : [...prev, globalIndex]
     );
   };
 
-  const renderSortableHeader = (
-    title,
-    sortKey,
-    align = "left",
-    className = "",
-  ) => (
-    <th
-      className={`py-3 px-4 text-sm font-semibold text-[#22333B] whitespace-nowrap ${className}`}
-    >
+  const renderSortableHeader = (title, sortKey, align = "left", className = "") => (
+    <th className={`py-3 px-4 text-sm font-semibold text-[#22333B] whitespace-nowrap ${className}`}>
       <div
-        className={`flex items-center gap-1 cursor-pointer hover:text-gray-600 ${align === "center" ? "justify-center" : align === "right" ? "justify-end" : "justify-start"}`}
+        className={`flex items-center gap-1 cursor-pointer hover:text-gray-600 ${
+          align === "center" ? "justify-center" : align === "right" ? "justify-end" : "justify-start"
+        }`}
         onClick={() => handleSort(sortKey)}
       >
         {title}
@@ -328,10 +213,7 @@ const Partners = () => {
   );
 
   return (
-    <div
-      className="flex flex-col h-[calc(100vh-170px)]"
-      style={{ fontFamily: "Inter, sans-serif" }}
-    >
+    <div className="flex flex-col h-[calc(100vh-170px)]" style={{ fontFamily: "Inter, sans-serif" }}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 shrink-0 gap-4 sm:gap-0">
         <h2 className="text-xl font-bold text-[#22333B]">Partners</h2>
@@ -342,7 +224,6 @@ const Partners = () => {
           >
             Export <Download size={16} />
           </button>
-          {/* Create Button (Tablet/Mobile Only) */}
           <button
             onClick={() => navigate("/employee/partners/create")}
             className="flex lg:hidden px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff7535] transition-colors items-center gap-2"
@@ -355,49 +236,18 @@ const Partners = () => {
       {/* Filters Bar */}
       <div className="flex items-center justify-between mb-4 shrink-0 flex-wrap gap-4">
         <div className="flex items-center gap-4 flex-wrap flex-1">
-          {/* Search */}
           <div className="relative w-70">
             <input
               type="text"
               placeholder="Search by name, id, phone"
               value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1);
-              }}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               className="w-full pl-4 pr-10 py-2.5 text-[16px] border border-[#E5E7EB] rounded-full text-sm placeholder:text-[#9CA3AF] focus:outline-none focus:ring-1 focus:ring-[#F68E5F] focus:border-[#F68E5F]"
             />
-            <Search
-              size={18}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1E1E1E]"
-            />
-          </div>
-
-          {/* Status Tabs */}
-          <div
-            className="flex p-1 bg-[#F7F7F7] rounded-xl shrink-0"
-            style={{ fontFamily: "ABeeZee, sans-serif" }}
-          >
-            {["All", "Verified", "Not Verified", "Inactive"].map((filter) => (
-              <button
-                key={filter}
-                onClick={() => {
-                  setActiveFilter(filter);
-                  setCurrentPage(1);
-                }}
-                className={`px-4 py-1.5 text-[15px] rounded-lg text-sm font-medium transition-colors ${
-                  activeFilter === filter
-                    ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
-                    : "text-[#6B7280] hover:text-[#22333B]"
-                }`}
-              >
-                {filter}
-              </button>
-            ))}
+            <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1E1E1E]" />
           </div>
         </div>
 
-        {/* Create Button (Desktop only) */}
         <button
           onClick={() => navigate("/employee/partners/create")}
           className="hidden lg:flex px-5 py-2.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[16px] font-medium hover:bg-[#ff6e2b] transition-colors items-center gap-2"
@@ -408,7 +258,11 @@ const Partners = () => {
 
       {/* Table */}
       <div className="bg-white border border-[#D9D9D9] rounded-2xl overflow-hidden flex flex-col flex-1 min-h-0">
-        {paginatedData.length > 0 ? (
+        {loading ? (
+          <div className="flex-1 flex items-center justify-center py-12 text-[#6B7280]">
+            <div className="w-10 h-10 border-4 border-[#F68E5F] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          </div>
+        ) : paginatedData.length > 0 ? (
           <div className="overflow-y-auto overflow-x-auto flex-1">
             <table className="w-full text-left border-collapse relative">
               <thead className="sticky top-0 z-10 bg-[#FFFFFF]">
@@ -417,50 +271,17 @@ const Partners = () => {
                     <input
                       type="checkbox"
                       onChange={handleSelectAll}
-                      checked={
-                        processedData.length > 0 &&
-                        selectedRows.length === processedData.length
-                      }
+                      checked={processedData.length > 0 && selectedRows.length === processedData.length}
                       className="w-4 h-4 rounded border-[#D1D5DB] border text-[#22333B] focus:ring-[#111827]"
                     />
                   </th>
-                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-17.5">
-                    Sr.no
-                  </th>
-                  {renderSortableHeader(
-                    "Partner ID",
-                    "id",
-                    "left",
-                    "w-[130px]",
-                  )}
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-17.5">Sr.no</th>
+                  {renderSortableHeader("Partner ID", "_id", "left", "w-[130px]")}
                   {renderSortableHeader("Type", "type", "left", "w-[160px]")}
-                  {renderSortableHeader(
-                    "Org Name",
-                    "orgName",
-                    "left",
-                    "min-w-[180px]",
-                  )}
-                  {renderSortableHeader(
-                    "Primary Contact",
-                    "primaryContact",
-                    "left",
-                    "w-[150px]",
-                  )}
-                  {renderSortableHeader(
-                    "Location",
-                    "location",
-                    "left",
-                    "w-[150px]",
-                  )}
-                  {renderSortableHeader(
-                    "Status",
-                    "status",
-                    "left",
-                    "w-[140px]",
-                  )}
-                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-32.5">
-                    Actions
-                  </th>
+                  {renderSortableHeader("Org Name", "name", "left", "min-w-[180px]")}
+                  {renderSortableHeader("Primary Contact", "contact", "left", "w-[150px]")}
+                  {renderSortableHeader("Location", "location", "left", "w-[150px]")}
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-32.5">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -468,10 +289,7 @@ const Partners = () => {
                   const globalIndex = startIndex + index;
                   const isChecked = selectedRows.includes(globalIndex);
                   return (
-                    <tr
-                      key={index}
-                      className="border-b border-[#F3F4F6] hover:bg-[#F9FAFB] transition-colors"
-                    >
+                    <tr key={index} className="border-b border-[#F3F4F6] hover:bg-[#F9FAFB] transition-colors">
                       <td className="py-3 px-4 text-center">
                         <input
                           type="checkbox"
@@ -480,33 +298,16 @@ const Partners = () => {
                           className="w-4 h-4 rounded border-[#D1D5DB] text-[#22333B] focus:ring-[#111827]"
                         />
                       </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B]">
-                        {globalIndex + 1}
-                      </td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#22333B]">{globalIndex + 1}</td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
-                        {row.id}
+                        {(row.partnerId || row._id || row.id || "").substring(0, 10)}...
                       </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
-                        {row.type}
-                      </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
-                        {row.orgName}
-                      </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
-                        {row.primaryContact}
-                      </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
-                        {row.location}
-                      </td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.type || "Hospital"}</td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.name || row.orgName}</td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.contact || row.primaryContact}</td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.location}</td>
                       <td className="py-3 px-4 whitespace-nowrap">
-                        <StatusBadge status={row.status} />
-                      </td>
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        <ActionButtons
-                          item={row}
-                          navigate={navigate}
-                          onDelete={setItemToDelete}
-                        />
+                        <ActionButtons item={row} navigate={navigate} onDelete={setItemToDelete} />
                       </td>
                     </tr>
                   );
@@ -517,15 +318,9 @@ const Partners = () => {
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center py-12 text-[#6B7280]">
             <div className="w-24 h-24 bg-[#F8FAFC] rounded-full flex items-center justify-center mb-6">
-              <img
-                src="/admin_images/partner.svg"
-                alt="not record found"
-                className="w-20 h-20"
-              />
+              <img src="/admin_images/partner.svg" alt="not record found" className="w-20 h-20" />
             </div>
-            <p className="text-lg font-bold text-[#22333B] mb-1">
-              No such partner found
-            </p>
+            <p className="text-lg font-bold text-[#22333B] mb-1">No such partner found</p>
           </div>
         )}
       </div>
@@ -533,9 +328,8 @@ const Partners = () => {
       {/* Pagination */}
       <div className="flex items-center justify-center px-2 py-4 relative mt-2 shrink-0">
         <span className="absolute left-0 text-sm font-medium text-[#4B5563]">
-          Showing {processedData.length > 0 ? startIndex + 1 : 0} -{" "}
-          {Math.min(startIndex + ITEMS_PER_PAGE, processedData.length)} of{" "}
-          {processedData.length}
+          Showing {processedData.length > 0 ? startIndex + 1 : 0} –{" "}
+          {Math.min(startIndex + ITEMS_PER_PAGE, processedData.length)} of {processedData.length}
         </span>
         <div className="flex items-center gap-1 text-sm font-medium">
           <button
@@ -564,14 +358,12 @@ const Partners = () => {
               <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
                 <Trash2 size={20} className="text-red-600" />
               </div>
-              <h3 className="text-lg font-bold text-[#22333B]">
-                Are you sure?
-              </h3>
+              <h3 className="text-lg font-bold text-[#22333B]">Are you sure?</h3>
             </div>
             <p className="text-[#4B5563] text-sm mb-6 pl-12 line-clamp-3">
               Do you really want to delete the partner{" "}
-              <strong>{itemToDelete.orgName}</strong> ({itemToDelete.id})? This
-              process cannot be undone.
+              <strong>{itemToDelete.name || itemToDelete.orgName}</strong> ({itemToDelete._id || itemToDelete.id})?
+              This process cannot be undone.
             </p>
             <div className="flex justify-end gap-3">
               <button
