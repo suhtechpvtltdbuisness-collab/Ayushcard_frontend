@@ -50,18 +50,18 @@ export default function CardVerify() {
 
       let raw = null;
 
-      // 1) Try lookup by cardNo / applicationId via query param
+      // 1) Try lookup by cardNo / applicationId via new API endpoint
       try {
-        const res = await publicApi.get(`/api/cards?cardNo=${encodeURIComponent(cardId)}`);
-        const d   = res.data;
-        if (Array.isArray(d?.data)) raw = d.data[0];
-        else raw = d?.data?.card || d?.data || d;
+        const res = await publicApi.get(`/api/cards/card/${encodeURIComponent(cardId)}`);
+        const d = res.data;
+        raw = d?.data?.card || d?.data || d;
       } catch {
-        // 2) Fall back to MongoDB _id
+        // 2) Fall back to older query param approach if new one fails
         try {
-          const res = await publicApi.get(`/api/cards/${cardId}`);
+          const res = await publicApi.get(`/api/cards?cardNo=${encodeURIComponent(cardId)}`);
           const d   = res.data;
-          raw = d?.data?.card || d?.data || d;
+          if (Array.isArray(d?.data)) raw = d.data[0];
+          else raw = d?.data?.card || d?.data || d;
         } catch {
           /* ignore */
         }
@@ -129,33 +129,11 @@ export default function CardVerify() {
       className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 flex flex-col items-center justify-start py-8 px-4"
       style={{ fontFamily: "Inter, sans-serif" }}
     >
-      {/* Logo header */}
-      <div className="w-full max-w-lg mb-6 text-center">
-        <div className="flex items-center justify-center gap-2 mb-2">
-          <img src="/logo1.svg" alt="logo" className="w-12 h-12"
-            onError={(e) => { e.target.style.display = "none"; }} />
-          <div className="text-left">
-            <h1 className="text-lg font-extrabold text-gray-900 leading-tight">BAIJNAATH KESAR</h1>
-            <h1 className="text-lg font-extrabold text-gray-900 leading-tight">BAI SEWA TRUST</h1>
-          </div>
-        </div>
-        <p className="text-sm text-gray-500">Ayush Card – Health Shield Verification</p>
-      </div>
+      {/* Simple Header */}
+      <h1 className="text-2xl font-bold text-gray-900 mt-6 mb-8 text-center drop-shadow-sm">
+        {isVerified ? "This Ayush Card is Verified" : "This Ayush Card is NOT Verified"}
+      </h1>
 
-      {/* Verification banner */}
-      <div className={`w-full max-w-lg rounded-2xl p-4 mb-5 flex items-center gap-3 shadow-sm ${
-        isVerified ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"
-      }`}>
-        {isVerified
-          ? <ShieldCheck size={36} className="text-green-600 shrink-0" />
-          : <XCircle    size={36} className="text-red-500 shrink-0" />}
-        <div>
-          <p className={`font-bold text-base ${isVerified ? "text-green-700" : "text-red-700"}`}>
-            {isVerified ? "This Ayush Card is Verified ✓" : "This Card is NOT Verified"}
-          </p>
-          <p className="text-xs text-gray-500 mt-0.5">Card No: {cardNo}</p>
-        </div>
-      </div>
 
       {/* Front card visual */}
       <div className="w-full max-w-lg rounded-[28px] overflow-hidden shadow-2xl mb-5">
@@ -220,31 +198,7 @@ export default function CardVerify() {
         </div>
       </div>
 
-      {/* Status + extra details */}
-      <div className="w-full max-w-lg bg-white rounded-2xl shadow-md p-5 mb-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold text-gray-800">Card Details</h3>
-          <StatusPill status={card.status} />
-        </div>
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <p className="text-xs text-gray-400 font-medium mb-0.5">Issue Date</p>
-            <p className="font-semibold text-gray-800">{card.cardIssueDate || "—"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400 font-medium mb-0.5">Expiry Date</p>
-            <p className="font-semibold text-gray-800">{card.cardExpiredDate || "—"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400 font-medium mb-0.5">Verification Date</p>
-            <p className="font-semibold text-gray-800">{card.verificationDate || "—"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400 font-medium mb-0.5">Total Members</p>
-            <p className="font-semibold text-gray-800">{card.totalMember ?? "—"}</p>
-          </div>
-        </div>
-      </div>
+
 
       {/* Back card — family members */}
       {members.length > 0 && (
@@ -310,7 +264,23 @@ export default function CardVerify() {
         </div>
       )}
 
-      <p className="text-xs text-gray-400 text-center max-w-sm mt-2">
+      {/* Action Buttons */}
+      <div className="w-full max-w-lg flex justify-center gap-4 mt-6 mb-8">
+        <button
+          onClick={() => window.history.back()}
+          className="bg-[#0b646e] hover:bg-[#09525a] text-white px-6 py-2.5 rounded-md font-semibold text-sm transition-colors"
+        >
+          Go Back
+        </button>
+        <button
+          onClick={() => window.print()}
+          className="bg-[#0b646e] hover:bg-[#09525a] text-white px-6 py-2.5 rounded-md font-semibold text-sm transition-colors"
+        >
+          Download
+        </button>
+      </div>
+
+      <p className="text-xs text-gray-400 text-center max-w-sm mt-2 mb-8 hidden print:block">
         This page is auto-generated by scanning the QR code on the Ayush Card issued by
         Baijnaath Kesar Bai Sewa Trust.
       </p>

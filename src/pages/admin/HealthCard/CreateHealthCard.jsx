@@ -252,14 +252,17 @@ const CreateHealthCard = () => {
           if (s.includes("expire")) return "expired";
           return "pending";
         })(),
-        paymentMethod: paymentMethod,
         members: formData.members || [],
+        payment: {
+          method: paymentMethod || "online",
+          transactionId: `TXN${Date.now()}${Math.floor(Math.random() * 1000)}`,
+          totalAmount: parseFloat(formData.payment?.totalPaid || "120"),
+          date: new Date().toISOString()
+        }
       };
 
-      // Use the front document file if available, otherwise back document
-      const documentFile = documentFrontFileRef.current || documentBackFileRef.current || null;
-
-      await apiService.createHealthCard(cardData, documentFile);
+      // Ensure API calls this with JSON
+      await apiService.createHealthCard(cardData);
       setPaymentCompleted(true);
     } catch (err) {
       console.error("Health card create error:", err);
@@ -738,7 +741,7 @@ const CreateHealthCard = () => {
             <div className="flex-1 flex items-center justify-center border-t border-gray-100 border-dashed pt-4">
               <div className="p-3 border border-[#E2E8F0] rounded-xl bg-white shadow-xs inline-flex items-center justify-center w-[140px] h-[140px]">
                 <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${formData.id}`}
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`${window.location.origin}/verify/${formData.id}`)}`}
                   alt="QR"
                   className="w-35 h-30 object-contain border-4 border-black rounded-lg p-1"
                 />

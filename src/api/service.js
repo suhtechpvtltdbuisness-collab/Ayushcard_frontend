@@ -197,29 +197,21 @@ const apiService = {
 
     // POST /api/cards
     createHealthCard: async (cardData, file = null) => {
-        if (file) {
-            const form = new FormData();
-            Object.keys(cardData).forEach((key) => {
-                if (key === 'members' && Array.isArray(cardData[key])) {
-                    // Backend expects form-data arrays explicitly formatted for multipart
-                    cardData[key].forEach((member, index) => {
-                        if (member.name) form.append(`members[${index}][name]`, member.name);
-                        if (member.relation) form.append(`members[${index}][relation]`, member.relation);
-                        if (member.age) form.append(`members[${index}][age]`, member.age);
-                    });
-                } else if (typeof cardData[key] === 'object' && cardData[key] !== null) {
-                    form.append(key, JSON.stringify(cardData[key]));
-                } else {
-                    form.append(key, cardData[key]);
-                }
-            });
-            form.append('documents', file);
-            const response = await api.post('/api/cards', form, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            });
-            return response.data;
+        // Ensure a unique transactionId in the payment object if payment method is provided
+        if (cardData.paymentMethod && !cardData.payment) {
+             cardData.payment = {
+                 transactionId: `TXN${Date.now()}${Math.floor(Math.random() * 1000)}`,
+                 method: cardData.paymentMethod,
+                 totalAmount: cardData.totalAmount || 0,
+                 date: new Date().toISOString()
+             };
+        } else if (cardData.payment && !cardData.payment.transactionId) {
+             cardData.payment.transactionId = `TXN${Date.now()}${Math.floor(Math.random() * 1000)}`;
         }
-        const response = await api.post('/api/cards', cardData);
+
+        const response = await api.post('/api/cards', cardData, {
+             headers: { 'Content-Type': 'application/json' },
+        });
         return response.data;
     },
 
@@ -235,37 +227,17 @@ const apiService = {
         return response.data;
     },
 
-    // GET /api/cards?cardNo=:cardNo  (public QR verify lookup by card number)
+    // GET /api/cards/card/:cardNo  (public QR verify lookup by card number)
     getHealthCardByCardNo: async (cardNo) => {
-        const response = await api.get(`/api/cards?cardNo=${encodeURIComponent(cardNo)}`);
+        const response = await api.get(`/api/cards/card/${encodeURIComponent(cardNo)}`);
         return response.data;
     },
 
     // PUT /api/cards/:id
-    updateHealthCard: async (id, cardData, file = null) => {
-        if (file) {
-            const form = new FormData();
-            Object.keys(cardData).forEach((key) => {
-                if (key === 'members' && Array.isArray(cardData[key])) {
-                    // Revert to indexed fields for multipart updates
-                    cardData[key].forEach((member, index) => {
-                        if (member.name) form.append(`members[${index}][name]`, member.name);
-                        if (member.relation) form.append(`members[${index}][relation]`, member.relation);
-                        if (member.age) form.append(`members[${index}][age]`, member.age);
-                    });
-                } else if (typeof cardData[key] === 'object' && cardData[key] !== null) {
-                    form.append(key, JSON.stringify(cardData[key]));
-                } else {
-                    form.append(key, cardData[key]);
-                }
-            });
-            form.append('documents', file); // Append binary under 'documents' field
-            const response = await api.put(`/api/cards/${id}`, form, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            });
-            return response.data;
-        }
-        const response = await api.put(`/api/cards/${id}`, cardData);
+    updateHealthCard: async (id, cardData) => {
+        const response = await api.put(`/api/cards/${id}`, cardData, {
+             headers: { 'Content-Type': 'application/json' },
+        });
         return response.data;
     },
 
