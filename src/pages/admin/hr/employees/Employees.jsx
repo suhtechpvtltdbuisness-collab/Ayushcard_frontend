@@ -1,16 +1,191 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { Search, Eye, Trash2, Download, Plus, ArrowUpDown, Loader2 } from "lucide-react";
+import { Search, Eye, Trash2, Download, Plus, ArrowUpDown, Loader2, ChevronDown, X, CreditCard } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { exportToCSV } from "../../../../utils/exportUtils";
 import apiService from "../../../../api/service";
 import { useToast } from "../../../../components/ui/Toast";
 
 import { getEmployees } from "../../../../data/mockData";
-const ActionButtons = ({ item, navigate, onDelete }) => {
+
+/* ── Status badge for cards ────────────────────────────────────────── */
+const CardStatusBadge = ({ status }) => {
+  const map = {
+    "Not verified": { bg: "bg-[#FFA10033]", dot: "bg-[#FFA100]", text: "text-[#FFA100]" },
+    "Verified":    { bg: "bg-[#76DB1E33]", dot: "bg-[#76DB1E]", text: "text-[#76DB1E]" },
+    "Expired":     { bg: "bg-[#FF383C33]", dot: "bg-[#FF383C]", text: "text-[#FF383C]" },
+  };
+  const style = map[status] || { bg: "bg-gray-100", dot: "bg-gray-400", text: "text-gray-600" };
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-normal ${style.bg} ${style.text}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`}></span>
+      {status}
+    </span>
+  );
+};
+
+/* ── Normalise a raw card from API ─────────────────────────────────── */
+const normalizeCard = (card) => ({
+  ...card,
+  id: card.applicationId || card._id || "",
+  applicant: [card.firstName, card.middleName, card.lastName].filter(Boolean).join(" ") || "",
+  phone: card.contact || "",
+  pincode: card.pincode || "",
+  members: Array.isArray(card.members)
+    ? card.members
+    : Array.from({ length: Number(card.totalMember) || 0 }, (_, i) => ({ id: i })),
+  payment: {
+    totalPaid: card.totalAmount ?? 120,
+  },
+  status: (() => {
+    switch ((card.status || "").toLowerCase()) {
+      case "approved": return "Verified";
+      case "active":   return "Verified";
+      case "pending":  return "Not verified";
+      case "rejected": return "Not verified";
+      case "expired":  return "Expired";
+      default:         return card.status || "Not verified";
+    }
+  })(),
+});
+
+/* ── Employee Cards Panel ──────────────────────────────────────────── */
+const EmployeeCardsPanel = ({ employee, onClose }) => {
+  const [cards, setCards]   = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]   = useState("");
+
+  useEffect(() => {
+    const fetchCards = async () => {
+      try {
+        setLoading(true);
+        setError("");
+        const res = await apiService.getHealthCards();
+        const raw = Array.isArray(res?.data?.cards)
+          ? res.data.cards
+          : Array.isArray(res?.data)
+          ? res.data
+          : Array.isArray(res)
+          ? res
+          : [];
+
+        // Filter cards whose createdBy matches this employee's _id / id
+        const empId = employee._rawId || employee.id;
+        const filtered = raw.filter(
+          (c) =>
+            c.createdBy === empId ||
+            c.userId === empId ||
+            c.employeeId === empId
+        );
+        setCards(filtered.map(normalizeCard));
+      } catch (err) {
+        console.error("Failed to fetch employee cards:", err);
+        setError("Could not load cards for this employee.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCards();
+  }, [employee]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex" style={{ fontFamily: "Inter, sans-serif" }}>
+      {/* Backdrop */}
+      <div className="flex-1 bg-black/40" onClick={onClose} />
+
+      {/* Slide-over panel */}
+      <div className="w-full max-w-2xl bg-white shadow-2xl flex flex-col h-full overflow-hidden animate-slide-in-right">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+          <div>
+            <h2 className="text-lg font-bold text-[#22333B]">Cards by {employee.name}</h2>
+            <p className="text-xs text-gray-500 mt-0.5">{employee.id} · {employee.email}</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-16">
+              <Loader2 size={28} className="animate-spin text-[#F68E5F] mb-3" />
+              <p className="text-sm text-gray-500">Loading cards…</p>
+            </div>
+          ) : error ? (
+            <div className="px-4 py-3 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-sm">
+              {error}
+            </div>
+          ) : cards.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                <CreditCard size={28} className="text-gray-400" />
+              </div>
+              <p className="text-base font-semibold text-[#22333B]">No cards found</p>
+              <p className="text-sm text-gray-500 mt-1">This employee hasn't created any Ayush cards yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-500 mb-4 font-medium">
+                {cards.length} card{cards.length !== 1 ? "s" : ""} found
+              </p>
+              {cards.map((card, idx) => (
+                <div
+                  key={card._id || idx}
+                  className="border border-gray-100 rounded-xl p-4 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[13px] font-mono text-[#F68E5F] font-medium truncate">
+                          {card.id}
+                        </span>
+                        <CardStatusBadge status={card.status} />
+                      </div>
+                      <p className="text-[14px] font-semibold text-[#22333B] truncate">{card.applicant || "—"}</p>
+                      <div className="flex items-center gap-4 mt-1.5 text-[12px] text-gray-500 flex-wrap">
+                        {card.phone && <span>📞 {card.phone}</span>}
+                        {card.pincode && <span>📍 {card.pincode}</span>}
+                        <span>👥 {(card.members?.length || 0) + 1} member{(card.members?.length || 0) + 1 !== 1 ? "s" : ""}</span>
+                        <span>₹{Number(card.payment?.totalPaid || 0).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-gray-100 shrink-0">
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ── Action Buttons ────────────────────────────────────────────────── */
+const ActionButtons = ({ item, navigate, onDelete, onViewCards }) => {
   return (
     <div className="flex items-center gap-2">
       <button
-        onClick={() => navigate(`/admin/hr/employees/${item.id}`)}
+        onClick={() => onViewCards(item)}
+        title="View cards by this employee"
+        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-[#F0F7FF] text-[#2563EB] hover:bg-[#DBEAFE] transition-colors border border-[#BFDBFE]"
+      >
+        <CreditCard size={14} />
+        Cards
+      </button>
+      <button
+        onClick={() => navigate(`/admin/hr/employees/${item._rawId || item.id}`)}
+        title="View / Edit employee"
         className="text-[#F68E5F] hover:text-[#ff7535] cursor-pointer transition-colors p-1.5"
       >
         <Eye size={20} />
@@ -25,17 +200,19 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
   );
 };
 
+/* ── Main Component ────────────────────────────────────────────────── */
 const Employees = () => {
   const navigate = useNavigate();
-  const { toastWarn } = useToast();
-  const [employees, setEmployees] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { toastWarn, toastSuccess, toastError } = useToast();
+  const [employees, setEmployees]     = useState([]);
+  const [loading, setLoading]         = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState("All");
+  const [activeFilter, setActiveFilter] = useState("All"); // Keep for logic but UI removed
   const [currentPage, setCurrentPage] = useState(1);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
+  const [sortConfig, setSortConfig]   = useState({ key: null, direction: "asc" });
   const [itemToDelete, setItemToDelete] = useState(null);
   const [selectedRows, setSelectedRows] = useState([]);
+  const [selectedEmployee, setSelectedEmployee] = useState(null); // for card panel
   const ITEMS_PER_PAGE = 10;
 
   useEffect(() => {
@@ -49,8 +226,8 @@ const Employees = () => {
       const rawData = res.data || res;
 
       let list = Array.isArray(rawData) ? rawData : [];
-      if (!list.length && rawData?.data && Array.isArray(rawData.data)) list = rawData.data;
-      if (!list.length && rawData?.users && Array.isArray(rawData.users)) list = rawData.users;
+      if (!list.length && rawData?.data  && Array.isArray(rawData.data))      list = rawData.data;
+      if (!list.length && rawData?.users && Array.isArray(rawData.users))     list = rawData.users;
       if (!list.length && rawData?.employees && Array.isArray(rawData.employees)) list = rawData.employees;
 
       const mapped = list.map((u, i) => ({
@@ -60,17 +237,18 @@ const Employees = () => {
         email: u.email || "N/A",
         dateOfJoining: u.dateOfJoining ? new Date(u.dateOfJoining).toLocaleDateString() : "N/A",
         location: u.location || "Unknown",
+        pincode: u.pincode || "",
         status: u.status || "Verified",
         salary: u.salary ? u.salary.toString() : "0",
         workingHoursFrom: u.workStartTime || "10:00 AM",
         workingHoursTo: u.workEndTime || "6:00 PM",
         role: u.role || "Employee",
-        _rawId: u._id // Keep original _id for operations
+        _rawId: u._id,
       }));
       setEmployees(mapped.reverse());
     } catch (err) {
       console.error("Fetch employees error:", err);
-      setEmployees(getEmployees()); // Fallback to mock data on error
+      setEmployees(getEmployees());
     } finally {
       setLoading(false);
     }
@@ -81,18 +259,17 @@ const Employees = () => {
       try {
         const targetId = itemToDelete._rawId || itemToDelete.id;
         if (!targetId.startsWith("EMP-")) {
-          // If it's a real MongoDB _id, pass that
           await apiService.deleteEmployee(targetId);
         } else {
-          // Fallback if we accidentally try to delete a mock "EMP-100X" items
           console.warn("Attempting to delete local mock employee", targetId);
         }
-
         const updatedData = employees.filter((d) => d.id !== itemToDelete.id);
         setEmployees(updatedData);
         localStorage.setItem("employees_data", JSON.stringify(updatedData));
+        toastSuccess(`Employee "${itemToDelete.name}" deleted successfully.`);
       } catch (err) {
         console.error("Failed to delete employee:", err);
+        toastError(err?.response?.data?.message || "Failed to delete employee. Please try again.");
       } finally {
         setSelectedRows([]);
         setItemToDelete(null);
@@ -102,9 +279,7 @@ const Employees = () => {
 
   const handleSort = (key) => {
     let direction = "asc";
-    if (sortConfig.key === key && sortConfig.direction === "asc") {
-      direction = "desc";
-    }
+    if (sortConfig.key === key && sortConfig.direction === "asc") direction = "desc";
     setSortConfig({ key, direction });
   };
 
@@ -116,44 +291,29 @@ const Employees = () => {
         item.phone.includes(searchQuery);
 
       if (activeFilter === "All") return matchesSearch;
-      return (
-        matchesSearch &&
-        item.status.toLowerCase() === activeFilter.toLowerCase()
-      );
+      return matchesSearch && item.status.toLowerCase() === activeFilter.toLowerCase();
     });
 
     if (sortConfig.key) {
       result.sort((a, b) => {
-        let aValue = a[sortConfig.key];
-        let bValue = b[sortConfig.key];
-
-        if (aValue === undefined) aValue = "";
-        if (bValue === undefined) bValue = "";
-
+        let aValue = a[sortConfig.key] ?? "";
+        let bValue = b[sortConfig.key] ?? "";
         let comparison = 0;
         if (typeof aValue === "string" && typeof bValue === "string") {
-          comparison = aValue.localeCompare(bValue, undefined, {
-            numeric: true,
-            sensitivity: "base",
-          });
+          comparison = aValue.localeCompare(bValue, undefined, { numeric: true, sensitivity: "base" });
         } else {
           if (aValue < bValue) comparison = -1;
           else if (aValue > bValue) comparison = 1;
         }
-
         return sortConfig.direction === "asc" ? comparison : -comparison;
       });
     }
-
     return result;
   }, [employees, searchQuery, sortConfig, activeFilter]);
 
   const totalPages = Math.ceil(processedData.length / ITEMS_PER_PAGE) || 1;
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedData = processedData.slice(
-    startIndex,
-    startIndex + ITEMS_PER_PAGE,
-  );
+  const paginatedData = processedData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   const renderPaginationButtons = () => {
     let pages = [];
@@ -163,44 +323,21 @@ const Employees = () => {
       if (currentPage <= 4) {
         pages = [1, 2, 3, 4, 5, "...", totalPages];
       } else if (currentPage >= totalPages - 3) {
-        pages = [
-          1,
-          "...",
-          totalPages - 4,
-          totalPages - 3,
-          totalPages - 2,
-          totalPages - 1,
-          totalPages,
-        ];
+        pages = [1, "...", totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
       } else {
-        pages = [
-          1,
-          "...",
-          currentPage - 1,
-          currentPage,
-          currentPage + 1,
-          "...",
-          totalPages,
-        ];
+        pages = [1, "...", currentPage - 1, currentPage, currentPage + 1, "...", totalPages];
       }
     }
-
     return pages.map((page, idx) =>
       page === "..." ? (
-        <span
-          key={idx}
-          className="w-7 h-7 flex items-center justify-center text-[#9CA3AF]"
-        >
-          ...
-        </span>
+        <span key={idx} className="w-7 h-7 flex items-center justify-center text-[#9CA3AF]">...</span>
       ) : (
         <button
           key={idx}
           onClick={() => setCurrentPage(page)}
-          className={`w-7 h-7 flex items-center justify-center rounded-md text-sm font-medium transition-colors ${currentPage === page
-            ? "bg-[#374151] text-[#FFFCFB]"
-            : "text-[#4B5563] hover:bg-gray-100"
-            }`}
+          className={`w-7 h-7 flex items-center justify-center rounded-md text-sm font-medium transition-colors ${
+            currentPage === page ? "bg-[#374151] text-[#FFFCFB]" : "text-[#4B5563] hover:bg-gray-100"
+          }`}
         >
           {page}
         </button>
@@ -209,11 +346,8 @@ const Employees = () => {
   };
 
   const handleSelectAll = (e) => {
-    if (e.target.checked) {
-      setSelectedRows(processedData.map((_, idx) => idx));
-    } else {
-      setSelectedRows([]);
-    }
+    if (e.target.checked) setSelectedRows(processedData.map((_, idx) => idx));
+    else setSelectedRows([]);
   };
 
   const handleExport = () => {
@@ -227,23 +361,16 @@ const Employees = () => {
 
   const handleSelectRow = (globalIndex) => {
     setSelectedRows((prev) =>
-      prev.includes(globalIndex)
-        ? prev.filter((i) => i !== globalIndex)
-        : [...prev, globalIndex],
+      prev.includes(globalIndex) ? prev.filter((i) => i !== globalIndex) : [...prev, globalIndex],
     );
   };
 
-  const renderSortableHeader = (
-    title,
-    sortKey,
-    align = "left",
-    className = "",
-  ) => (
-    <th
-      className={`py-3 px-4 text-sm font-semibold text-[#22333B] whitespace-nowrap ${className}`}
-    >
+  const renderSortableHeader = (title, sortKey, align = "left", className = "") => (
+    <th className={`py-3 px-4 text-sm font-semibold text-[#22333B] whitespace-nowrap ${className}`}>
       <div
-        className={`flex items-center gap-1 cursor-pointer hover:text-gray-600 ${align === "center" ? "justify-center" : align === "right" ? "justify-end" : "justify-start"}`}
+        className={`flex items-center gap-1 cursor-pointer hover:text-gray-600 ${
+          align === "center" ? "justify-center" : align === "right" ? "justify-end" : "justify-start"
+        }`}
         onClick={() => handleSort(sortKey)}
       >
         {title}
@@ -256,10 +383,7 @@ const Employees = () => {
   );
 
   return (
-    <div
-      className="flex flex-col h-[calc(100vh-170px)]"
-      style={{ fontFamily: "Inter, sans-serif" }}
-    >
+    <div className="flex flex-col h-[calc(100vh-170px)]" style={{ fontFamily: "Inter, sans-serif" }}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 shrink-0 gap-4 sm:gap-0">
         <h2 className="text-xl font-bold text-[#22333B]">Employees</h2>
@@ -295,33 +419,10 @@ const Employees = () => {
               }}
               className="w-full pl-4 pr-10 py-2.5 text-[16px] border border-[#E5E7EB] rounded-full text-sm placeholder:text-[#9CA3AF] focus:outline-none focus:ring-1 focus:ring-[#F68E5F] focus:border-[#F68E5F]"
             />
-            <Search
-              size={18}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1E1E1E]"
-            />
+            <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1E1E1E]" />
           </div>
 
-          {/* Status Tabs */}
-          <div
-            className="flex p-1 bg-[#F7F7F7] rounded-xl shrink-0 overflow-x-auto w-full xl:w-auto"
-            style={{ fontFamily: "ABeeZee, sans-serif" }}
-          >
-            {["All", "Verified", "Not Verified", "Expired"].map((filter) => (
-              <button
-                key={filter}
-                onClick={() => {
-                  setActiveFilter(filter);
-                  setCurrentPage(1);
-                }}
-                className={`px-4 py-1.5 whitespace-nowrap text-[15px] rounded-lg text-sm font-medium transition-colors ${activeFilter === filter
-                  ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
-                  : "text-[#6B7280] hover:text-[#22333B]"
-                  }`}
-              >
-                {filter}
-              </button>
-            ))}
-          </div>
+          {/* Filter Tabs Removed per user request */}
         </div>
 
         {/* Create Button (Desktop only) */}
@@ -349,40 +450,19 @@ const Employees = () => {
                     <input
                       type="checkbox"
                       onChange={handleSelectAll}
-                      checked={
-                        processedData.length > 0 &&
-                        selectedRows.length === processedData.length
-                      }
+                      checked={processedData.length > 0 && selectedRows.length === processedData.length}
                       className="w-4 h-4 rounded border-[#D1D5DB] border text-[#22333B] focus:ring-[#111827]"
                     />
                   </th>
-                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-17.5 text-center">
-                    Sr.no
-                  </th>
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-17.5 text-center">Sr.no</th>
                   {renderSortableHeader("EMP ID", "id", "left", "w-[120px]")}
-                  {renderSortableHeader(
-                    "Name",
-                    "name",
-                    "left",
-                    "min-w-[150px]",
-                  )}
+                  {renderSortableHeader("Name", "name", "left", "min-w-[150px]")}
                   {renderSortableHeader("Phone", "phone", "left", "w-[130px]")}
                   {renderSortableHeader("Email", "email", "left", "w-[160px]")}
-                  {renderSortableHeader(
-                    "Date of Joining",
-                    "dateOfJoining",
-                    "left",
-                    "w-[150px]",
-                  )}
-                  {renderSortableHeader(
-                    "Location",
-                    "location",
-                    "left",
-                    "w-[140px]",
-                  )}
-                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-24">
-                    Actions
-                  </th>
+                  {renderSortableHeader("Date of Joining", "dateOfJoining", "left", "w-[150px]")}
+                  {renderSortableHeader("Location", "location", "left", "w-[140px]")}
+                  {renderSortableHeader("Pincode", "pincode", "left", "w-[110px]")}
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-36">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -390,10 +470,7 @@ const Employees = () => {
                   const globalIndex = startIndex + index;
                   const isChecked = selectedRows.includes(globalIndex);
                   return (
-                    <tr
-                      key={globalIndex}
-                      className="border-b border-[#F3F4F6] hover:bg-[#F9FAFB] transition-colors"
-                    >
+                    <tr key={globalIndex} className="border-b border-[#F3F4F6] hover:bg-[#F9FAFB] transition-colors">
                       <td className="py-4 px-4 text-center">
                         <input
                           type="checkbox"
@@ -402,32 +479,31 @@ const Employees = () => {
                           className="w-4 h-4 rounded border-[#D1D5DB] text-[#22333B] focus:ring-[#111827]"
                         />
                       </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#4B5563] text-center">
-                        {globalIndex + 1}
-                      </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#4B5563] whitespace-nowrap">
-                        {row.id}
-                      </td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#4B5563] text-center">{globalIndex + 1}</td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#4B5563] whitespace-nowrap">{row.id}</td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
-                        {row.name}
+                        <div className="max-w-[150px] truncate" title={row.name}>
+                          {row.name}
+                        </div>
                       </td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#4B5563] whitespace-nowrap">{row.phone}</td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#4B5563] whitespace-nowrap">{row.email}</td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#4B5563] whitespace-nowrap">{row.dateOfJoining}</td>
                       <td className="py-3 px-4 text-sm font-normal text-[#4B5563] whitespace-nowrap">
-                        {row.phone}
+                        <div 
+                          className="max-w-[140px] truncate" 
+                          title={row.location}
+                        >
+                          {row.location}
+                        </div>
                       </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#4B5563] whitespace-nowrap">
-                        {row.email}
-                      </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#4B5563] whitespace-nowrap">
-                        {row.dateOfJoining}
-                      </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#4B5563] whitespace-nowrap">
-                        {row.location}
-                      </td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#4B5563] whitespace-nowrap">{row.pincode || "—"}</td>
                       <td className="py-3 px-4 whitespace-nowrap">
                         <ActionButtons
                           item={row}
                           navigate={navigate}
                           onDelete={setItemToDelete}
+                          onViewCards={setSelectedEmployee}
                         />
                       </td>
                     </tr>
@@ -438,9 +514,7 @@ const Employees = () => {
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center py-12 text-[#6B7280]">
-            <p className="text-lg font-bold text-[#22333B] mb-1">
-              No employee found
-            </p>
+            <p className="text-lg font-bold text-[#22333B] mb-1">No employee found</p>
           </div>
         )}
       </div>
@@ -448,9 +522,8 @@ const Employees = () => {
       {/* Pagination */}
       <div className="flex items-center justify-between px-2 py-4 relative mt-2 shrink-0">
         <span className="text-sm font-medium text-[#4B5563]">
-          Showing {processedData.length > 0 ? startIndex + 1 : 0} -{" "}
-          {Math.min(startIndex + ITEMS_PER_PAGE, processedData.length)} of{" "}
-          {processedData.length}
+          Showing {processedData.length > 0 ? startIndex + 1 : 0} –{" "}
+          {Math.min(startIndex + ITEMS_PER_PAGE, processedData.length)} of {processedData.length}
         </span>
         <div className="flex items-center gap-1 text-sm font-medium absolute left-1/2 -translate-x-1/2">
           <button
@@ -479,14 +552,11 @@ const Employees = () => {
               <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
                 <Trash2 size={20} className="text-red-600" />
               </div>
-              <h3 className="text-lg font-bold text-[#22333B]">
-                Are you sure?
-              </h3>
+              <h3 className="text-lg font-bold text-[#22333B]">Are you sure?</h3>
             </div>
             <p className="text-[#4B5563] text-sm mb-6 pl-12 line-clamp-3">
               Do you really want to delete the employee{" "}
-              <strong>{itemToDelete.name}</strong> ({itemToDelete.id})? This
-              process cannot be undone.
+              <strong>{itemToDelete.name}</strong> ({itemToDelete.id})? This process cannot be undone.
             </p>
             <div className="flex justify-end gap-3">
               <button
@@ -504,6 +574,14 @@ const Employees = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Employee Cards Slide-over Panel */}
+      {selectedEmployee && (
+        <EmployeeCardsPanel
+          employee={selectedEmployee}
+          onClose={() => setSelectedEmployee(null)}
+        />
       )}
     </div>
   );

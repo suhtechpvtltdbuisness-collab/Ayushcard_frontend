@@ -46,6 +46,7 @@ const getRefreshToken = () => storage.get('refreshToken');
 
 let isRefreshing = false;                // prevent multiple simultaneous refresh calls
 let refreshQueue = [];                   // queue of failed requests awaiting new token
+let refreshEndpointMissing = false;      // set to true if /refresh-token endpoint is 404
 
 const processQueue = (error, newToken = null) => {
     refreshQueue.forEach((prom) => {
@@ -98,12 +99,15 @@ api.interceptors.response.use(
     (response) => response,
     async (error) => {
         const originalRequest = error.config;
+        const status = error.response?.status;
 
         // Only handle 401 and avoid retrying refresh calls themselves
         if (
-            error.response?.status === 401 &&
+            status === 401 &&
             !originalRequest._retry &&
-            !originalRequest.url?.includes('/api/auth/refresh-token')
+            !refreshEndpointMissing &&
+            !originalRequest.url?.includes('/api/auth/refresh-token') &&
+            !originalRequest.url?.includes('/api/auth/login')
         ) {
             // If no tokens at all → silent reject (user not logged in)
             if (!getToken() && !getRefreshToken()) {
@@ -133,8 +137,12 @@ api.interceptors.response.use(
                 originalRequest.headers.Authorization = `Bearer ${newToken}`;
                 return api(originalRequest);
             } catch (refreshError) {
+                // If the refresh endpoint itself is not found (404), disable future refresh attempts
+                if (refreshError?.response?.status === 404) {
+                    refreshEndpointMissing = true;
+                    console.warn('[service] /refresh-token endpoint not found — refresh disabled.');
+                }
                 // Refresh failed → tokens are unusable → fire auth:logout event
-                // ProtectedRoute listens for this and navigates to /login via React Router.
                 processQueue(refreshError, null);
                 storage.clear();
                 window.dispatchEvent(new CustomEvent('auth:logout'));

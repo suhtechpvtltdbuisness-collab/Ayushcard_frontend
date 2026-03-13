@@ -8,6 +8,7 @@ import {
   PlusCircle,
   ArrowUpDown,
   Loader2,
+  RotateCw,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import apiService from "../../../api/service";
@@ -26,6 +27,7 @@ const normalizeCard = (card) => ({
     .filter(Boolean)
     .join(" ") || "",
   phone: card.contact || "",
+  pincode: card.pincode || "",
   members: Array.isArray(card.members)
     ? card.members
     : Array.from({ length: Number(card.totalMember) || 0 }, (_, i) => ({ id: i })),
@@ -84,6 +86,8 @@ const StatusBadge = ({ status }) => {
 };
 
 const ActionButtons = ({ item, navigate, onDelete }) => {
+  const isExpired = (item.status || "").toLowerCase().includes("expir");
+
   return (
     <div className="flex items-center gap-4">
       <button
@@ -92,10 +96,22 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
             state: { editMode: true },
           })
         }
-        className="flex items-center justify-center gap-1.5 px-2 py-1 bg-[#2C2C2C] text-[#FFFCFB] rounded-lg text-sm font-normal hover:bg-[#1F2937]"
+        className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+          isExpired
+            ? "bg-[#F68E5F] text-white hover:bg-[#ff7535]"
+            : "bg-[#2C2C2C] text-[#FFFCFB] hover:bg-[#1F2937]"
+        }`}
       >
-        Edit
-        <img src="/admin_images/Edit 3.svg" alt="edit" className="w-3.5 h-3.5" />
+        {isExpired ? "Renew" : "Edit"}
+        {isExpired ? (
+          <RotateCw size={14} className="animate-spin-once" />
+        ) : (
+          <img
+            src="/admin_images/Edit 3.svg"
+            alt="edit"
+            className="w-3.5 h-3.5"
+          />
+        )}
       </button>
 
       <div className="flex items-center gap-2">
@@ -360,7 +376,7 @@ const HealthCard = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 shrink-0 gap-4 sm:gap-0">
         <h2 className="text-xl font-bold text-[#22333B]">
-          Health Card Applications
+          Ayush Card Applications
         </h2>
         <div className="flex items-center gap-4">
           <button
@@ -485,6 +501,12 @@ const HealthCard = () => {
                     "w-[120px]",
                   )}
                   {renderSortableHeader(
+                    "Pincode",
+                    "pincode",
+                    "left",
+                    "w-[120px]",
+                  )}
+                  {renderSortableHeader(
                     "Status",
                     "status",
                     "left",
@@ -518,7 +540,9 @@ const HealthCard = () => {
                         {row.id}
                       </td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
-                        {row.applicant}
+                        <div className="max-w-[160px] truncate" title={row.applicant}>
+                          {row.applicant}
+                        </div>
                       </td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
                         {row.phone}
@@ -528,6 +552,9 @@ const HealthCard = () => {
                       </td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] text-right whitespace-nowrap">
                         ₹{Number(row.payment?.totalPaid || 0).toFixed(2)}
+                      </td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
+                        {row.pincode || "—"}
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
                         <StatusBadge status={row.status} />

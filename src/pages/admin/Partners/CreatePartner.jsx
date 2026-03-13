@@ -12,8 +12,10 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd, saving }) => {
     timeTo: "",
     location: "",
     days: [],
+    image: null,
   });
   const [errors, setErrors] = useState({});
+  const fileInputRef = React.useRef(null);
 
   if (!isOpen) return null;
 
@@ -25,6 +27,21 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd, saving }) => {
       ...prev,
       days: prev.days.includes(day) ? prev.days.filter(d => d !== day) : [...prev.days, day]
     }));
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Image size should be less than 2MB");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData((prev) => ({ ...prev, image: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const validate = () => {
@@ -43,7 +60,7 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd, saving }) => {
     e?.preventDefault();
     if (!validate()) return;
     onAdd({ ...formData });
-    setFormData({ name: '', specialty: '', timeFrom: '', timeTo: '', location: '', days: [] });
+    setFormData({ name: '', specialty: '', timeFrom: '', timeTo: '', location: '', days: [], image: null });
     setErrors({});
     onClose();
   };
@@ -59,7 +76,36 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd, saving }) => {
           <button type="button" onClick={onClose} className="text-[#9CA3AF] hover:text-[#22333B] transition-colors"><X size={20} /></button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+          {/* Circular Image Upload */}
+          <div className="flex flex-col items-center mb-2">
+            <div
+              className="w-20 h-20 rounded-full bg-gray-50 border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-400 overflow-hidden cursor-pointer hover:border-[#F68E5F] hover:text-[#F68E5F] transition-all relative group"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {formData.image ? (
+                <>
+                  <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Camera size={20} className="text-white" />
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-col items-center">
+                  <Camera size={24} />
+                  <span className="text-[10px] mt-1">Upload</span>
+                </div>
+              )}
+            </div>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImageUpload}
+              accept="image/*"
+              className="hidden"
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-[#22333B] mb-1.5">Name <span className="text-red-500">*</span></label>
@@ -281,6 +327,7 @@ const CreatePartner = () => {
               location: doc.location || 'Unknown',
               organizationId: orgId,
               days: doc.days,
+              image: doc.image,
             };
             console.log('Hitting /api/doctors/ POST with:', docPayload);
             return apiService.createDoctor(docPayload);

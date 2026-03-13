@@ -53,7 +53,7 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
           <div className="flex gap-4 flex-1 h-2/3">
             <div className="w-[110px] bg-white rounded-xl overflow-hidden border-2 border-black">
               <img
-                src={data?.profileImage || (Array.isArray(data?.documents) && data.documents.length > 0 ? data.documents[0].path : null) || "/gallery1.svg"}
+                src={data?.profileImage || (Array.isArray(data?.documents) && data.documents.length > 0 ? (data.documents[0].path || data.documents[0].url) : null) || "/gallery1.svg"}
                 alt="profile"
                 className="w-full h-full object-cover"
               />
@@ -75,7 +75,7 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
                 }
               />
               <Row
-                label="W/o"
+                label={data?.relation === "Spouse" ? "H/o / W/o" : (data?.relation === "Parent" ? "S/o / D/o" : (data?.relation === "Child" ? "F/o / M/o" : "Relative"))}
                 value={data?.relatedPerson || data?.relation || "—"}
                 muted={!data?.relatedPerson && !data?.relation}
               />
