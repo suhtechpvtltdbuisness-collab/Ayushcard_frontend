@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
+import ScrollToTop from "./components/layout/ScrollToTop";
 
 // Auth
 import Login from "./pages/auth/Login";
@@ -83,6 +84,7 @@ import CreateSalary from "./pages/admin/hr/salary/CreateSalary";
 function App() {
   return (
     <Router>
+      <ScrollToTop />
       <Routes>
         {/* Auth routes */}
         <Route path="/login" element={<Login />} />
