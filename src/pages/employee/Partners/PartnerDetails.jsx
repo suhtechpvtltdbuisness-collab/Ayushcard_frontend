@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Search, Plus, X, Trash2 } from 'lucide-react';
+import { ArrowLeft, Search, Plus, X, Trash2, Phone, MapPin, Building2 } from 'lucide-react';
 import apiService from '../../../api/service';
 import { useToast } from '../../../components/ui/Toast';
 
@@ -205,7 +205,9 @@ const PartnerDetails = () => {
         bedCapacity: orgData.bed || '',
         staffCount: orgData.staff || '',
         ambulanceService: orgData.ambulance || '',
-        emergencyServices: orgData.emergency || 'available 24/7'
+        emergencyServices: orgData.emergency || 'available 24/7',
+        contact: orgData.contact || orgData.primaryContact || '',
+        location: orgData.location || ''
       });
       setSpecializations(orgData.specializations?.join(', ') || 'Cardiology, Neurology');
 
@@ -314,31 +316,6 @@ const PartnerDetails = () => {
           <h2 className="text-xl font-bold text-[#22333B]">Partner Details</h2>
         </div>
         <div className="flex gap-3">
-          {isEditing ? (
-            <>
-              <button
-                onClick={() => setIsEditing(false)}
-                className="px-4 py-1.5 border border-gray-200 rounded-lg text-[15px] font-medium text-[#374151] hover:bg-gray-50 bg-white"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff702d] transition-colors disabled:opacity-50"
-              >
-                {saving ? 'Saving...' : 'Save Changes'}
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={() => setIsEditing(true)}
-              className="px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff6e2b] flex items-center gap-2 transition-colors"
-            >
-              Edit
-              <img src="/admin_images/Edit 3.svg" alt="" className="w-3.5 h-3.5" />
-            </button>
-          )}
         </div>
       </div>
 
@@ -354,8 +331,30 @@ const PartnerDetails = () => {
                 {data.name || data.orgName}
               </h3>
               <div className="px-4 py-1 bg-[#F8FAFC] text-[#4B5563] rounded-full text-sm font-medium flex items-center gap-1.5 mb-8">
-                <img src="/admin_images/partner.svg" alt="" className="w-3.5 h-3.5" />
+                <Building2 size={14} className="text-[#4B5563]" />
                 {data.type || 'Hospital'}
+              </div>
+              <div className="w-full mt-6 space-y-4">
+                <div className="flex items-start gap-3 text-[#4B5563]">
+                  <div className="w-8 h-8 rounded-lg bg-[#F8FAFC] flex items-center justify-center border border-[#E2E8F0] shrink-0">
+                    <Phone size={16} className="text-[#F68E5F]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] text-[#9CA3AF] font-bold tracking-wider uppercase">Contact</p>
+                    <p className="text-sm font-semibold break-words">{details.contact || 'N/A'}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 text-[#4B5563]">
+                  <div className="w-8 h-8 rounded-lg bg-[#F8FAFC] flex items-center justify-center border border-[#E2E8F0] shrink-0">
+                    <MapPin size={16} className="text-[#F68E5F]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] text-[#9CA3AF] font-bold tracking-wider uppercase">Location</p>
+                    <p className="text-sm font-semibold whitespace-normal break-words line-clamp-2" title={details.location}>
+                      {details.location || 'N/A'}
+                    </p>
+                  </div>
+                </div>
               </div>
               <div className="flex justify-between w-full border-t border-[#E5E7EB] pt-6 mt-8">
                 <div className="text-center">
@@ -449,12 +448,6 @@ const PartnerDetails = () => {
               <input type="text" placeholder="Search doctor..." value={doctorSearch} onChange={(e) => setDoctorSearch(e.target.value)}
                 className="pl-9 pr-4 py-2 border border-[#E5E7EB] rounded-lg text-sm w-65 focus:outline-none focus:border-[#F68E5F]" />
             </div>
-            {isEditing && (
-              <button onClick={() => setIsDoctorModalOpen(true)}
-                className="flex justify-center items-center gap-1.5 px-4 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff6e2b] transition-colors whitespace-nowrap">
-                <Plus size={16} /> Add Doctor
-              </button>
-            )}
           </div>
         </div>
 
@@ -474,11 +467,6 @@ const PartnerDetails = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start">
                     <h4 className="text-[15px] font-bold text-[#22333B] mb-0.5 truncate">{doc.name}</h4>
-                    {isEditing && (
-                      <button onClick={() => handleDeleteDoctor(doc._id || doc.id)} className="text-[#9CA3AF] hover:text-red-500 transition-colors">
-                        <Trash2 size={16} />
-                      </button>
-                    )}
                   </div>
                   <p className="text-[10px] font-bold text-[#94A3B8] tracking-wider uppercase mb-3">{doc.specialty}</p>
 

@@ -1,11 +1,13 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Eye, EyeOff } from "lucide-react";
 import apiService from "../../api/service";
 
 const Login = () => {
   const [activeTab, setActiveTab] = useState("Admin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [keepLogged, setKeepLogged] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -173,15 +175,24 @@ const Login = () => {
               <label className="block text-[16px] font-normal font-['Inter'] text-gray-700">
                 Password
               </label>
-              <input
-                type="password"
-                placeholder="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
-                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-full text-gray-800 font-['Inter'] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F68E5F]/30 transition-colors disabled:opacity-60"
-                required
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isLoading}
+                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-full text-gray-800 font-['Inter'] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F68E5F]/30 transition-colors disabled:opacity-60"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none cursor-pointer"
+                >
+                  {showPassword ? <Eye size={20} /> : <EyeOff size={20} />}
+                </button>
+              </div>
             </div>
 
             {/* Error Message */}

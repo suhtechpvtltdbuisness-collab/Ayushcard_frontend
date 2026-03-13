@@ -46,6 +46,7 @@ const CreateHealthCard = () => {
     altPhone: "",
     email: "",
     address: "",
+    pincode: "",
     cardNumber: `${Math.floor(100000000000 + Math.random() * 900000000000)}`,
     issueDate: new Date().toLocaleDateString("en-GB").replace(/\//g, "-"),
     expiryDate: (() => {
@@ -96,6 +97,8 @@ const CreateHealthCard = () => {
       value = value.replace(/[^a-zA-Z\s]/g, "");
     } else if (["phone", "altPhone"].includes(field)) {
       value = value.replace(/\D/g, "").slice(0, 10);
+    } else if (["pincode"].includes(field)) {
+      value = value.replace(/\D/g, "").slice(0, 6);
     } else if (
       ["phone", "altPhone", "payment.totalPaid", "cardNumber"].includes(field)
     ) {
@@ -161,14 +164,23 @@ const CreateHealthCard = () => {
   const handleImageUpload = (e, side) => {
     const file = e.target.files[0];
     if (file) {
-      const imageUrl = URL.createObjectURL(file);
-      if (side === "front") {
-        documentFrontFileRef.current = file;
-        setFormData((prev) => ({ ...prev, documentFront: imageUrl }));
-      } else {
-        documentBackFileRef.current = file;
-        setFormData((prev) => ({ ...prev, documentBack: imageUrl }));
+      if (file.size > 5 * 1024 * 1024) {
+        toastWarn("Image size should be less than 5MB");
+        return;
       }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result;
+        if (side === "front") {
+          documentFrontFileRef.current = file;
+          setFormData((prev) => ({ ...prev, documentFront: base64String }));
+        } else {
+          documentBackFileRef.current = file;
+          setFormData((prev) => ({ ...prev, documentBack: base64String }));
+        }
+      };
+      reader.readAsDataURL(file);
     } else {
       toastWarn("Please upload a valid file.");
     }
@@ -197,6 +209,10 @@ const CreateHealthCard = () => {
       // Validate step 1 minimums
       if (!formData.applicantFirstName?.trim() || !formData.phone?.trim()) {
         toastWarn("First name and Phone number are required to proceed.");
+        return;
+      }
+      if (!formData.pincode?.trim() || formData.pincode.length < 6) {
+        toastWarn("A valid 6-digit Pincode is required to proceed.");
         return;
       }
       setCurrentStep(2);
@@ -238,12 +254,17 @@ const CreateHealthCard = () => {
         relation: formData.relation || "",
         relatedPerson: formData.relatedPerson || "",
         address: formData.address || "",
+        pincode: formData.pincode || "",
         cardNo: formData.cardNumber || "",
         cardIssueDate: formData.issueDate || "",
         cardExpiredDate: formData.expiryDate || "",
         verificationDate: formData.verificationDate || "",
         status: "pending", // Employee cannot set status — admin verifies
         members: formData.members || [],
+        documents: [
+          ...(formData.documentFront ? [{ name: "documentFront", path: formData.documentFront, type: "image" }] : []),
+          ...(formData.documentBack ? [{ name: "documentBack", path: formData.documentBack, type: "image" }] : []),
+        ],
         payment: {
           method: paymentMethod || "online",
           transactionId: `TXN${Date.now()}${Math.floor(Math.random() * 1000)}`,
@@ -523,6 +544,22 @@ const CreateHealthCard = () => {
               onChange={(e) => handleChange(e, "address")}
               className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none focus:border-[#F68E5F] resize-none bg-white transition-colors"
             ></textarea>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-4">
+            <div>
+              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
+                Pincode
+              </label>
+              <input
+                type="text"
+                value={formData.pincode}
+                onChange={(e) => handleChange(e, "pincode")}
+                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none focus:border-[#F68E5F] bg-white transition-colors"
+                placeholder="6-digit pincode"
+                maxLength={6}
+              />
+            </div>
           </div>
 
           {/* Read Only Calculation Info */}
@@ -879,8 +916,8 @@ const CreateHealthCard = () => {
           </div>
         </div>
 
-        <div className="flex-1 flex items-center justify-center relative min-h-2300px]">
-          <div className="transform scale-[0.65] xl:scale-[0.8] origin-center mt-2">
+        <div className="flex-1 flex items-center justify-center relative min-h-[320px]">
+          <div className="transform scale-[0.75] sm:scale-[0.85] md:scale-[0.95] lg:scale-[1] origin-center mt-2">
             <AyushCardPreview
               data={formData}
               side={cardSide}

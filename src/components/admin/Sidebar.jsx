@@ -31,7 +31,7 @@ const Sidebar = () => {
       icon: CreditCard,
       path: `${basePath}/health-card`,
       subItems: [
-        { name: "Health Card Apply", path: `${basePath}/health-card` },
+        { name: "Ayush Card Apply", path: `${basePath}/health-card` },
         { name: "Verified Cards", path: `${basePath}/health-card/verified` },
         { name: "Exported Cards", path: `${basePath}/health-card/exported` },
       ],
@@ -57,12 +57,27 @@ const Sidebar = () => {
     },
   ];
 
-  const filteredMainMenuItems = mainMenuItems.filter((item) => {
-    if (item.name === "HR & Payroll" && userRole === "Employee") {
-      return false;
-    }
-    return true;
-  });
+  const filteredMainMenuItems = mainMenuItems
+    .filter((item) => {
+      if (item.name === "HR & Payroll" && userRole === "Employee") {
+        return false;
+      }
+      if (item.name === "Donations" && userRole === "Employee") {
+        return false;
+      }
+      return true;
+    })
+    .map((item) => {
+      if (item.name === "Health Card" && userRole === "Employee") {
+        return {
+          ...item,
+          subItems: item.subItems.filter(
+            (sub) => sub.name === "Ayush Card Apply"
+          ),
+        };
+      }
+      return item;
+    });
 
   const systemItems = [
     {

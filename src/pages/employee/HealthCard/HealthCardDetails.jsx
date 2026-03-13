@@ -386,24 +386,12 @@ const HealthCardDetails = () => {
               <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
                 Status
               </label>
-              <div className="relative">
-                <select
-                  value={formData.status || ""}
-                  onChange={(e) => handleChange(e, "status")}
-                  disabled={!isEditing}
-                  className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none appearance-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
-                >
-                  <option value="pending">Pending</option>
-                  <option value="approved">Approved</option>
-                  <option value="rejected">Rejected</option>
-                  <option value="active">Active</option>
-                  <option value="expired">Expired</option>
-                </select>
-                <ChevronDown
-                  size={16}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-                />
-              </div>
+              <input
+                type="text"
+                value={formData.status || "pending"}
+                readOnly
+                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none bg-gray-50 uppercase font-semibold"
+              />
             </div>
           </div>
 

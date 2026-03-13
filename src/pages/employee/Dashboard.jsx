@@ -41,13 +41,7 @@ const Dashboard = () => {
             <div>
               <p className="text-2xl font-bold text-[#22333B]">1,988</p>
               <p className="text-[10px] font-medium text-[#9CA3AF] tracking-wider">
-                VERIFIED
-              </p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-[#22333B]">0</p>
-              <p className="text-[10px] font-medium text-[#9CA3AF] tracking-wider">
-                UNVERIFIED
+                TOTAL APPLICATIONS
               </p>
             </div>
           </div>
@@ -90,34 +84,7 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Card 3 */}
-        <div className="bg-[#FFFFFF] rounded-xl p-5 border border-[#F3F4F6] shadow-[0_2px_10px_-3px_#0000000D] flex flex-col justify-between h-full">
-          <div>
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-10 h-10 bg-[#D1FAE5] rounded-lg flex items-center justify-center">
-                <img
-                  src="/admin_images/donation_finance.svg"
-                  alt="Donation"
-                  className="w-5 h-5"
-                />
-              </div>
-              <button className="text-[10px] font-bold text-[#10B981] tracking-wider hover:underline mt-1">
-                VIEW DETAILS
-              </button>
-            </div>
-            <h3 className="text-sm font-semibold text-[#6B7280] mb-6">
-              Donation & Finance
-            </h3>
-          </div>
-          <div className="mt-auto">
-            <p className="text-[10px] font-medium text-[#9CA3AF] tracking-wider mb-1">
-              MONTHLY ENQUIRIES
-            </p>
-            <p className="text-2xl font-bold text-[#22333B]">560</p>
-          </div>
-        </div>
-
-        {/* Card 4 */}
+        {/* Card 4 - Replaces Card 3 since it was Donation */}
         <div className="bg-[#FFFFFF] rounded-xl p-5 border border-[#F3F4F6] shadow-[0_2px_10px_-3px_#0000000D] flex flex-col justify-between h-full">
           <div>
             <div className="flex justify-between items-start mb-4">
@@ -231,36 +198,14 @@ const Dashboard = () => {
               <div className="flex-1">
                 <div className="flex justify-between items-start">
                   <h4 className="text-sm font-semibold text-[#242D35]">
-                    New Donation Received
+                    Health Camp Organized
                   </h4>
                   <span className="text-xs font-normal text-gray-400">
                     2 hours ago
                   </span>
                 </div>
                 <p className="text-xs font-normal text-[#6B7280] mt-1">
-                  TechCorp Inc. donated ₹1,50,000 to the Children's Wellness
-                  Fund.
-                </p>
-              </div>
-            </div>
-
-            {/* Activity Item 4 */}
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-[#ECFDF5] text-[#059669] flex items-center justify-center">
-                <Heart size={18} />
-              </div>
-              <div className="flex-1">
-                <div className="flex justify-between items-start">
-                  <h4 className="text-sm font-semibold text-[#242D35]">
-                    New Donation Received
-                  </h4>
-                  <span className="text-xs font-normal text-gray-400">
-                    2 hours ago
-                  </span>
-                </div>
-                <p className="text-xs font-normal text-[#6B7280] mt-1">
-                  TechCorp Inc. donated ₹1,50,000 to the Children's Wellness
-                  Fund.
+                  Successfully completed the free health checkup camp at Pune South.
                 </p>
               </div>
             </div>
@@ -284,12 +229,12 @@ const Dashboard = () => {
               <ChevronRight size={20} />
             </button>
             <button
-              onClick={() => navigate("/employee/partners/create")}
+              onClick={() => navigate("/employee/partners")}
               className="w-full flex items-center justify-between p-4 bg-[#F2F4F3] text-[#22333B] rounded-lg hover:bg-[#e6e9e7] transition-colors shadow-sm border border-transparent hover:border-gray-200"
             >
               <div className="flex items-center gap-3">
                 <Building size={20} />
-                <span className="font-semibold text-sm">Register Hospital</span>
+                <span className="font-semibold text-sm">View Partners</span>
               </div>
               <ChevronRight size={20} className="text-gray-400" />
             </button>
@@ -307,18 +252,7 @@ const Dashboard = () => {
               </div>
               <ChevronRight size={20} className="text-gray-400" />
             </button>
-            <button
-              onClick={() => navigate("/employee/reports")}
-              className="w-full flex items-center justify-between p-4 bg-[#F2F4F3] text-[#22333B] rounded-lg hover:bg-[#e6e9e7] transition-colors shadow-sm border border-transparent hover:border-gray-200"
-            >
-              <div className="flex items-center gap-3">
-                <Download size={20} />
-                <span className="font-semibold text-sm">
-                  Export Monthly Data
-                </span>
-              </div>
-              <ChevronRight size={20} className="text-gray-400" />
-            </button>
+
           </div>
         </div>
       </div>

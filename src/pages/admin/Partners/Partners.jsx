@@ -340,9 +340,31 @@ const Partners = () => {
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B]">{globalIndex + 1}</td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{(row.partnerId || row._id || row.id || '').substring(0, 10)}...</td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.type || 'Hospital'}</td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.name || row.orgName}</td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
+                            {row.logo ? (
+                              <img src={row.logo} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-[10px] font-bold text-gray-400">
+                                {(row.name || row.orgName)?.[0]}
+                              </span>
+                            )}
+                          </div>
+                          <div className="max-w-[180px] truncate" title={row.name || row.orgName}>
+                            {row.name || row.orgName}
+                          </div>
+                        </div>
+                      </td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.contact || row.primaryContact}</td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.location}</td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
+                        <div 
+                          className="max-w-[150px] truncate" 
+                          title={row.location}
+                        >
+                          {row.location}
+                        </div>
+                      </td>
                       <td className="py-3 px-4 whitespace-nowrap">
                         <ActionButtons
                           item={row}

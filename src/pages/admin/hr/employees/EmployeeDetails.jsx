@@ -12,14 +12,54 @@ const EmployeeDetails = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Load data
+  // Load data — try API first, fall back to mock
   useEffect(() => {
-    const employees = getEmployees();
-    const data = employees.find((e) => e.id === id) || employees[0];
-    if (data && !formData) {
-      setFormData(data);
-    }
-  }, [id, formData]);
+    const load = async () => {
+      setLoading(true);
+      try {
+        // Try fetching all employees and find the one matching our id
+        const res = await apiService.getEmployees();
+        const rawList = res?.data || res?.users || res?.employees || (Array.isArray(res) ? res : []);
+        const list = Array.isArray(rawList) ? rawList : (Array.isArray(res?.data) ? res.data : []);
+
+        const matched = list.find(
+          (u) => u._id === id || u.employeeId === id
+        );
+
+        if (matched) {
+          setFormData({
+            _rawId: matched._id,
+            id: matched.employeeId || matched._id,
+            name: matched.name || "",
+            phone: matched.contact || "",
+            email: matched.email || "",
+            dateOfJoining: matched.dateOfJoining
+              ? new Date(matched.dateOfJoining).toLocaleDateString()
+              : "",
+            location: matched.location || "",
+            pincode: matched.pincode || "",
+            salary: matched.salary ? String(matched.salary) : "0",
+            workingHoursFrom: matched.workStartTime || "10:00 AM",
+            workingHoursTo: matched.workEndTime || "6:00 PM",
+            role: matched.role || "employee",
+            status: matched.status || "Verified",
+          });
+          return;
+        }
+      } catch (err) {
+        console.warn("[EmployeeDetails] API fetch failed, using mock:", err?.message);
+      } finally {
+        setLoading(false);
+      }
+
+      // Fallback: local mock data
+      const employees = getEmployees();
+      const data = employees.find((e) => e.id === id) || employees[0];
+      if (data) setFormData(data);
+    };
+
+    load();
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleChange = (e) => {
     let { name, value } = e.target;
@@ -28,6 +68,8 @@ const EmployeeDetails = () => {
       value = value.replace(/[^a-zA-Z\s]/g, "");
     } else if (name === "phone") {
       value = value.replace(/\D/g, "").slice(0, 10);
+    } else if (name === "pincode") {
+      value = value.replace(/\D/g, "").slice(0, 6);
     }
 
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -71,9 +113,10 @@ const EmployeeDetails = () => {
         const payload = {
           name: formData.name,
           email: formData.email,
-          role: "employee", // Hardcoded per API requirements
+          role: "employee",
           contact: formData.phone || "+1234567890",
           location: formData.location,
+          pincode: formData.pincode || "",
           salary: Number(formData.salary.replace(/\D/g, "")) || 0,
           dateOfJoining: formData.dateOfJoining || new Date().toISOString().split('T')[0],
           workStartTime: formatTime(formData.workingHoursFrom),
@@ -98,7 +141,18 @@ const EmployeeDetails = () => {
     }
   };
 
-  if (!formData) return null;
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center h-64">
+      <div className="w-8 h-8 border-4 border-[#F68E5F] border-t-transparent rounded-full animate-spin mb-3" />
+      <p className="text-sm text-gray-500">Loading employee details…</p>
+    </div>
+  );
+
+  if (!formData) return (
+    <div className="flex flex-col items-center justify-center h-64">
+      <p className="text-gray-500 text-sm">Employee not found.</p>
+    </div>
+  );
 
   // Use date value formatted for the native date input if editing
   const getDateValueForInput = () => {
@@ -267,6 +321,21 @@ const EmployeeDetails = () => {
               value={formData.location}
               onChange={handleChange}
               readOnly={!isEditing}
+              className={`w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] ${!isEditing ? "bg-white cursor-default focus:outline-none" : "bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F]"}`}
+            />
+          </div>
+          <div>
+            <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
+              Pincode
+            </label>
+            <input
+              type="text"
+              name="pincode"
+              value={formData.pincode || ""}
+              onChange={handleChange}
+              readOnly={!isEditing}
+              maxLength={6}
+              placeholder="6-digit pincode"
               className={`w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] ${!isEditing ? "bg-white cursor-default focus:outline-none" : "bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F]"}`}
             />
           </div>

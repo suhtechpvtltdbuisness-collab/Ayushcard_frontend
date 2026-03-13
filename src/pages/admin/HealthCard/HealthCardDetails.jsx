@@ -38,7 +38,7 @@ const apiToForm = (card) => ({
   // Misc
   address: card.address || "",
   gender: card.gender || "",
-  dob: card.dob || "",
+  dob: card.dob || card.dateOfBirth || card.birthDate || "",
   relation: card.relation || "",
   relatedPerson: card.relatedPerson || "",
   profileImage: card.profileImage || (Array.isArray(card.documents) && card.documents.length > 0 ? card.documents[0].path : ""),
@@ -70,6 +70,7 @@ const formToApi = (f) => ({
   dob: f.dob,
   relation: f.relation,
   relatedPerson: f.relatedPerson,
+  documents: f.documents || [],
 });
 
 const HealthCardDetails = () => {
@@ -192,14 +193,20 @@ const HealthCardDetails = () => {
     const file = e.target.files[0];
     if (!file) return;
     setPendingFile(file);
-    // Show file name as pending in the documents list
-    setFormData((prev) => ({
-      ...prev,
-      documents: [
-        ...(prev.documents || []),
-        { name: file.name, url: URL.createObjectURL(file), pending: true },
-      ],
-    }));
+
+    // Use FileReader to get a base64 data URL — blob URLs can't cross origins
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFormData((prev) => ({
+        ...prev,
+        documents: [
+          ...(prev.documents || []),
+          { name: file.name, url: reader.result, pending: true },
+        ],
+      }));
+    };
+    reader.readAsDataURL(file);
+
     if (docInputRef.current) docInputRef.current.value = "";
   };
 
