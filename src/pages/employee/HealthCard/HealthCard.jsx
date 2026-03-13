@@ -90,7 +90,7 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-const ActionButtons = ({ item, navigate, onDelete }) => {
+const ActionButtons = ({ item, navigate }) => {
   const isExpired = (item.status || "").toLowerCase().includes("expir");
   return (
     <div className="flex items-center gap-4">
@@ -127,20 +127,12 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
         >
           <Eye size={20} />
         </button>
-        <button
-          onClick={() => onDelete(item)}
-          className="text-[#F68E5F] hover:text-[#ff6e2b] transition-colors p-1.5"
-        >
-          <Trash2 size={20} />
-        </button>
       </div>
     </div>
   );
 };
-
 const HealthCard = () => {
   const navigate = useNavigate();
-  const { toastWarn } = useToast();
 
   const [healthCards, setHealthCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -149,10 +141,6 @@ const HealthCard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
-  const [itemToDelete, setItemToDelete] = useState(null);
-  const [selectedRows, setSelectedRows] = useState([]);
-  const [deleteError, setDeleteError] = useState("");
-  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const ITEMS_PER_PAGE = 10;
 
@@ -183,28 +171,7 @@ const HealthCard = () => {
     }
   };
 
-  const handleDeleteConfirm = async () => {
-    if (!itemToDelete) return;
-    setDeleteLoading(true);
-    setDeleteError("");
-    try {
-      const mongoId = itemToDelete._id || itemToDelete.id;
-      await apiService.deleteHealthCard(mongoId);
 
-      setHealthCards((prev) =>
-        prev.filter(
-          (c) => c._id !== itemToDelete._id && c.id !== itemToDelete.id,
-        ),
-      );
-      setSelectedRows([]);
-      setItemToDelete(null);
-    } catch (err) {
-      console.error("[HealthCard] Delete failed:", err);
-      setDeleteError("Delete failed. Please try again.");
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
 
   const handleSort = (key) => {
     let direction = "asc";
@@ -330,30 +297,7 @@ const HealthCard = () => {
 
   const isFiltered = searchQuery !== "" || activeFilter !== "All";
 
-  const handleSelectAll = (e) => {
-    if (e.target.checked) {
-      setSelectedRows(processedData.map((_, idx) => idx));
-    } else {
-      setSelectedRows([]);
-    }
-  };
 
-  const handleExport = () => {
-    if (selectedRows.length === 0) {
-      toastWarn("Please select at least one item to export.");
-      return;
-    }
-    const dataToExport = selectedRows.map((index) => processedData[index]);
-    exportToCSV(dataToExport, "HealthCard_Export.csv");
-  };
-
-  const handleSelectRow = (globalIndex) => {
-    setSelectedRows((prev) =>
-      prev.includes(globalIndex)
-        ? prev.filter((i) => i !== globalIndex)
-        : [...prev, globalIndex],
-    );
-  };
 
   const renderSortableHeader = (
     title,
@@ -388,12 +332,6 @@ const HealthCard = () => {
           Ayush Card Applications
         </h2>
         <div className="flex items-center gap-4">
-          <button
-            onClick={handleExport}
-            className="px-4 py-1.5 border border-[#F68E5F] bg-[#FFFCFB] rounded-lg text-[15px] font-medium text-[#F68E5F] hover:bg-[#F68E5F] hover:text-[#FFFCFB] flex items-center gap-2 transition-colors"
-          >
-            Export <Download size={16} />
-          </button>
           {/* Create Button (Tablet/Mobile Only) */}
           <button
             onClick={() => navigate("/employee/health-card/create")}
@@ -436,7 +374,7 @@ const HealthCard = () => {
             className="flex p-1 bg-[#F7F7F7] rounded-xl shrink-0 overflow-x-auto w-full xl:w-auto"
             style={{ fontFamily: "ABeeZee, sans-serif" }}
           >
-            {["All", "Verified", "Not Verified", "Expired"].map((filter) => (
+            {["All", "Not Verified", "Expired"].map((filter) => (
               <button
                 key={filter}
                 onClick={() => {
@@ -476,17 +414,7 @@ const HealthCard = () => {
             <table className="w-full text-left border-collapse relative">
               <thead className="sticky top-0 z-10 bg-[#FFFFFF]">
                 <tr>
-                  <th className="py-3 px-4 w-12 text-center">
-                    <input
-                      type="checkbox"
-                      onChange={handleSelectAll}
-                      checked={
-                        processedData.length > 0 &&
-                        selectedRows.length === processedData.length
-                      }
-                      className="w-4 h-4 rounded border-[#D1D5DB] border text-[#22333B] focus:ring-[#111827]"
-                    />
-                  </th>
+
                   <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-17.5">
                     Sr.no
                   </th>
@@ -535,14 +463,7 @@ const HealthCard = () => {
                       key={index}
                       className="border-b border-[#F3F4F6] hover:bg-[#F9FAFB] transition-colors"
                     >
-                      <td className="py-2 px-4 text-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedRows.includes(globalIndex)}
-                          onChange={() => handleSelectRow(globalIndex)}
-                          className="w-4 h-3 rounded border-[#D1D5DB] text-[#22333B] focus:ring-[#111827]"
-                        />
-                      </td>
+
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B]">
                         {globalIndex + 1}
                       </td>
@@ -573,7 +494,6 @@ const HealthCard = () => {
                         <ActionButtons
                           item={row}
                           navigate={navigate}
-                          onDelete={setItemToDelete}
                         />
                       </td>
                     </tr>
@@ -629,51 +549,7 @@ const HealthCard = () => {
         </div>
       </div>
 
-      {/* Delete Confirmation Modal */}
-      {itemToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl p-6 w-100 shadow-lg animate-in fade-in zoom-in duration-200">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <Trash2 size={20} className="text-red-600" />
-              </div>
-              <h3 className="text-lg font-bold text-[#22333B]">
-                Are you sure?
-              </h3>
-            </div>
-            <p className="text-[#4B5563] text-sm mb-4 pl-12 line-clamp-3">
-              Do you really want to delete the health card application for{" "}
-              <strong>{itemToDelete.applicant}</strong> ({itemToDelete.id})?
-              This process cannot be undone.
-            </p>
-            {deleteError && (
-              <p className="mb-4 pl-12 text-sm text-red-500">{deleteError}</p>
-            )}
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => {
-                  setItemToDelete(null);
-                  setDeleteError("");
-                }}
-                disabled={deleteLoading}
-                className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteConfirm}
-                disabled={deleteLoading}
-                className="px-4 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff702d] transition-colors shadow-sm flex items-center gap-2 disabled:opacity-60"
-              >
-                {deleteLoading && (
-                  <Loader2 size={14} className="animate-spin" />
-                )}
-                {deleteLoading ? "Deleting…" : "Confirm Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 };

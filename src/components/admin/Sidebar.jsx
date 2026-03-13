@@ -57,12 +57,27 @@ const Sidebar = () => {
     },
   ];
 
-  const filteredMainMenuItems = mainMenuItems.filter((item) => {
-    if (item.name === "HR & Payroll" && userRole === "Employee") {
-      return false;
-    }
-    return true;
-  });
+  const filteredMainMenuItems = mainMenuItems
+    .filter((item) => {
+      if (item.name === "HR & Payroll" && userRole === "Employee") {
+        return false;
+      }
+      if (item.name === "Donations" && userRole === "Employee") {
+        return false;
+      }
+      return true;
+    })
+    .map((item) => {
+      if (item.name === "Health Card" && userRole === "Employee") {
+        return {
+          ...item,
+          subItems: item.subItems.filter(
+            (sub) => sub.name === "Ayush Card Apply"
+          ),
+        };
+      }
+      return item;
+    });
 
   const systemItems = [
     {

@@ -675,13 +675,7 @@ const Reports = () => {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-xl font-bold text-[#242D35]">Reports</h1>
-        <button
-          onClick={handleExportPDF}
-          className="flex items-center gap-2 bg-[#F68E5F] text-white px-4 py-2 rounded-lg text-[16px] font-semibold shadow-sm hover:bg-[#ff7535] transition-colors"
-        >
-          <FileText className="w-4 h-4" />
-          Export Report
-        </button>
+
       </div>
 
       {/* Top Stats Cards */}
