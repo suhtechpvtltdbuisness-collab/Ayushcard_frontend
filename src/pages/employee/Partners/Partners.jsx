@@ -5,46 +5,27 @@ import { exportToCSV } from "../../../utils/exportUtils";
 import apiService from "../../../api/service";
 import { useToast } from "../../../components/ui/Toast";
 
-const ActionButtons = ({ item, navigate, onDelete }) => {
+const ActionButtons = ({ item, navigate }) => {
   return (
-    <div className="flex items-center gap-4">
-      <div className="w-21 flex justify-center">
-        <button
-          onClick={() => navigate(`/employee/partners/${item._id || item.id}`, { state: { editMode: true } })}
-          className="flex items-center justify-center gap-1.5 px-2 py-1 bg-[#2C2C2C] text-[#FFFCFB] rounded-lg text-sm font-normal hover:bg-[#1F2937]"
-        >
-          Edit
-          <img src="/admin_images/Edit 3.svg" alt="edit" />
-        </button>
-      </div>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => navigate(`/employee/partners/${item._id || item.id}`)}
-          className="text-[#F68E5F] hover:text-[#ff6e2b] cursor-pointer transition-colors p-1.5"
-        >
-          <Eye size={20} />
-        </button>
-        <button
-          onClick={() => onDelete(item)}
-          className="text-[#F68E5F] hover:text-[#ff6e2b] transition-colors p-1.5"
-        >
-          <Trash2 size={20} />
-        </button>
-      </div>
+    <div className="flex items-center gap-2">
+      <button
+        onClick={() => navigate(`/employee/partners/${item._id || item.id}`)}
+        className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff6e2b] transition-colors shadow-sm"
+      >
+        <Eye size={18} />
+        View Details
+      </button>
     </div>
   );
 };
 
 const Partners = () => {
   const navigate = useNavigate();
-  const { toastWarn, toastError } = useToast();
   const [partners, setPartners] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
-  const [itemToDelete, setItemToDelete] = useState(null);
-  const [selectedRows, setSelectedRows] = useState([]);
   const ITEMS_PER_PAGE = 10;
 
   React.useEffect(() => {
@@ -70,20 +51,6 @@ const Partners = () => {
       console.error("Failed to load partners", err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (itemToDelete) {
-      try {
-        const idToDelete = itemToDelete._id || itemToDelete.id;
-        await apiService.deleteOrganization(idToDelete);
-        setPartners((prev) => prev.filter((p) => (p._id || p.id) !== idToDelete));
-        setSelectedRows([]);
-        setItemToDelete(null);
-      } catch (err) {
-        toastError(err.response?.data?.message || "Failed to delete partner.");
-      }
     }
   };
 
@@ -172,29 +139,6 @@ const Partners = () => {
     );
   };
 
-  const handleSelectAll = (e) => {
-    if (e.target.checked) {
-      setSelectedRows(processedData.map((_, idx) => idx));
-    } else {
-      setSelectedRows([]);
-    }
-  };
-
-  const handleExport = () => {
-    if (selectedRows.length === 0) {
-      toastWarn("Please select at least one item to export.");
-      return;
-    }
-    const dataToExport = selectedRows.map((index) => processedData[index]);
-    exportToCSV(dataToExport, "Partners_Export.csv");
-  };
-
-  const handleSelectRow = (globalIndex) => {
-    setSelectedRows((prev) =>
-      prev.includes(globalIndex) ? prev.filter((i) => i !== globalIndex) : [...prev, globalIndex]
-    );
-  };
-
   const renderSortableHeader = (title, sortKey, align = "left", className = "") => (
     <th className={`py-3 px-4 text-sm font-semibold text-[#22333B] whitespace-nowrap ${className}`}>
       <div
@@ -217,20 +161,6 @@ const Partners = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 shrink-0 gap-4 sm:gap-0">
         <h2 className="text-xl font-bold text-[#22333B]">Partners</h2>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={handleExport}
-            className="px-4 py-1.5 border border-[#F68E5F] bg-[#FFFCFB] rounded-lg text-[15px] font-medium text-[#F68E5F] hover:bg-[#F68E5F] hover:text-[#FFFCFB] flex items-center gap-2 transition-colors"
-          >
-            Export <Download size={16} />
-          </button>
-          <button
-            onClick={() => navigate("/employee/partners/create")}
-            className="flex lg:hidden px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff7535] transition-colors items-center gap-2"
-          >
-            Add New Partner <Plus size={16} />
-          </button>
-        </div>
       </div>
 
       {/* Filters Bar */}
@@ -247,13 +177,6 @@ const Partners = () => {
             <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1E1E1E]" />
           </div>
         </div>
-
-        <button
-          onClick={() => navigate("/employee/partners/create")}
-          className="hidden lg:flex px-5 py-2.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[16px] font-medium hover:bg-[#ff6e2b] transition-colors items-center gap-2"
-        >
-          Add New Partner <Plus size={16} />
-        </button>
       </div>
 
       {/* Table */}
@@ -267,14 +190,6 @@ const Partners = () => {
             <table className="w-full text-left border-collapse relative">
               <thead className="sticky top-0 z-10 bg-[#FFFFFF]">
                 <tr>
-                  <th className="py-3 px-4 w-12 text-center">
-                    <input
-                      type="checkbox"
-                      onChange={handleSelectAll}
-                      checked={processedData.length > 0 && selectedRows.length === processedData.length}
-                      className="w-4 h-4 rounded border-[#D1D5DB] border text-[#22333B] focus:ring-[#111827]"
-                    />
-                  </th>
                   <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-17.5">Sr.no</th>
                   {renderSortableHeader("Partner ID", "_id", "left", "w-[130px]")}
                   {renderSortableHeader("Type", "type", "left", "w-[160px]")}
@@ -287,27 +202,22 @@ const Partners = () => {
               <tbody>
                 {paginatedData.map((row, index) => {
                   const globalIndex = startIndex + index;
-                  const isChecked = selectedRows.includes(globalIndex);
                   return (
                     <tr key={index} className="border-b border-[#F3F4F6] hover:bg-[#F9FAFB] transition-colors">
-                      <td className="py-3 px-4 text-center">
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => handleSelectRow(globalIndex)}
-                          className="w-4 h-4 rounded border-[#D1D5DB] text-[#22333B] focus:ring-[#111827]"
-                        />
-                      </td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B]">{globalIndex + 1}</td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
-                        {(row.partnerId || row._id || row.id || "").substring(0, 10)}...
+                        {row.partnerId || row._id || row.id || ""}
                       </td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.type || "Hospital"}</td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.name || row.orgName}</td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.contact || row.primaryContact}</td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.location}</td>
+                      <td className="py-3 px-4 text-sm font-normal text-[#22333B]">
+                        <div className="max-w-[150px] truncate" title={row.location}>
+                          {row.location}
+                        </div>
+                      </td>
                       <td className="py-3 px-4 whitespace-nowrap">
-                        <ActionButtons item={row} navigate={navigate} onDelete={setItemToDelete} />
+                        <ActionButtons item={row} navigate={navigate} />
                       </td>
                     </tr>
                   );
@@ -349,39 +259,6 @@ const Partners = () => {
           </button>
         </div>
       </div>
-
-      {/* Delete Confirmation Modal */}
-      {itemToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl p-6 w-100 shadow-lg animate-in fade-in zoom-in duration-200">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <Trash2 size={20} className="text-red-600" />
-              </div>
-              <h3 className="text-lg font-bold text-[#22333B]">Are you sure?</h3>
-            </div>
-            <p className="text-[#4B5563] text-sm mb-6 pl-12 line-clamp-3">
-              Do you really want to delete the partner{" "}
-              <strong>{itemToDelete.name || itemToDelete.orgName}</strong> ({itemToDelete._id || itemToDelete.id})?
-              This process cannot be undone.
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setItemToDelete(null)}
-                className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteConfirm}
-                className="px-4 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff702d] transition-colors shadow-sm"
-              >
-                Confirm Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

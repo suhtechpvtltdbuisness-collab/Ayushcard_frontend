@@ -351,11 +351,22 @@ const Donations = () => {
                       </td>
                       <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">{globalIndex + 1}</td>
                       <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center whitespace-nowrap">{row.id}</td>
-                      <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">{row.name}</td>
+                      <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">
+                        <div className="max-w-[140px] truncate mx-auto" title={row.name}>
+                          {row.name}
+                        </div>
+                      </td>
                       <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">{row.contact}</td>
                       <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">{row.date}</td>
                       <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">{row.time}</td>
-                      <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">{row.location}</td>
+                      <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">
+                        <div 
+                          className="max-w-[140px] truncate mx-auto" 
+                          title={row.location}
+                        >
+                          {row.location}
+                        </div>
+                      </td>
                       <td className="py-2 px-4 whitespace-nowrap">
                         <ActionButtons item={row} navigate={navigate} onDelete={setItemToDelete} />
                       </td>

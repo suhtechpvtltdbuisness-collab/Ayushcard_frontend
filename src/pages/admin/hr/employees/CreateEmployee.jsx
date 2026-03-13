@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Eye, EyeOff } from "lucide-react";
 import apiService from "../../../../api/service";
 
 const CreateEmployee = () => {
@@ -12,6 +12,7 @@ const CreateEmployee = () => {
     email: "",
     dateOfJoining: "",
     location: "",
+    pincode: "",
     salary: "",
     workingHoursFrom: "10:00 AM",
     workingHoursTo: "06:00 PM",
@@ -19,6 +20,7 @@ const CreateEmployee = () => {
   });
 
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -29,6 +31,8 @@ const CreateEmployee = () => {
       value = value.replace(/[^a-zA-Z\s]/g, "");
     } else if (name === "phone") {
       value = value.replace(/\D/g, "").slice(0, 10);
+    } else if (name === "pincode") {
+      value = value.replace(/\D/g, "").slice(0, 6);
     }
 
     setFormData((prev) => ({
@@ -72,6 +76,7 @@ const CreateEmployee = () => {
         role: "employee",
         contact: formData.phone || "",
         location: formData.location || "",
+        pincode: formData.pincode || "",
         salary: Number(formData.salary.replace(/\D/g, "")) || 0,
         dateOfJoining: formData.dateOfJoining || new Date().toISOString().split('T')[0],
         workStartTime: formatTime(formData.workingHoursFrom),
@@ -170,15 +175,24 @@ const CreateEmployee = () => {
             <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
               Password <span className="text-red-500">*</span>
             </label>
-            <input
-              type="password"
-              name="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Create password"
-              required
-              className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F]"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                name="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Create password"
+                required
+                className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F]"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+              >
+                {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -218,6 +232,20 @@ const CreateEmployee = () => {
               value={formData.location}
               onChange={handleChange}
               placeholder="Enter location"
+              className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F]"
+            />
+          </div>
+          <div>
+            <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
+              Pincode
+            </label>
+            <input
+              type="text"
+              name="pincode"
+              value={formData.pincode}
+              onChange={handleChange}
+              placeholder="6-digit pincode"
+              maxLength={6}
               className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F]"
             />
           </div>
