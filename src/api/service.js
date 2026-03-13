@@ -371,6 +371,29 @@ const apiService = {
 
     // ─── UTILITY ──────────────────────────────────────────────────────────
 
+
+    // ─── PAYMENTS ──────────────────────────────────────────────────────────────
+
+    // POST /api/payments/create-order
+    // Body: { amount, customerName, customerEmail, customerPhone }
+    createPaymentOrder: async (payload) => {
+        const response = await api.post('/api/payments/create-order', payload);
+        return response.data;
+    },
+
+    // GET /api/payments/verify/:orderId
+    // Body (as params): { amount, customerName, customerEmail, customerPhone }
+    verifyPayment: async (orderId, data = {}) => {
+        const response = await api.get(`/api/payments/verify/${orderId}`, { params: data });
+        return response.data;
+    },
+
+    // POST /api/payments/webhook
+    webhookPayment: async (payload) => {
+        const response = await api.post('/api/payments/webhook', payload);
+        return response.data;
+    },
+
     logout: () => {
         storage.clear();
     },

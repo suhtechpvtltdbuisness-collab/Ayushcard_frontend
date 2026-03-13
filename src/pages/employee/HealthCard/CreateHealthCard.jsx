@@ -4,6 +4,7 @@ import { X, ChevronDown, Plus, Loader2 } from "lucide-react";
 import AyushCardPreview from "../../../components/admin/AyushCardPreview";
 import apiService from "../../../api/service";
 import { useToast } from "../../../components/ui/Toast";
+import { load } from "@cashfreepayments/cashfree-js";
 
 const generateId = () => `AC-${Math.floor(1000000 + Math.random() * 9000000)}`;
 const formatDate = (date) =>
@@ -11,13 +12,18 @@ const formatDate = (date) =>
 
 const CreateHealthCard = () => {
   const navigate = useNavigate();
-  const { toastWarn, toastError } = useToast();
+  const { toastWarn, toastError, toastSuccess } = useToast();
 
   // Step state
   const [currentStep, setCurrentStep] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState(null); // "online" | "cash"
   const [paymentCompleted, setPaymentCompleted] = useState(false);
   const [cardSide, setCardSide] = useState("front"); // for preview
+  const [orderId, setOrderId] = useState(null); // from create-order response
+  const [paymentOrderData, setPaymentOrderData] = useState(null); // full create-order response
+  const [txnId, setTxnId] = useState(""); // final transaction id after verify
+  const [onlinePaymentLoading, setOnlinePaymentLoading] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
 
   // Standard form refs
   const fileInputFrontRef = useRef(null);
@@ -224,7 +230,10 @@ const CreateHealthCard = () => {
           toastWarn("Please select a payment method.");
           return;
         }
-        await performSave();
+        if (paymentMethod === "cash") {
+          await performSave("cash", null);
+        }
+        // online: handled by initiate/verify in step 3
       } else {
         setCurrentStep(4);
       }
@@ -234,13 +243,172 @@ const CreateHealthCard = () => {
     }
   };
 
-  const performSave = async () => {
+  // Step 1: Create payment order (Cashfree)
+  const handleInitiateOnlinePayment = async () => {
+    setOnlinePaymentLoading(true);
+    setSaveError("");
+    try {
+      const amount = Math.round(
+        parseFloat(formData.payment?.totalPaid || "120")
+      );
+      const payload = {
+        amount,
+        customerName:
+          [
+            formData.applicantFirstName,
+            formData.applicantMiddleName,
+            formData.applicantLastName,
+          ]
+            .filter(Boolean)
+            .join(" ") || "Customer",
+        customerEmail: formData.email?.trim() || "customer@example.com",
+        customerPhone: formData.phone?.trim() || "9999999999",
+      };
+
+      const res = await apiService.createPaymentOrder(payload);
+      console.log("[Cashfree] Create Order Response:", res);
+
+      // Extract Cashfree session ID and order ID (be more robust with nested data)
+      // We look in res, res.data, and res.data.data
+      const possibleData = [res, res?.data, res?.data?.data, res?.order, res?.data?.order].filter(Boolean);
+      
+      let sessionId = null;
+      let cOrderId = null;
+
+      for (const d of possibleData) {
+        sessionId = sessionId || d.payment_session_id || d.paymentSessionId || d.cf_session_id || d.sessionId;
+        cOrderId = cOrderId || d.order_id || d.orderId || d.cf_order_id;
+      }
+
+      if (!sessionId) {
+        console.error("[Cashfree] Missing session ID. Full response:", res);
+        throw new Error(`Payment session ID not received. Server responded with: ${JSON.stringify(res)}`);
+      }
+
+      setOrderId(cOrderId);
+      setPaymentOrderData(res?.data || res);
+
+      // Initialize Cashfree SDK
+      const cashfree = await load({
+        mode: "sandbox", // TODO: Switch to "production" when live
+      });
+
+      // Open Cashfree Checkout Modal
+      cashfree
+        .checkout({
+          paymentSessionId: sessionId,
+          redirectTarget: "_modal",
+        })
+        .then(() => {
+          console.log("[Cashfree] Checkout modal closed - Auto verifying...");
+          // Wait a brief moment then auto-verify
+          setTimeout(() => {
+            handleConfirmOnlinePayment(cOrderId);
+          }, 1000);
+        });
+    } catch (err) {
+      console.error("[Cashfree] Initiate failed:", err);
+      setSaveError(
+        err.response?.data?.message ||
+          err.message ||
+          "Failed to initiate payment. Please try again."
+      );
+    } finally {
+      setOnlinePaymentLoading(false);
+    }
+  };
+
+  // Step 2: Verify Cashfree payment then save card
+  const handleConfirmOnlinePayment = async (forcedOrderId = null) => {
+    const activeOrderId = forcedOrderId || orderId;
+    if (!activeOrderId) {
+      toastWarn("No active payment order found.");
+      return;
+    }
+    setVerifyLoading(true);
+    setSaveError("");
+    try {
+      // Data model for verify request
+      const verifyData = {
+        amount: Math.round(parseFloat(formData.payment?.totalPaid || "120")),
+        customerName: [
+          formData.applicantFirstName,
+          formData.applicantMiddleName,
+          formData.applicantLastName,
+        ]
+          .filter(Boolean)
+          .join(" "),
+        customerEmail: formData.email?.trim() || "",
+        customerPhone: formData.phone?.trim() || "",
+      };
+
+      const verifyRes = await apiService.verifyPayment(
+        activeOrderId,
+        verifyData
+      );
+
+      // Backend returns verify status in res.data or res
+      const isSuccess =
+        verifyRes?.success === true ||
+        verifyRes?.data?.payment?.status === "SUCCESS" ||
+        verifyRes?.data?.gatewayOrder?.order_status === "PAID" ||
+        verifyRes?.data?.payment_status === "SUCCESS" ||
+        verifyRes?.payment_status === "SUCCESS" ||
+        verifyRes?.data?.status === "SUCCESS" ||
+        verifyRes?.status === "SUCCESS";
+
+      if (!isSuccess) {
+        throw new Error(
+          verifyRes?.data?.message ||
+            verifyRes?.message ||
+            "Payment verification failed. Re-check or contact support."
+        );
+      }
+
+      toastSuccess("Payment verified successfully!");
+
+      const resolvedTxnId =
+        verifyRes?.data?.payment?.transactionId ||
+        verifyRes?.data?.gatewayOrder?.cf_order_id ||
+        verifyRes?.data?.transactionId ||
+        verifyRes?.data?.cf_payment_id ||
+        verifyRes?.transactionId ||
+        verifyRes?.cf_payment_id ||
+        `TXN${Date.now()}`;
+
+      setTxnId(resolvedTxnId);
+      await performSave("online", resolvedTxnId);
+    } catch (err) {
+      console.error("[Cashfree] verify failed:", err);
+      setSaveError(
+        err.response?.data?.message || err.message || "Payment not verified."
+      );
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
+  const performSave = async (method, resolvedTxnId) => {
     setSaveError("");
     setSaveLoading(true);
 
     try {
+      const finalTxnId =
+        resolvedTxnId ||
+        txnId ||
+        `TXN${Date.now()}${Math.floor(Math.random() * 1000)}`;
+
+      const customerName = [
+        formData.applicantFirstName,
+        formData.applicantMiddleName,
+        formData.applicantLastName,
+      ]
+        .filter(Boolean)
+        .join(" ");
+
       // Build card data payload matching API model
       const cardData = {
+        applicationId: formData.id,
         firstName: formData.applicantFirstName.trim(),
         lastName: formData.applicantLastName?.trim() || "",
         middleName: formData.applicantMiddleName?.trim() || "",
@@ -248,7 +416,8 @@ const CreateHealthCard = () => {
         contact: formData.phone.trim(),
         alternateContact: formData.altPhone?.trim() || "",
         totalAmount: parseFloat(formData.payment?.totalPaid || "120"),
-        applicationDate: formData.dateApplied || new Date().toISOString().split("T")[0],
+        applicationDate:
+          formData.dateApplied || new Date().toISOString().split("T")[0],
         gender: formData.gender || "",
         dob: formData.dob || "",
         relation: formData.relation || "",
@@ -259,25 +428,52 @@ const CreateHealthCard = () => {
         cardIssueDate: formData.issueDate || "",
         cardExpiredDate: formData.expiryDate || "",
         verificationDate: formData.verificationDate || "",
-        status: "pending", // Employee cannot set status — admin verifies
+        status: "pending",
+        totalMember: (formData.members?.length || 0) + 1,
         members: formData.members || [],
         documents: [
-          ...(formData.documentFront ? [{ name: "documentFront", path: formData.documentFront, type: "image" }] : []),
-          ...(formData.documentBack ? [{ name: "documentBack", path: formData.documentBack, type: "image" }] : []),
+          ...(formData.documentFront
+            ? [
+                {
+                  name: "documentFront",
+                  path: formData.documentFront,
+                  type: "image",
+                },
+              ]
+            : []),
+          ...(formData.documentBack
+            ? [
+                {
+                  name: "documentBack",
+                  path: formData.documentBack,
+                  type: "image",
+                },
+              ]
+            : []),
         ],
         payment: {
-          method: paymentMethod || "online",
-          transactionId: `TXN${Date.now()}${Math.floor(Math.random() * 1000)}`,
-          totalAmount: parseFloat(formData.payment?.totalPaid || "120"),
-          date: new Date().toISOString()
-        }
+          method: method || "cash",
+          transactionId: finalTxnId,
+          orderId: orderId || "",
+          amount: parseFloat(formData.payment?.totalPaid || "120"),
+          customerName: customerName,
+          customerEmail: formData.email?.trim() || "",
+          customerPhone: formData.phone?.trim() || "",
+          date: new Date().toISOString(),
+        },
       };
 
       await apiService.createHealthCard(cardData);
+      if (finalTxnId) setTxnId(finalTxnId);
       setPaymentCompleted(true);
+      setCurrentStep(4); // Auto-advance to receipt step
     } catch (err) {
       console.error("Health card create error:", err);
-      setSaveError(err.response?.data?.message || err.message || "Failed to create health card. Please try again.");
+      setSaveError(
+        err.response?.data?.message ||
+          err.message ||
+          "Failed to create health card. Please try again."
+      );
     } finally {
       setSaveLoading(false);
     }
@@ -950,168 +1146,6 @@ const CreateHealthCard = () => {
   );
 
   const renderStep3Payment = () => {
-    if (paymentCompleted) {
-      return (
-        <div className="w-full flex justify-center items-start pt-6 pb-12 animate-in fade-in zoom-in-95 duration-500">
-          <div className="w-full max-w-2xl mx-auto flex flex-col items-center">
-            {/* Printable Section */}
-            <div className="w-full flex flex-col items-center bg-white/0 pt-4 pb-2 px-1">
-              <div className="w-20 h-20 bg-[#ECFDF5] rounded-full flex items-center justify-center mt-4">
-                <div className="w-14 h-14 bg-[#10B981] rounded-full flex items-center justify-center">
-                  <svg
-                    width="32"
-                    height="32"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="white"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                </div>
-              </div>
-
-              <h3 className="text-[28px] font-bold text-[#1E293B] mb-2 mt-4">
-                Payment Successful!
-              </h3>
-
-              <p className="text-[15px] text-gray-600 mb-1">
-                <b>₹{formData.payment.totalPaid}</b> received via{" "}
-                {paymentMethod === "online" ? "Googlepay" : "Cash"}
-              </p>
-
-              <p className="text-[13px] text-gray-500 mb-10 text-center max-w-md">
-                Health card has been activated for{" "}
-                <span className="font-bold">
-                  {formData.applicantFirstName || ""}
-                  {formData.applicantMiddleName
-                    ? ` ${formData.applicantMiddleName} `
-                    : " "}
-                  {formData.applicantLastName || ""}
-                </span>
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-[700px] mb-6">
-                <div className="bg-[#F8FAFC80] border text-left border-[#F1F5F9] rounded-xl p-3">
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                    TXN ID
-                  </p>
-                  <p className="font-bold text-[#1E293B] text-[16px]">
-                    TXN{Math.floor(100000000 + Math.random() * 900000000)}
-                  </p>
-                </div>
-                <div className="bg-[#F8FAFC80] border text-left border-[#F1F5F9] rounded-xl p-3">
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                    AMOUNT
-                  </p>
-                  <p className="font-bold text-[#1E293B] text-[16px]">
-                    ₹{formData.payment.totalPaid}
-                  </p>
-                </div>
-                <div className="bg-[#F8FAFC80] border text-left border-[#F1F5F9] rounded-xl p-3">
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                    MEMBERS
-                  </p>
-                  <p className="font-bold text-[#1E293B] text-[16px]">
-                    {(formData.members?.length || 0) + 1}
-                  </p>
-                </div>
-                <div className="bg-[#F8FAFC80] border text-left border-[#F1F5F9] rounded-xl p-3">
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                    VALID TILL
-                  </p>
-                  <p className="font-bold text-[#1E293B] text-[16px]">
-                    {formData.expiryDate || ""}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full pb-8 px-1">
-              <button
-                onClick={() => setCurrentStep(4)}
-                className="w-full py-3.5 bg-[#0D9488] hover:bg-[#0F766E] transition-colors rounded-xl text-white font-bold text-[14px] flex items-center justify-center gap-2 shadow-xs"
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="7 10 12 15 17 10"></polyline>
-                  <line x1="12" y1="15" x2="12" y2="3"></line>
-                </svg>
-                View & Download Receipt
-              </button>
-              <button
-                onClick={() => {
-                  setFormData({
-                    id: generateId(),
-                    dateApplied: formatDate(new Date()),
-                    status: "Pending verification",
-                    applicantFirstName: "",
-                    applicantMiddleName: "",
-                    applicantLastName: "",
-                    gender: "",
-                    dob: "",
-                    relation: "",
-                    relatedPerson: "",
-                    phone: "",
-                    altPhone: "",
-                    email: "",
-                    address: "",
-                    cardNumber: `${Math.floor(100000000000 + Math.random() * 900000000000)}`,
-                    issueDate: formatDate(new Date()),
-                    expiryDate: (() => {
-                      const d = new Date();
-                      d.setFullYear(d.getFullYear() + 1);
-                      return formatDate(d);
-                    })(),
-                    verificationDate: formatDate(new Date()),
-                    members: [],
-                    documentFront: "",
-                    documentBack: "",
-                    payment: {
-                      baseAmount: 120,
-                      memberAddOns: 0,
-                      totalPaid: "120.00",
-                    },
-                  });
-                  setCurrentStep(1);
-                  setPaymentCompleted(false);
-                  setPaymentMethod(null);
-                }}
-                className="w-full py-3.5 bg-white border border-gray-200 hover:bg-gray-50 transition-colors rounded-xl text-gray-700 font-bold text-[14px] flex items-center justify-center gap-2 shadow-xs"
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="19" y1="12" x2="5" y2="12"></line>
-                  <polyline points="12 19 5 12 12 5"></polyline>
-                </svg>
-                Back to Form
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
     return (
       <div className="flex-1 w-full max-w-4xl mx-auto pb-6">
         {!paymentMethod ? (
@@ -1150,17 +1184,17 @@ const CreateHealthCard = () => {
                   Online Payment
                 </h4>
                 <p className="text-sm text-gray-500 mb-6 line-clamp-2">
-                  Pay via UPI, scan QR code — instant confirmation
+                  Pay via UPI, Cards, or Netbanking — secure gateway
                 </p>
                 <div className="flex gap-2">
+                  <span className="px-3 py-0.5 bg-[#ECFDF5] text-[#10B981] text-[10px] font-bold rounded-md">
+                    CARDS
+                  </span>
                   <span className="px-3 py-0.5 bg-[#ECFDF5] text-[#10B981] text-[10px] font-bold rounded-md">
                     UPI
                   </span>
                   <span className="px-3 py-0.5 bg-[#ECFDF5] text-[#10B981] text-[10px] font-bold rounded-md">
-                    QR
-                  </span>
-                  <span className="px-3 py-0.5 bg-[#ECFDF5] text-[#10B981] text-[10px] font-bold rounded-md">
-                    GPAY
+                    BANKING
                   </span>
                 </div>
               </div>
@@ -1297,17 +1331,17 @@ const CreateHealthCard = () => {
 
             {paymentMethod === "online" ? (
               <div className="grid grid-cols-1 md:grid-cols-[1fr_1.5fr] gap-6 max-w-4xl mx-auto">
-                <div className="border border-gray-200 rounded-xl overflow-hidden shadow-xs bg-white flex flex-col items-center pb-6">
-                  <div className="w-full text-[#F68E5F] font-bold text-[11px] uppercase tracking-wider text-center py-3 bg-[#FFF8F4] mb-4">
-                    Scan To Pay
+                <div className="border border-gray-200 rounded-xl overflow-hidden shadow-xs bg-white flex flex-col items-center justify-center p-8 bg-linear-to-b from-white to-gray-50">
+                  <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mb-6">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+                      <line x1="2" y1="10" x2="22" y2="10"></line>
+                    </svg>
                   </div>
-                  <div className="p-4 flex justify-center items-center">
-                    <img
-                      src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=bkbstrust@upi&am=150.00"
-                      alt="QR Code"
-                      className="w-[180px] h-[180px]"
-                    />
-                  </div>
+                  <h4 className="font-bold text-gray-800 text-lg mb-2">Secure Checkout</h4>
+                  <p className="text-center text-sm text-gray-500 max-w-[240px]">
+                    Click below to open the secure payment gateway and complete your transaction.
+                  </p>
                 </div>
 
                 <div className="flex flex-col gap-4">
@@ -1315,54 +1349,22 @@ const CreateHealthCard = () => {
                     <p className="text-[11px] font-medium uppercase opacity-90 mb-1 tracking-wider">
                       AMOUNT TO PAY
                     </p>
-                    <p className="text-[32px] font-bold leading-tight flex items-baseline gap-1">
+                    <p className="text-[36px] font-bold leading-tight flex items-baseline gap-1">
                       <span className="text-[24px] font-medium">₹</span>{" "}
                       {formData.payment.totalPaid}
                     </p>
                   </div>
                   <div className="border border-gray-200 rounded-xl bg-white shadow-xs overflow-hidden text-[13px]">
+                    <div className="flex justify-between p-4 border-b border-gray-100 italic text-gray-400">
+                      <span>Gateway Mode</span>
+                      <span>Cashfree Secure Checkout</span>
+                    </div>
                     <div className="flex justify-between p-4 border-b border-gray-100">
                       <span className="text-gray-500 font-medium">
                         Payee Name
                       </span>
                       <span className="font-bold text-[#1E293B]">
-                        BKBS Trust
-                      </span>
-                    </div>
-                    <div className="flex justify-between p-4 border-b border-gray-100">
-                      <span className="text-gray-500 font-medium">UPI ID</span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-[#1E293B]">
-                          bkbstrust@upi
-                        </span>
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="#F68E5F"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <rect
-                            x="9"
-                            y="9"
-                            width="13"
-                            height="13"
-                            rx="2"
-                            ry="2"
-                          ></rect>
-                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                        </svg>
-                      </div>
-                    </div>
-                    <div className="flex justify-between p-4 border-b border-gray-100">
-                      <span className="text-gray-500 font-medium">
-                        Application Number
-                      </span>
-                      <span className="font-bold text-[#1E293B]">
-                        {formData.id}
+                        {[formData.applicantFirstName, formData.applicantMiddleName, formData.applicantLastName].filter(Boolean).join(" ") || "Customer"}
                       </span>
                     </div>
                     <div className="flex justify-between p-4">
@@ -1374,42 +1376,86 @@ const CreateHealthCard = () => {
                       </span>
                     </div>
                   </div>
-                  <div className="flex bg-gray-50 rounded-lg p-3 gap-3 items-start border border-gray-100 mt-1">
+                  <div className="flex bg-blue-50 rounded-lg p-3 gap-3 items-start border border-blue-100 mt-1">
                     <svg
                       width="16"
                       height="16"
                       viewBox="0 0 24 24"
                       fill="none"
-                      stroke="#94A3B8"
+                      stroke="#3B82F6"
                       strokeWidth="2"
                       className="mt-0.5 shrink-0"
                     >
                       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
                     </svg>
-                    <p className="text-[10px] text-gray-500 leading-snug">
-                      Your transaction is secured with 256-bit encryption. Do
-                      not close this window or refresh the page while the
-                      payment is in progress.
+                    <p className="text-[10px] text-blue-600 leading-snug">
+                      Payment is processed securely via Cashfree. You can use
+                      UPI, Cards, or Netbanking. Do not close the modal while
+                      payment is processing.
                     </p>
                   </div>
-                  <button
-                    onClick={handleNext}
-                    className="w-full py-3.5 bg-[#10B981] hover:bg-[#0EA5E9] transition-colors rounded-xl text-white font-bold text-[14px] flex items-center justify-center gap-2 shadow-xs mt-1"
-                  >
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
+                  {/* Error banner */}
+                  {saveError && (
+                    <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-2">
+                      {saveError}
+                    </div>
+                  )}
+
+                  {/* Case 1: Not initiated yet */}
+                  {!orderId ? (
+                    <button
+                      onClick={handleInitiateOnlinePayment}
+                      disabled={onlinePaymentLoading}
+                      className="w-full py-4 bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors rounded-xl text-white font-bold text-[15px] flex items-center justify-center gap-2 shadow-md mt-2 disabled:opacity-60"
                     >
-                      <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                    I've completed the payment
-                  </button>
+                      {onlinePaymentLoading ? (
+                        <Loader2 size={20} className="animate-spin" />
+                      ) : (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M5 12h14"></path>
+                          <path d="m12 5 7 7-7 7"></path>
+                        </svg>
+                      )}
+                      {onlinePaymentLoading ? "Preparing Gateway…" : "Pay with Cashfree"}
+                    </button>
+                  ) : (
+                    !paymentCompleted && (
+                      <>
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-col gap-2 mt-2">
+                           <div className="flex items-center gap-2 text-blue-700 font-bold text-sm">
+                              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                              Waiting for Payment
+                           </div>
+                           <p className="text-xs text-blue-600">
+                              If the user completed the payment, please click verify. Order ID: <span className="font-mono">{orderId}</span>
+                           </p>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3 mt-4">
+                          <button
+                            onClick={() => setOrderId(null)}
+                            className="py-3 px-4 border border-gray-200 hover:bg-gray-50 rounded-xl text-gray-600 font-bold text-[13px] transition-colors"
+                          >
+                            Retry Payment
+                          </button>
+                          <button
+                            onClick={() => handleConfirmOnlinePayment()}
+                            disabled={verifyLoading || saveLoading}
+                            className="py-3 px-4 bg-[#10B981] hover:bg-[#059669] rounded-xl text-white font-bold text-[13px] flex items-center justify-center gap-2 shadow-sm transition-colors disabled:opacity-60"
+                          >
+                            {verifyLoading ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                              </svg>
+                            )}
+                            {verifyLoading ? "Verifying…" : "Verify Payment"}
+                          </button>
+                        </div>
+                      </>
+                    )
+                  )}
                 </div>
               </div>
             ) : (
@@ -1428,7 +1474,9 @@ const CreateHealthCard = () => {
                     <span className="text-gray-500 font-medium">
                       Payee Name
                     </span>
-                    <span className="font-bold text-[#1E293B]">BKBS Trust</span>
+                    <span className="font-bold text-[#1E293B]">
+                      {[formData.applicantFirstName, formData.applicantMiddleName, formData.applicantLastName].filter(Boolean).join(" ") || "Customer"}
+                    </span>
                   </div>
                   <div className="flex justify-between p-4">
                     <span className="text-gray-500 font-medium">
@@ -1544,6 +1592,71 @@ const CreateHealthCard = () => {
     );
   };
 
+  const renderThermalReceipt = () => (
+    <div id="thermal-receipt" className="hidden print:block w-[3in] bg-white p-4 font-sans text-black">
+      <div className="text-center border-b-2 border-dashed border-gray-300 pb-3 mb-3">
+        <h2 className="font-bold text-[16px] uppercase tracking-tight">BKBS TRUST</h2>
+        <p className="text-[10px] leading-none opacity-80">Ayushman Sewa Sansthan</p>
+      </div>
+      
+      <div className="flex justify-between text-[11px] mb-1">
+        <span className="font-semibold uppercase opacity-60">Date:</span>
+        <span className="font-bold">{new Date().toLocaleDateString()}</span>
+      </div>
+      <div className="flex justify-between text-[11px] mb-3">
+        <span className="font-semibold uppercase opacity-60">Receipt:</span>
+        <span className="font-bold">{formData.id}</span>
+      </div>
+      
+      <div className="border-y border-dashed border-gray-300 py-2 mb-3">
+        <div className="flex flex-col mb-1 text-[11px]">
+          <span className="uppercase opacity-60 font-semibold mb-0.5">Applicant:</span>
+          <span className="font-bold text-[13px] uppercase break-words">
+            {[formData.applicantFirstName, formData.applicantMiddleName, formData.applicantLastName].filter(Boolean).join(" ")}
+          </span>
+        </div>
+        <div className="flex justify-between text-[11px]">
+          <span className="font-semibold uppercase opacity-60">Phone:</span>
+          <span className="font-bold">{formData.phone}</span>
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <div className="flex justify-between font-bold text-[10px] uppercase opacity-60 mb-2">
+          <span>Item Description</span>
+          <span>Amount</span>
+        </div>
+        <div className="flex justify-between text-[12px] mb-1">
+          <span>Card Generation Fee</span>
+          <span className="font-bold">₹{formData.payment.applicationFee}</span>
+        </div>
+        {formData.members?.length > 0 && (
+          <div className="flex justify-between text-[12px] mb-1">
+            <span>Members Add-on ({formData.members.length})</span>
+            <span className="font-bold">₹{formData.payment.memberAddOns}</span>
+          </div>
+        )}
+        <div className="flex justify-between font-bold border-t-2 border-black pt-2 mt-2 text-[16px]">
+          <span>TOTAL PAID</span>
+          <span>₹{formData.payment.totalPaid}</span>
+        </div>
+      </div>
+
+      <div className="text-[9px] mt-6 border-t border-dashed border-gray-300 pt-3 text-left space-y-1">
+        <div className="flex gap-1">
+          <span className="font-bold uppercase opacity-60 shrink-0 italic">TXN ID:</span>
+          <span className="font-bold break-all">{txnId}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="font-bold uppercase opacity-60 italic">Mode:</span>
+          <span className="font-bold">{paymentMethod?.toUpperCase()}</span>
+        </div>
+        <p className="text-center font-bold text-[11px] mt-4 uppercase tracking-wider border border-black py-1">Verified & Secure</p>
+        <p className="text-center opacity-70 text-[8px] mt-2 italic">* This is a computer generated receipt</p>
+      </div>
+    </div>
+  );
+
   const handleDownloadReceipt = () => {
     window.print();
   };
@@ -1556,7 +1669,37 @@ const CreateHealthCard = () => {
 
   const renderStep4Receipt = () => (
     <div className="w-full flex justify-center items-start pt-2 pb-12 animate-in fade-in zoom-in-95 duration-500">
-      <div className="w-full max-w-[440px] bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-[#E2E8F0] overflow-hidden flex flex-col mb-4 shrink-0">
+      <style>{`
+        @media print {
+          @page {
+            size: 3in auto;
+            margin: 0;
+          }
+          body * {
+            visibility: hidden !important;
+          }
+          #thermal-receipt, #thermal-receipt * {
+            visibility: visible !important;
+          }
+          #thermal-receipt {
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 3in !important;
+            margin: 0 !important;
+            padding: 12px !important;
+            display: block !important;
+          }
+          nav, footer, .sidebar, button, .no-print {
+            display: none !important;
+          }
+        }
+      `}</style>
+      
+      {/* Hidden Thermal Receipt for Printing */}
+      {renderThermalReceipt()}
+
+      <div className="w-full max-w-[440px] bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-[#E2E8F0] overflow-hidden flex flex-col mb-4 shrink-0 no-print">
         {/* Top Green Section */}
         <div className="bg-[#0D9488] p-8 flex flex-col items-center relative overflow-hidden">
           <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center mb-3">
@@ -1625,7 +1768,7 @@ const CreateHealthCard = () => {
                   Transaction ID
                 </p>
                 <p className="text-[13px] font-bold text-[#1E293B] uppercase">
-                  TXN{Math.floor(100000000 + Math.random() * 900000000)}
+                  {txnId || `TXN${Math.floor(100000000 + Math.random() * 900000000)}`}
                 </p>
               </div>
               <div>
