@@ -67,6 +67,7 @@ const Faqs = () => {
 
   return (
     <section
+      id="faq-section"
       style={{ backgroundColor: "#fdf8f2" }}
       className="py-16 md:py-24 px-6"
     >

@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 const teamMembers = [
   {
@@ -29,9 +29,8 @@ const teamMembers = [
 
 const TeamSection = () => {
   return (
-    <section className="py-16 md:py-24 px-6 bg-[#f0f0f0]">
+    <section id="team-section" className="py-16 md:py-24 px-6 bg-[#f0f0f0]">
       <div className="max-w-5xl mx-auto">
-
         {/* Badge */}
         <div className="flex justify-center mb-5">
           <span className="px-4 py-1.5 border border-[#F68E5F] text-[#F68E5F] rounded-full text-sm font-medium">
@@ -46,12 +45,12 @@ const TeamSection = () => {
 
         {/* Subtitle */}
         <p className="text-gray-500 text-center text-sm md:text-base leading-relaxed max-w-sm mx-auto mb-12 md:mb-16">
-          A dedicated team of experts using tech and smart strategy to simplify shipping for all
+          A dedicated team of experts using tech and smart strategy to simplify
+          shipping for all
         </p>
 
         {/* Team Cards */}
         <div className="flex flex-col sm:flex-row items-center sm:items-end justify-center gap-8">
-
           {teamMembers.map((member) => (
             <div
               key={member.id}
@@ -88,9 +87,7 @@ const TeamSection = () => {
               </div>
             </div>
           ))}
-
         </div>
-
       </div>
     </section>
   );

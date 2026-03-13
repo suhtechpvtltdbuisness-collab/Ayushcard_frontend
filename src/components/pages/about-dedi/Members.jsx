@@ -3,12 +3,14 @@ import { ArrowRight, CheckCircle } from "lucide-react";
 
 const Members = () => {
   return (
-    <section className="w-full py-16 px-6" style={{ backgroundColor: "#ffffff" }}>
+    <section
+      id="join-team"
+      className="w-full py-16 px-6"
+      style={{ backgroundColor: "#ffffff" }}
+    >
       <div className="max-w-6xl mx-auto">
-
         {/* TOP: Content Left + Images Right */}
         <div className="grid md:grid-cols-2 gap-12 items-center mb-20">
-
           {/* LEFT — Content */}
           <div>
             <div className="inline-block mb-5">
@@ -19,13 +21,15 @@ const Members = () => {
 
             <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 leading-tight mb-5">
               Join Our Team –<br />
-              Inspire Learners<br />
+              Inspire Learners
+              <br />
               Today!
             </h2>
 
             <p className="text-gray-500 text-base leading-relaxed mb-7">
-              Whether you're a volunteer, donor, or partner, being part of Baijnaath Kesar
-              Bai Sewa Trust means becoming a catalyst for change.
+              Whether you're a volunteer, donor, or partner, being part of
+              Baijnaath Kesar Bai Sewa Trust means becoming a catalyst for
+              change.
             </p>
 
             {/* Checklist */}
@@ -36,8 +40,11 @@ const Members = () => {
                 "Learn and Grow",
                 "Create Legacy",
               ].map((item, i) => (
-                <div key={i} className="flex items-center gap-2 text-gray-700 text-sm">
-                  <CheckCircle className="w-4 h-4 text-[#F68E5F] flex-shrink-0" />
+                <div
+                  key={i}
+                  className="flex items-center gap-2 text-gray-700 text-sm"
+                >
+                  <CheckCircle className="w-4 h-4 text-[#F68E5F] shrink-0" />
                   <span>{item}</span>
                 </div>
               ))}
@@ -54,16 +61,9 @@ const Members = () => {
 
           {/* RIGHT — Single image */}
           <div className="w-[420px] h-[420px] mx-auto rounded-[80px]">
-            <img
-              src="/Aboutimage.svg"
-              alt="about"
-              className="w-full h-full"
-            />
+            <img src="/Aboutimage.svg" alt="about" className="w-full h-full" />
           </div>
-
         </div>
-
-
       </div>
     </section>
   );
