@@ -381,10 +381,22 @@ const apiService = {
         return response.data;
     },
 
+    // POST /api/payments/create-order (public)
+    createPublicPaymentOrder: async (payload) => {
+        const response = await publicApi.post('/api/payments/create-order', payload);
+        return response.data;
+    },
+
     // GET /api/payments/verify/:orderId
     // Body (as params): { amount, customerName, customerEmail, customerPhone }
     verifyPayment: async (orderId, data = {}) => {
         const response = await api.get(`/api/payments/verify/${orderId}`, { params: data });
+        return response.data;
+    },
+
+    // GET /api/payments/verify/:orderId (public)
+    verifyPublicPayment: async (orderId, data = {}) => {
+        const response = await publicApi.get(`/api/payments/verify/${orderId}`, { params: data });
         return response.data;
     },
 

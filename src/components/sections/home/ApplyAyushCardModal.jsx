@@ -13,10 +13,13 @@ import {
   FileText,
   Check,
   ScanLine,
+  Printer,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "../../ui/Toast";
 import apiService from "../../../api/service";
 import { Scanner } from '@yudiel/react-qr-scanner';
+import { load } from "@cashfreepayments/cashfree-js";
 
 const ApplyAyushCardModal = ({ isOpen, onClose }) => {
   const [currentStep, setCurrentStep] = useState(1);
@@ -34,6 +37,13 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
 
   const [paymentScreenshot, setPaymentScreenshot] = useState(null);
   const [isEditingReview, setIsEditingReview] = useState(false);
+  
+  // Payment States
+  const [onlinePaymentLoading, setOnlinePaymentLoading] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [orderId, setOrderId] = useState(null);
+  const [txnId, setTxnId] = useState("");
+  const [saveError, setSaveError] = useState("");
 
   // Step 2 State (Family Head)
   const [headImage, setHeadImage] = useState(null);
@@ -202,6 +212,216 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
     }
   };
 
+  const submitFinalApplication = async (resolvedTxnId = null) => {
+    const finalTxnId = resolvedTxnId || txnId || `MANUAL-${Date.now()}`;
+    
+    // Build the API payload
+    const today = new Date().toISOString().split('T')[0];
+    const cardExpiry = new Date();
+    cardExpiry.setFullYear(cardExpiry.getFullYear() + 1);
+    const cardExpiryDate = cardExpiry.toISOString().split('T')[0];
+
+    // Split fullName into firstName / middleName / lastName
+    const nameParts = familyHead.fullName.trim().split(' ').filter(Boolean);
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+    const middleName = nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '';
+
+    const payload = {
+      applicationDate: today,
+      status: 'pending',
+      firstName,
+      middleName,
+      lastName,
+      contact: familyHead.contactNumber,
+      alternateContact: '',
+      email: familyHead.emailAddress,
+      relation: 'Self',
+      relatedPerson: familyHead.fullName,
+      cardIssueDate: today,
+      cardExpiredDate: cardExpiryDate,
+      verificationDate: today,
+      totalMember: 1 + members.length,
+      totalAmount: estimatedFee,
+      documents: [
+        docFront && {
+          filename: docFront.name,
+          originalName: docFront.name,
+          path: docFront.url || `/uploads/${docFront.name}`,
+          size: 0,
+          mimetype: 'image/jpeg',
+          type: 'aadhaar_front',
+          uploadedAt: new Date().toISOString(),
+        },
+        docBack && {
+          filename: docBack.name,
+          originalName: docBack.name,
+          path: docBack.url || `/uploads/${docBack.name}`,
+          size: 0,
+          mimetype: 'image/jpeg',
+          type: 'aadhaar_back',
+          uploadedAt: new Date().toISOString(),
+        },
+        headImage && {
+          filename: 'family_head_photo.jpg',
+          originalName: 'family_head_photo.jpg',
+          path: headImage, 
+          size: 0,
+          mimetype: 'image/jpeg',
+          type: 'profile_photo',
+          uploadedAt: new Date().toISOString(),
+        },
+        paymentScreenshot && {
+          filename: paymentScreenshot.name,
+          originalName: paymentScreenshot.name,
+          path: paymentScreenshot.url,
+          size: 0,
+          mimetype: 'image/jpeg',
+          type: 'payment_screenshot',
+          uploadedAt: new Date().toISOString(),
+        }
+      ].filter(Boolean),
+      isPrint: false,
+      members: members.map((m) => {
+        return {
+          name: m.fullName,
+          relation: 'Family Member',
+          age: m.dob
+            ? Math.floor((Date.now() - new Date(m.dob).getTime()) / (1000 * 60 * 60 * 24 * 365))
+            : 0,
+        };
+      }),
+      payment: {
+        transactionId: finalTxnId,
+        method: paymentScreenshot ? 'manual' : 'online',
+        totalAmount: estimatedFee,
+        date: new Date().toISOString(),
+        orderId: orderId || "",
+      },
+    };
+
+    try {
+      setSubmitting(true);
+      const res = await apiService.submitCardApplication(payload);
+      const appId =
+        res?.applicationId ||
+        res?.data?.applicationId ||
+        res?.cardUser?.applicationId ||
+        res?.data?.cardUser?.applicationId ||
+        res?._id ||
+        res?.data?._id ||
+        null;
+      setApplicationId(appId);
+      setCurrentStep(5);
+    } catch (err) {
+      console.error('Card application submission error:', err);
+      const errMsg = err.response?.data?.message || err.message || "";
+      
+      if (errMsg.toLowerCase().includes("already exists")) {
+        console.log("Card already exists (public modal), proceeding to success.");
+        // Try to recover appId if possible, though it's less critical here for the receipt view
+        setCurrentStep(5);
+        return;
+      }
+
+      toastError(
+        errMsg || 'Failed to submit application. Please try again.'
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleInitiateCashfreePayment = async () => {
+    setOnlinePaymentLoading(true);
+    setSaveError("");
+    try {
+      const amount = 120 + (members || []).length * 10;
+      const payload = {
+        amount,
+        customerName: (familyHead.fullName || "").trim() || "Customer",
+        customerEmail: (familyHead.emailAddress || "").trim() || "customer@example.com",
+        customerPhone: (familyHead.contactNumber || "").trim().replace(/\D/g, "").slice(0, 10) || "9999999999",
+      };
+
+      const res = await apiService.createPublicPaymentOrder(payload);
+      
+      const possibleData = [res, res?.data, res?.data?.data, res?.order, res?.data?.order].filter(Boolean);
+      let sessionId = null;
+      let cOrderId = null;
+
+      for (const d of possibleData) {
+        sessionId = sessionId || d.payment_session_id || d.paymentSessionId || d.cf_session_id || d.sessionId;
+        cOrderId = cOrderId || d.order_id || d.orderId || d.cf_order_id;
+      }
+
+      if (!sessionId) {
+        throw new Error("Payment session could not be created.");
+      }
+
+      setOrderId(cOrderId);
+
+      const cashfree = await load({ mode: "sandbox" });
+      cashfree.checkout({
+        paymentSessionId: sessionId,
+        redirectTarget: "_modal",
+      }).then(() => {
+        setTimeout(() => {
+          handleVerifyCashfreePayment(cOrderId);
+        }, 1500);
+      });
+    } catch (err) {
+      console.error("[Cashfree] Initiate failed:", err);
+      const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || "Failed to initiate payment.";
+      setSaveError(errorMsg);
+      toastError(errorMsg);
+    } finally {
+      setOnlinePaymentLoading(false);
+    }
+  };
+
+  const handleVerifyCashfreePayment = async (forcedOrderId = null) => {
+    const activeOrderId = forcedOrderId || orderId;
+    if (!activeOrderId) return;
+
+    setVerifyLoading(true);
+    try {
+      const verifyData = {
+        amount: estimatedFee,
+        customerName: familyHead.fullName,
+        customerEmail: familyHead.emailAddress,
+        customerPhone: familyHead.contactNumber,
+      };
+
+      const verifyRes = await apiService.verifyPublicPayment(activeOrderId, verifyData);
+      
+      const isSuccess =
+        verifyRes?.success === true ||
+        verifyRes?.data?.payment?.status === "SUCCESS" ||
+        verifyRes?.data?.gatewayOrder?.order_status === "PAID" ||
+        verifyRes?.payment_status === "SUCCESS" ||
+        verifyRes?.status === "SUCCESS";
+
+      if (isSuccess) {
+        const resolvedTxnId =
+          verifyRes?.data?.payment?.transactionId ||
+          verifyRes?.data?.gatewayOrder?.cf_order_id ||
+          verifyRes?.transactionId ||
+          `TXN${Date.now()}`;
+        
+        setTxnId(resolvedTxnId);
+        await submitFinalApplication(resolvedTxnId);
+      } else {
+        toastWarn("Payment verification pending or failed. Please check your bank or retry.");
+      }
+    } catch (err) {
+      console.error("Verification error:", err);
+      setSaveError("Verification failed.");
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
   const handleNext = async () => {
     // Step 1 validation: Must have uploaded a document AND filled basic details
     if (currentStep === 1) {
@@ -268,120 +488,18 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
       }
     }
 
-    // Step 4: validate + submit to API
+    // Step 4: handled by Cashfree flow
     if (currentStep === 4) {
-      if (!paymentScreenshot) {
-        toastWarn("Please upload the payment screenshot before continuing.");
+      if (!txnId && !paymentScreenshot) {
+        toastWarn("Please complete the payment before continuing.");
         return;
       }
-
-      // Build the API payload
-      const today = new Date().toISOString().split('T')[0];
-      const cardExpiry = new Date();
-      cardExpiry.setFullYear(cardExpiry.getFullYear() + 1);
-      const cardExpiryDate = cardExpiry.toISOString().split('T')[0];
-
-      // Split fullName into firstName / middleName / lastName
-      const nameParts = familyHead.fullName.trim().split(' ').filter(Boolean);
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
-      const middleName = nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '';
-
-      const payload = {
-        applicationDate: today,
-        status: 'pending',
-        firstName,
-        middleName,
-        lastName,
-        contact: familyHead.contactNumber,
-        alternateContact: '',
-        email: familyHead.emailAddress,
-        relation: 'Self',
-        relatedPerson: familyHead.fullName,
-        cardIssueDate: today,
-        cardExpiredDate: cardExpiryDate,
-        verificationDate: today,
-        totalMember: 1 + members.length,
-        totalAmount: estimatedFee,
-        documents: [
-          docFront && {
-            filename: docFront.name,
-            originalName: docFront.name,
-            path: docFront.url || `/uploads/${docFront.name}`,
-            size: 0,
-            mimetype: 'image/jpeg',
-            type: 'aadhaar_front',
-            uploadedAt: new Date().toISOString(),
-          },
-          docBack && {
-            filename: docBack.name,
-            originalName: docBack.name,
-            path: docBack.url || `/uploads/${docBack.name}`,
-            size: 0,
-            mimetype: 'image/jpeg',
-            type: 'aadhaar_back',
-            uploadedAt: new Date().toISOString(),
-          },
-          headImage && {
-            filename: 'family_head_photo.jpg',
-            originalName: 'family_head_photo.jpg',
-            path: headImage, // This is the base64/blob URL
-            size: 0,
-            mimetype: 'image/jpeg',
-            type: 'profile_photo',
-            uploadedAt: new Date().toISOString(),
-          }
-        ].filter(Boolean),
-        isPrint: false,
-        members: members.map((m) => {
-          const mParts = m.fullName.trim().split(' ').filter(Boolean);
-          return {
-            name: m.fullName,
-            relation: 'Family Member',
-            age: m.dob
-              ? Math.floor((Date.now() - new Date(m.dob).getTime()) / (1000 * 60 * 60 * 24 * 365))
-              : 0,
-          };
-        }),
-        payment: {
-          transactionId: `TXN${Date.now()}${Math.floor(Math.random() * 10000)}`,
-          method: 'online',
-          totalAmount: estimatedFee,
-          date: new Date().toISOString(),
-        },
-      };
-
-      try {
-        setSubmitting(true);
-        const res = await apiService.submitCardApplication(payload);
-        // Try to extract the applicationId from various response shapes
-        const appId =
-          res?.applicationId ||
-          res?.data?.applicationId ||
-          res?.cardUser?.applicationId ||
-          res?.data?.cardUser?.applicationId ||
-          res?._id ||
-          res?.data?._id ||
-          null;
-        setApplicationId(appId);
-        setCurrentStep(5);
-        document.querySelector('.custom-scrollbar')?.scrollTo(0, 0);
-      } catch (err) {
-        console.error('Card application submission error:', err);
-        toastError(
-          err.response?.data?.message ||
-          err.message ||
-          'Failed to submit application. Please try again.'
-        );
-      } finally {
-        setSubmitting(false);
-      }
+      await submitFinalApplication();
       return;
     }
 
     if (currentStep < 5) {
       setCurrentStep(currentStep + 1);
-      // Scroll to top of modal manually if needed
       document.querySelector(".custom-scrollbar")?.scrollTo(0, 0);
     }
   };
@@ -1518,76 +1636,122 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                   <div className="bg-[#FAF3E1] rounded-lg p-3 px-4 flex items-center gap-3 border-l-4 border-[#FA8112] mb-6">
                     <User size={20} className="text-[#222222]" />
                     <h3 className="font-semibold text-[#222222]">
-                      Make Payment
+                      Secure Payment
                     </h3>
                   </div>
-                  <p className="text-[14px] text-gray-500 mb-8">
-                    Please pay the amount to submit your application
-                  </p>
+                  
+                  <div className="flex flex-col items-center justify-center py-4">
+                    <div className="bg-white border-2 border-[#fa8112] rounded-3xl p-8 flex flex-col items-center shadow-xl w-full max-w-md">
+                      <div className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-2">Total Payable Amount</div>
+                      <h2 className="text-5xl font-extrabold text-[#222222] mb-8">
+                        ₹{estimatedFee}.00
+                      </h2>
 
-                  <div className="flex flex-col items-center justify-center">
-                    <div className="w-[300px] h-fit bg-gray-200 rounded-xl mb-6 overflow-hidden">
-                      <img
-                        src="/Payment_QR.png"
-                        alt="QR Code placeholder"
-                        className="w-full h-full object-cover"
-                        onError={(e) => (e.target.style.display = "none")}
-                      />
+                      {saveError && (
+                        <div className="bg-red-50 text-red-600 text-xs p-3 rounded-lg mb-4 border border-red-100 w-full text-center">
+                          {saveError}
+                        </div>
+                      )}
+
+                      {txnId ? (
+                        <div className="w-full flex flex-col gap-4 animate-in fade-in zoom-in duration-500">
+                          <div className="bg-green-50 border border-green-200 rounded-2xl p-6 flex flex-col items-center gap-3">
+                            <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center text-white shadow-lg mb-2">
+                              <Check size={32} strokeWidth={3} />
+                            </div>
+                            <h3 className="text-xl font-bold text-green-700">Payment Verified!</h3>
+                            <p className="text-xs text-green-600 text-center">
+                              Transaction Reference:<br/>
+                              <span className="font-mono font-bold uppercase select-all tracking-wider text-[10px] break-all">{txnId}</span>
+                            </p>
+                          </div>
+                          
+                          <button
+                            onClick={() => submitFinalApplication(txnId)}
+                            disabled={submitting}
+                            className="w-full bg-[#10b981] hover:bg-[#059669] active:scale-95 text-white font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-3 disabled:opacity-70"
+                          >
+                            {submitting ? (
+                              <Loader2 className="animate-spin" size={24} />
+                            ) : (
+                              <>
+                                <Check size={24} />
+                                Complete Registration
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          {!orderId ? (
+                            <button
+                              onClick={handleInitiateCashfreePayment}
+                              disabled={onlinePaymentLoading}
+                              className="w-full bg-[#fa8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:active:scale-100"
+                            >
+                              {onlinePaymentLoading ? (
+                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <span className="text-xl">💳</span>
+                              )}
+                              {onlinePaymentLoading ? "Preparing Gateway..." : "Pay with Cashfree"}
+                            </button>
+                          ) : (
+                            <div className="w-full space-y-4">
+                              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex flex-col items-center gap-2">
+                                <div className="flex items-center gap-2 text-[#fa8112] font-bold text-sm">
+                                  <span className="w-2 h-2 rounded-full bg-[#fa8112] animate-pulse"></span>
+                                  Awaiting Payment...
+                                </div>
+                                <p className="text-[10px] text-gray-500 text-center">
+                                  OrderId: {orderId}
+                                </p>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3">
+                                <button
+                                  onClick={() => setOrderId(null)}
+                                  className="py-3 border border-gray-300 rounded-xl text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors"
+                                >
+                                  Retry
+                                </button>
+                                <button
+                                  onClick={() => handleVerifyCashfreePayment()}
+                                  disabled={verifyLoading}
+                                  className="py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-70"
+                                >
+                                  {verifyLoading ? (
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    "Verify"
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      <div className="mt-8 pt-8 border-t border-gray-100 w-full flex items-center justify-center gap-6">
+                        <img src="https://www.cashfree.com/wp-content/uploads/2022/10/cashfree-logo.png" className="h-4 opacity-50 grayscale hover:grayscale-0 transition-all cursor-crosshair" alt="Cashfree" />
+                        <div className="h-4 w-px bg-gray-200" />
+                        <div className="flex gap-2">
+                          <span className="text-[10px] font-bold text-gray-300">UPI</span>
+                          <span className="text-[10px] font-bold text-gray-300">CARDS</span>
+                          <span className="text-[10px] font-bold text-gray-300">NETBANKING</span>
+                        </div>
+                      </div>
                     </div>
 
-                    <h2 className="text-4xl font-semibold text-[#222222] mb-6">
-                      Pay ₹{estimatedFee}.00
-                    </h2>
-
-                    <h3 className="text-[20px] font-bold text-[#222222] mb-2">
-                      Scan this QR Code for payment
-                    </h3>
-                    <p className="text-[14px] text-gray-500 mb-6">
-                      Once done upload the screenshot of the payment below.
-                    </p>
-
-                    {!paymentScreenshot ? (
-                      <button
+                    <div className="mt-8 flex flex-col items-center gap-2">
+                      <p className="text-[11px] text-gray-400 font-medium">Alternative Payment Method</p>
+                      <button 
                         onClick={() => paymentInputRef.current?.click()}
-                        className="w-full max-w-xl flex flex-col items-center justify-center py-6 px-4 rounded-xl transition-all duration-300 border border-[#fa8112] hover:bg-[#faf3e1] bg-white cursor-pointer mb-8"
+                        className="text-[13px] text-[#fa8112] font-semibold flex items-center gap-2 hover:underline"
                       >
-                        <div className="w-[45px] h-[45px] bg-[#fa8112] rounded-[14px] flex items-center justify-center text-white mb-3 shadow-sm">
-                          <UploadCloud size={24} strokeWidth={2.5} />
-                        </div>
-                        <h4 className="font-semibold text-[16px] text-[#222222] mb-1">
-                          Upload Image
-                        </h4>
-                        <p className="text-[12px] text-gray-500 text-center">
-                          JPG,PNG formats supported upto 5 MB
-                        </p>
+                        {paymentScreenshot ? "✓ Screenshot Uploaded" : "Upload Manual Payment Screenshot"}
                       </button>
-                    ) : (
-                      <div className="w-full max-w-xl border border-[#F8F1F1] bg-[#FFFCFB] rounded-xl p-4 flex items-center justify-between mb-8">
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
-                            <img
-                              src={paymentScreenshot.url}
-                              alt="Payment Receipt"
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                          <div>
-                            <p className="font-semibold text-[#222222] text-[15px] mb-[2px] truncate w-[150px]">
-                              {paymentScreenshot.name}
-                            </p>
-                            <p className="text-[13px] text-gray-500">
-                              {paymentScreenshot.size}
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => setPaymentScreenshot(null)}
-                          className="p-1 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"
-                        >
-                          <CloseIcon size={20} strokeWidth={2} />
-                        </button>
-                      </div>
-                    )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -1638,43 +1802,75 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
             </div>
           </>
         ) : (
-          /* STEP 5: SUCCESS */
-          <div className="flex-1 flex flex-col items-center justify-center py-16 px-8 animate-in zoom-in-95 duration-500 bg-white">
-            <div className="mb-6">
-              <img
-                src="/laptop.png"
-                alt="Application Submitted"
-                className="w-48 h-auto"
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = "/green_double_circle_check.svg";
-                }}
-              />
-            </div>
-            <h2 className="text-[32px] font-semibold text-[#222222] mb-3 md">
-              Application Submitted!
-            </h2>
-            <p className="text-center text-gray-500 max-w-sm mb-8 text-[14px] tracking-wide">
-              Your Ayush Card application has been received. You will be
-              notified via SMS and email once it is processed.
-            </p>
+          /* STEP 5: SUCCESS / RECEIPT */
+          <div className="flex-1 overflow-y-auto px-8 py-8 animate-in zoom-in-95 duration-500 bg-[#F9FAFB] custom-scrollbar">
+            <div className="max-w-md mx-auto">
+              {/* Receipt Header */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+                <div className="bg-green-500 p-6 flex flex-col items-center">
+                  <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-3">
+                    <Check className="text-white w-6 h-6" strokeWidth={3} />
+                  </div>
+                  <h2 className="text-white text-xl font-bold">Payment Successful</h2>
+                  <p className="text-green-100 text-sm mt-1">Application Reference: {applicationId || 'Pending'}</p>
+                </div>
 
-            <div className="text-center mb-8">
-              <p className="text-[15px] text-[#fa8112] mb-2 font-medium">
-                Application Reference Number
-              </p>
-              <p className="text-[20px] font-bold text-[#fa8112] tracking-wider">
-                {applicationId || 'BKBST-' + Date.now().toString().slice(-8)}
-              </p>
-            </div>
+                <div className="p-6 space-y-4">
+                  <div className="flex justify-between items-center pb-4 border-b border-gray-50">
+                    <span className="text-gray-500 text-sm">Amount Paid</span>
+                    <span className="text-xl font-bold text-[#222222]">₹{estimatedFee}.00</span>
+                  </div>
 
-            <button
-              onClick={onClose}
-              className="flex items-center gap-2 bg-[#FA8112] hover:bg-[#e0720f] active:scale-95 transition-all text-white font-semibold py-3 px-8 rounded-full shadow-md"
-            >
-              <ArrowLeft size={18} />
-              Return To Website
-            </button>
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Transaction ID</span>
+                      <span className="font-semibold text-[#222222] uppercase">{txnId || "N/A"}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Payment Date</span>
+                      <span className="font-semibold text-[#222222]">{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Family Head</span>
+                      <span className="font-semibold text-[#222222]">{familyHead.fullName}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Total Members</span>
+                      <span className="font-semibold text-[#222222]">{totalMembersCount}</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 mt-4 border-t border-dashed border-gray-200">
+                    <div className="bg-gray-50 rounded-lg p-3 flex items-start gap-3">
+                      <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                        <span className="text-blue-600 text-[10px] font-bold">i</span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 leading-relaxed text-left">
+                        Your application is under review. You will receive an SMS and Email notification once your Ayush Card is generated.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => window.print()}
+                  className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-3 px-6 rounded-xl transition-all shadow-sm"
+                >
+                  <Printer size={18} />
+                  Print Receipt
+                </button>
+                <button
+                  onClick={onClose}
+                  className="w-full flex items-center justify-center gap-2 bg-[#FA8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md"
+                >
+                  <ArrowLeft size={18} />
+                  Return to Home
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

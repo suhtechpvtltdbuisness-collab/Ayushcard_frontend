@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { X, ChevronDown, Plus, Loader2 } from "lucide-react";
+import { X, ChevronDown, Plus, Loader2, Check } from "lucide-react";
 import AyushCardPreview from "../../../components/admin/AyushCardPreview";
 import apiService from "../../../api/service";
 import { useToast } from "../../../components/ui/Toast";
@@ -248,21 +248,19 @@ const CreateHealthCard = () => {
     setOnlinePaymentLoading(true);
     setSaveError("");
     try {
-      const amount = Math.round(
-        parseFloat(formData.payment?.totalPaid || "120")
-      );
+      const amountVal = parseFloat(formData.payment?.totalPaid || "120");
+      const amount = isNaN(amountVal) ? 120 : Math.round(amountVal);
+      
+      const p_firstName = (formData.applicantFirstName || "").trim();
+      const p_middleName = (formData.applicantMiddleName || "").trim();
+      const p_lastName = (formData.applicantLastName || "").trim();
+      const fullName = [p_firstName, p_middleName, p_lastName].filter(Boolean).join(" ") || "Customer";
+      
       const payload = {
         amount,
-        customerName:
-          [
-            formData.applicantFirstName,
-            formData.applicantMiddleName,
-            formData.applicantLastName,
-          ]
-            .filter(Boolean)
-            .join(" ") || "Customer",
-        customerEmail: formData.email?.trim() || "customer@example.com",
-        customerPhone: formData.phone?.trim() || "9999999999",
+        customerName: fullName,
+        customerEmail: (formData.email || "").trim() || "customer@example.com",
+        customerPhone: (formData.phone || "").trim().replace(/\D/g, "").slice(0, 10) || "9999999999",
       };
 
       const res = await apiService.createPaymentOrder(payload);
@@ -308,11 +306,9 @@ const CreateHealthCard = () => {
         });
     } catch (err) {
       console.error("[Cashfree] Initiate failed:", err);
-      setSaveError(
-        err.response?.data?.message ||
-          err.message ||
-          "Failed to initiate payment. Please try again."
-      );
+      const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || "Failed to initiate payment. Please try again.";
+      setSaveError(errorMsg);
+      toastError(errorMsg);
     } finally {
       setOnlinePaymentLoading(false);
     }
@@ -391,12 +387,12 @@ const CreateHealthCard = () => {
   const performSave = async (method, resolvedTxnId) => {
     setSaveError("");
     setSaveLoading(true);
+    const finalTxnId =
+      resolvedTxnId ||
+      txnId ||
+      `TXN${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
     try {
-      const finalTxnId =
-        resolvedTxnId ||
-        txnId ||
-        `TXN${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
       const customerName = [
         formData.applicantFirstName,
@@ -408,7 +404,7 @@ const CreateHealthCard = () => {
 
       // Build card data payload matching API model
       const cardData = {
-        applicationId: formData.id, // Explicit applicationId mapping
+        applicationId: formData.id,
         firstName: formData.applicantFirstName.trim(),
         lastName: formData.applicantLastName?.trim() || "",
         middleName: formData.applicantMiddleName?.trim() || "",
@@ -429,7 +425,7 @@ const CreateHealthCard = () => {
         cardExpiredDate: formData.expiryDate || "",
         verificationDate: formData.verificationDate || "",
         status: "pending",
-        totalMember: (formData.members?.length || 0) + 1, // Count including self
+        totalMember: (formData.members?.length || 0) + 1,
         members: formData.members || [],
         documents: [
           ...(formData.documentFront
@@ -456,6 +452,7 @@ const CreateHealthCard = () => {
           transactionId: finalTxnId,
           orderId: orderId || "",
           amount: parseFloat(formData.payment?.totalPaid || "120"),
+          totalAmount: parseFloat(formData.payment?.totalPaid || "120"),
           customerName: customerName,
           customerEmail: formData.email?.trim() || "",
           customerPhone: formData.phone?.trim() || "",
@@ -466,13 +463,24 @@ const CreateHealthCard = () => {
       await apiService.createHealthCard(cardData);
       if (finalTxnId) setTxnId(finalTxnId);
       setPaymentCompleted(true);
+      setSaveError(""); // Clear any previous errors on success
       setCurrentStep(4); // Auto-advance to receipt step
     } catch (err) {
       console.error("Health card create error:", err);
+      const errMsg = err.response?.data?.message || err.message || "";
+      
+      // If the error says the transaction already exists, it means the card was created on a previous attempt
+      if (errMsg.toLowerCase().includes("already exists")) {
+        console.log("Card already exists, proceeding to receipt.");
+        if (finalTxnId) setTxnId(finalTxnId);
+        setPaymentCompleted(true);
+        setSaveError(""); 
+        setCurrentStep(4);
+        return;
+      }
+
       setSaveError(
-        err.response?.data?.message ||
-          err.message ||
-          "Failed to create health card. Please try again."
+        errMsg || "Failed to create health card. Please try again."
       );
     } finally {
       setSaveLoading(false);
@@ -1409,61 +1417,80 @@ const CreateHealthCard = () => {
                     </div>
                   )}
 
-                  {/* Case 1: Not initiated yet */}
-                  {!orderId ? (
-                    <button
-                      onClick={handleInitiateOnlinePayment}
-                      disabled={onlinePaymentLoading}
-                      className="w-full py-4 bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors rounded-xl text-white font-bold text-[15px] flex items-center justify-center gap-2 shadow-md mt-2 disabled:opacity-60"
-                    >
-                      {onlinePaymentLoading ? (
-                        <Loader2 size={20} className="animate-spin" />
-                      ) : (
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M5 12h14"></path>
-                          <path d="m12 5 7 7-7 7"></path>
-                        </svg>
-                      )}
-                      {onlinePaymentLoading ? "Preparing Gateway…" : "Pay with Cashfree"}
-                    </button>
+                  {/* Case 3: Payment Success but Save Error */}
+                  {txnId ? (
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-5 flex flex-col gap-3 mt-2">
+                       <div className="flex items-center gap-2 text-green-700 font-bold text-sm">
+                          <Check className="w-5 h-5" />
+                          Payment Successful
+                       </div>
+                       <p className="text-xs text-green-600">
+                          Transaction ID: <span className="font-mono font-bold uppercase">{txnId}</span>
+                       </p>
+                       <button
+                         onClick={() => performSave("online", txnId)}
+                         disabled={saveLoading}
+                         className="w-full py-3 bg-[#10B981] hover:bg-[#059669] rounded-xl text-white font-bold text-[13px] flex items-center justify-center gap-2 shadow-sm transition-colors disabled:opacity-60"
+                       >
+                         {saveLoading ? <Loader2 size={16} className="animate-spin" /> : "Complete Application"}
+                       </button>
+                    </div>
                   ) : (
                     <>
-                      {/* Case 2: Checkout initiated/closed, need verify */}
-                      {!paymentCompleted && (
-                        <>
-                          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-col gap-2 mt-2">
-                             <div className="flex items-center gap-2 text-blue-700 font-bold text-sm">
-                                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                                Waiting for Payment
-                             </div>
-                             <p className="text-xs text-blue-600">
-                                If you have completed the payment in the modal, please click verify. Order ID: <span className="font-mono">{orderId}</span>
-                             </p>
-                          </div>
-                          
-                          <div className="grid grid-cols-2 gap-3 mt-4">
-                            <button
-                              onClick={() => setOrderId(null)}
-                              className="py-3 px-4 border border-gray-200 hover:bg-gray-50 rounded-xl text-gray-600 font-bold text-[13px] transition-colors"
-                            >
-                              Retry Payment
-                            </button>
-                            <button
-                              onClick={() => handleConfirmOnlinePayment()}
-                              disabled={verifyLoading || saveLoading}
-                              className="py-3 px-4 bg-[#10B981] hover:bg-[#059669] rounded-xl text-white font-bold text-[13px] flex items-center justify-center gap-2 shadow-sm transition-colors disabled:opacity-60"
-                            >
-                              {verifyLoading ? (
-                                <Loader2 size={16} className="animate-spin" />
-                              ) : (
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                  <polyline points="20 6 9 17 4 12"></polyline>
-                                </svg>
-                              )}
-                              {verifyLoading ? "Verifying…" : "Verify Payment"}
-                            </button>
-                          </div>
-                        </>
+                      {/* Case 1: Not initiated yet */}
+                      {!orderId ? (
+                        <button
+                          onClick={handleInitiateOnlinePayment}
+                          disabled={onlinePaymentLoading}
+                          className="w-full py-4 bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors rounded-xl text-white font-bold text-[15px] flex items-center justify-center gap-2 shadow-md mt-2 disabled:opacity-60"
+                        >
+                          {onlinePaymentLoading ? (
+                            <Loader2 size={20} className="animate-spin" />
+                          ) : (
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M5 12h14"></path>
+                              <path d="m12 5 7 7-7 7"></path>
+                            </svg>
+                          )}
+                          {onlinePaymentLoading ? "Preparing Gateway…" : "Pay with Cashfree"}
+                        </button>
+                      ) : (
+                        !paymentCompleted && (
+                          <>
+                            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-col gap-2 mt-2">
+                               <div className="flex items-center gap-2 text-blue-700 font-bold text-sm">
+                                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                                  Waiting for Payment
+                               </div>
+                               <p className="text-xs text-blue-600">
+                                  If you have completed the payment in the modal, please click verify. Order ID: <span className="font-mono">{orderId}</span>
+                               </p>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-3 mt-4">
+                              <button
+                                onClick={() => setOrderId(null)}
+                                className="py-3 px-4 border border-gray-200 hover:bg-gray-50 rounded-xl text-gray-600 font-bold text-[13px] transition-colors"
+                              >
+                                Retry Payment
+                              </button>
+                              <button
+                                onClick={() => handleConfirmOnlinePayment()}
+                                disabled={verifyLoading || saveLoading}
+                                className="py-3 px-4 bg-[#10B981] hover:bg-[#059669] rounded-xl text-white font-bold text-[13px] flex items-center justify-center gap-2 shadow-sm transition-colors disabled:opacity-60"
+                              >
+                                {verifyLoading ? (
+                                  <Loader2 size={16} className="animate-spin" />
+                                ) : (
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                  </svg>
+                                )}
+                                {verifyLoading ? "Verifying…" : "Verify Payment"}
+                              </button>
+                            </div>
+                          </>
+                        )
                       )}
                     </>
                   )}
