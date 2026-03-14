@@ -431,18 +431,24 @@ const CreateHealthCard = () => {
           ...(formData.documentFront
             ? [
                 {
-                  name: "documentFront",
+                  filename: "documentFront.jpg",
+                  originalName: "documentFront.jpg",
                   path: formData.documentFront,
                   type: "image",
+                  mimetype: "image/jpeg",
+                  uploadedAt: new Date().toISOString(),
                 },
               ]
             : []),
           ...(formData.documentBack
             ? [
                 {
-                  name: "documentBack",
+                  filename: "documentBack.jpg",
+                  originalName: "documentBack.jpg",
                   path: formData.documentBack,
                   type: "image",
+                  mimetype: "image/jpeg",
+                  uploadedAt: new Date().toISOString(),
                 },
               ]
             : []),

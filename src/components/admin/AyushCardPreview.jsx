@@ -57,8 +57,15 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
                   if (!url) return null;
                   if (typeof url !== 'string') return null;
                   if (url.startsWith("data:") || url.startsWith("http") || url.startsWith("blob:")) return url;
-                  const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
-                  return `${baseUrl}${url.startsWith("/") ? "" : "/"}${url}`;
+
+                  let baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+                  if (!baseUrl && window.location.hostname === "localhost") {
+                    baseUrl = "https://bkbs-backend.vercel.app";
+                  }
+
+                  const fileBase = baseUrl.replace(/\/api$/, "");
+                  const cleanBase = fileBase.endsWith("/") ? fileBase.slice(0, -1) : fileBase;
+                  return `${cleanBase}${url.startsWith("/") ? "" : "/"}${url}`;
                 };
 
                 const imgSrc = 

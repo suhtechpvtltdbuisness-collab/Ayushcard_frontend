@@ -232,6 +232,17 @@ const apiService = {
              cardData.payment.transactionId = `TXN${Date.now()}${Math.floor(Math.random() * 1000)}`;
         }
 
+        if (file) {
+            const formData = new FormData();
+            formData.append('data', JSON.stringify(cardData));
+            formData.append('document', file);
+            
+            const response = await api.post('/api/cards', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            return response.data;
+        }
+
         const response = await api.post('/api/cards', cardData, {
              headers: { 'Content-Type': 'application/json' },
         });
@@ -257,7 +268,18 @@ const apiService = {
     },
 
     // PUT /api/cards/:id
-    updateHealthCard: async (id, cardData) => {
+    updateHealthCard: async (id, cardData, file = null) => {
+        if (file) {
+            const formData = new FormData();
+            formData.append('data', JSON.stringify(cardData));
+            formData.append('document', file);
+
+            const response = await api.put(`/api/cards/${id}`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            return response.data;
+        }
+
         const response = await api.put(`/api/cards/${id}`, cardData, {
              headers: { 'Content-Type': 'application/json' },
         });

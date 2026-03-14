@@ -98,6 +98,22 @@ const HealthCardDetails = () => {
   const [fetchErr, setFetchErr] = useState("");
   const [saveLoading, setSaveLoading] = useState(false);
   const [saveError, setSaveError] = useState("");
+
+  const resolveUrl = (path) => {
+    if (!path) return "";
+    if (path.startsWith("http") || path.startsWith("data:") || path.startsWith("blob:")) return path;
+
+    let baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+    if (!baseUrl && window.location.hostname === "localhost") {
+      baseUrl = "https://bkbs-backend.vercel.app";
+    }
+
+    const fileBase = baseUrl.replace(/\/api$/, "");
+    const cleanBase = fileBase.endsWith("/") ? fileBase.slice(0, -1) : fileBase;
+    const cleanPath = path.startsWith("/") ? path : `/${path}`;
+    
+    return `${cleanBase}${cleanPath}`;
+  };
   const [pendingFile, setPendingFile] = useState(null); // file to send with Save
   const [cardSide, setCardSide] = useState("front");
 
@@ -663,7 +679,7 @@ const HealthCardDetails = () => {
                 {formData.documentFront ? (
                   <div className="w-full h-full relative group rounded-lg overflow-hidden">
                     <img
-                      src={formData.documentFront}
+                      src={resolveUrl(formData.documentFront)}
                       className="w-full h-full object-cover"
                       alt="Front"
                     />
@@ -720,7 +736,7 @@ const HealthCardDetails = () => {
                 {formData.documentBack ? (
                   <div className="w-full h-full relative group rounded-lg overflow-hidden">
                     <img
-                      src={formData.documentBack}
+                      src={resolveUrl(formData.documentBack)}
                       className="w-full h-full object-cover"
                       alt="Back"
                     />

@@ -459,23 +459,25 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
         return;
       }
       const fg = familyHead;
-      if (
-        !fg.fullName ||
-        !fg.dob ||
-        !fg.gender ||
-        !fg.contactNumber ||
-        !fg.aadhaarNumber ||
-        !fg.emailAddress
-      ) {
-        toastWarn("Please fill all the family head details.");
+      const missingFields = [];
+      if (!fg.fullName) missingFields.push("Full Name");
+      if (!fg.dob) missingFields.push("Date of Birth");
+      if (!fg.gender) missingFields.push("Gender");
+      if (!fg.contactNumber) missingFields.push("Contact Number");
+      if (!fg.aadhaarNumber) missingFields.push("Aadhaar Number");
+      if (!fg.emailAddress) missingFields.push("Email Address");
+
+      if (missingFields.length > 0) {
+        toastWarn(`Please fill missing family head details: ${missingFields.join(", ")}`);
         return;
       }
+
       if (fg.contactNumber.length < 10) {
-        toastWarn("Please enter a valid 10 digit contact number.");
+        toastWarn("Contact number must be 10 digits.");
         return;
       }
       if (fg.aadhaarNumber.length < 12) {
-        toastWarn("Please enter a valid 12 digit aadhaar number.");
+        toastWarn("Aadhaar number must be 12 digits.");
         return;
       }
 
@@ -664,7 +666,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
             </div>
 
             {/* Main Content Area */}
-            <div className="flex-1 overflow-y-auto px-8 pb-8 pt-2 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto px-8 pb-24 pt-2 custom-scrollbar">
               {/* STEP 1: ADD FAMILY HEAD */}
               {currentStep === 1 && (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-300">
@@ -907,7 +909,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                         name="aadhaarNumber"
                         value={familyHead.aadhaarNumber}
                         onChange={handleHeadChange}
-                        placeholder="Select aadhaar no."
+                        placeholder="Enter 12 digit Aadhaar no."
                         style={{ fontFamily: "'Inter', sans-serif" }}
                         className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
                       />
