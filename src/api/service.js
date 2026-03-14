@@ -61,25 +61,32 @@ const processQueue = (error, newToken = null) => {
 
 const doRefresh = async () => {
     const refreshToken = getRefreshToken();
-    if (!refreshToken) throw new Error('No refresh token');
+    if (!refreshToken) throw new Error('No refresh token available');
 
-    // Call the refresh endpoint — adjust URL if your backend differs
-    const response = await axios.post(
-        `${import.meta.env.VITE_API_BASE_URL || ''}/api/auth/refresh-token`,
-        { refreshToken },
-        { headers: { 'Content-Type': 'application/json' } }
-    );
+    try {
+        // Use publicApi to call the refresh endpoint
+        const response = await publicApi.post('/api/auth/refresh-token', { refreshToken });
 
-    const newAccessToken = response.data?.data?.accessToken || response.data?.accessToken;
-    const newRefreshToken = response.data?.data?.refreshToken || response.data?.refreshToken;
+        // User's response structure: { success, message, data: { accessToken } }
+        // We also check for refreshToken in case the backend supports rotation
+        const newAccessToken = response.data?.data?.accessToken || response.data?.accessToken;
+        const newRefreshToken = response.data?.data?.refreshToken || response.data?.refreshToken;
 
-    if (!newAccessToken) throw new Error('Refresh response missing accessToken');
+        if (!newAccessToken) {
+            throw new Error('Refresh response missing accessToken');
+        }
 
-    // Save new tokens
-    storage.set('token', newAccessToken);
-    if (newRefreshToken) storage.set('refreshToken', newRefreshToken);
+        // Save new tokens
+        storage.set('token', newAccessToken);
+        if (newRefreshToken) {
+            storage.set('refreshToken', newRefreshToken);
+        }
 
-    return newAccessToken;
+        return newAccessToken;
+    } catch (error) {
+        console.error('[service] Refresh token failed:', error.response?.data || error.message);
+        throw error;
+    }
 };
 
 // ─── REQUEST INTERCEPTOR ───────────────────────────────────────────────────
@@ -266,6 +273,29 @@ const apiService = {
     // DELETE /api/cards/:id
     deleteHealthCard: async (id) => {
         const response = await api.delete(`/api/cards/${id}`);
+        return response.data;
+    },
+
+    // GET /api/cards/verified/not-printed
+    getVerifiedNotPrintedCards: async () => {
+        const response = await api.get('/api/cards/verified/not-printed');
+        return response.data;
+    },
+
+    // PUT /api/cards/print-status
+    updatePrintStatus: async (cardIds, isPrint) => {
+        const response = await api.put('/api/cards/print-status', { cardIds, isPrint });
+        return response.data;
+    },
+
+    // GET /api/cards/printed
+    getPrintedCards: async (cardIds = []) => {
+        // If cardIds are provided, the backend might use them to filter, though the request 
+        // structure for a GET usually doesn't have a body. We'll pass them as params if needed
+        // but sticking to the user's description of GET with optional body/structure.
+        const response = await api.get('/api/cards/printed', {
+            params: cardIds.length > 0 ? { cardIds: cardIds.join(',') } : {}
+        });
         return response.data;
     },
 

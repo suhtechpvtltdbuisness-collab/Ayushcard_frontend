@@ -128,7 +128,7 @@ export default function VerifiedCards() {
   const fetchCards = async () => {
     try {
       setLoading(true);
-      const res = await apiService.getHealthCards();
+      const res = await apiService.getVerifiedNotPrintedCards();
       const raw = Array.isArray(res?.data?.cards)
         ? res.data.cards
         : Array.isArray(res?.data)
@@ -137,8 +137,7 @@ export default function VerifiedCards() {
             ? res
             : [];
       const normalized = raw.map(normalizeCard);
-      // ONLY SHOW VERIFIED CARDS
-      setHealthCards(normalized.filter((c) => c.status === "Verified"));
+      setHealthCards(normalized);
     } catch (err) {
       console.error("[VerifiedCards] Failed to fetch:", err);
     } finally {

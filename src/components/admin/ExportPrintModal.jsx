@@ -5,6 +5,7 @@ import { toJpeg } from "html-to-image";
 import jsPDF from "jspdf";
 import AyushCardPreview from "./AyushCardPreview";
 import { useToast } from "../ui/Toast";
+import apiService from "../../api/service";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Capture a single AyushCardPreview into a JPEG data-URL.
@@ -229,6 +230,14 @@ export default function ExportPrintModal({ isOpen, onClose, selectedData, onExpo
         buildGridPdf(backImgs,  `Batch_${ci + 1}_BACK_${s}-${e}.pdf`);
         setDownloadedCount((p) => p + 2);
       }
+      
+      // After successful completion of all batches, update print status in backend
+      setProgress("Finalizing print status...");
+      const cardIds = selectedData.map(c => c._id || c.id).filter(Boolean);
+      if (cardIds.length > 0) {
+        await apiService.updatePrintStatus(cardIds, true);
+      }
+
       toastSuccess("All batches downloaded! Cards marked as exported.");
       onExportSuccess();
     } catch (err) {

@@ -52,11 +52,31 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
           {/* Body */}
           <div className="flex gap-4 flex-1 h-2/3">
             <div className="w-[110px] bg-white rounded-xl overflow-hidden border-2 border-black">
-              <img
-                src={data?.profileImage || (Array.isArray(data?.documents) && data.documents.length > 0 ? (data.documents[0].path || data.documents[0].url) : null) || "/gallery1.svg"}
-                alt="profile"
-                className="w-full h-full object-cover"
-              />
+              {(() => {
+                const getImageUrl = (url) => {
+                  if (!url) return null;
+                  if (typeof url !== 'string') return null;
+                  if (url.startsWith("data:") || url.startsWith("http") || url.startsWith("blob:")) return url;
+                  const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+                  return `${baseUrl}${url.startsWith("/") ? "" : "/"}${url}`;
+                };
+
+                const imgSrc = 
+                  getImageUrl(data?.profileImage) || 
+                  getImageUrl(data?.documentFront) || 
+                  (Array.isArray(data?.documents) && data.documents.length > 0 
+                    ? (getImageUrl(data.documents[0].path) || getImageUrl(data.documents[0].url)) 
+                    : null) || 
+                  "/gallery1.svg";
+
+                return (
+                  <img
+                    src={imgSrc}
+                    alt="profile"
+                    className="w-full h-full object-cover"
+                  />
+                );
+              })()}
             </div>
 
             <div className="flex-1 bg-white text-black rounded-xl p-2 text-[13px] space-y-2 flex flex-col justify-center">

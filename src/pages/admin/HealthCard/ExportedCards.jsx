@@ -110,7 +110,7 @@ export default function ExportedCards() {
   const fetchCards = async () => {
     try {
       setLoading(true);
-      const res = await apiService.getHealthCards();
+      const res = await apiService.getPrintedCards();
       const raw = Array.isArray(res?.data?.cards)
         ? res.data.cards
         : Array.isArray(res?.data)
@@ -119,8 +119,7 @@ export default function ExportedCards() {
             ? res
             : [];
       const normalized = raw.map(normalizeCard);
-      // ONLY SHOW EXPORTED CARDS
-      setHealthCards(normalized.filter((c) => c.status === "Exported"));
+      setHealthCards(normalized);
     } catch (err) {
       console.error("[ExportedCards] Failed to fetch:", err);
     } finally {

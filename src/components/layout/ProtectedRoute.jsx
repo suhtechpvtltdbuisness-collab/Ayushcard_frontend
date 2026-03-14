@@ -1,30 +1,9 @@
-import React, { useEffect, useRef } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
-import { isTokenValid, msUntilExpiry, clearTokens } from "../../utils/auth";
-
-/**
- * ProtectedRoute
- * ──────────────
- * Wraps any route that requires a valid, non-expired JWT.
- *
- * Behaviour:
- *  1. On first render – if the token is missing or already expired → redirect
- *     immediately to /login.
- *  2. While the user is on the page – a timer fires ~30 s before expiry
- *     (same buffer used by isTokenValid) and performs a hard logout.
- *  3. A "storage" event listener catches the case where another tab logs out,
- *     ensuring this tab also redirects.
- *
- * Usage (in App.jsx):
- *   <Route element={<ProtectedRoute />}>
- *     ... admin child routes ...
- *   </Route>
- */
-import { Outlet } from "react-router-dom";
+import React, { useEffect } from "react";
+import { Navigate, useNavigate, Outlet } from "react-router-dom";
+import { canSessionContinue, clearTokens } from "../../utils/auth";
 
 const ProtectedRoute = ({ allowedRole }) => {
     const navigate = useNavigate();
-    const logoutTimerRef = useRef(null);
 
     // ── Helper: get current role ───────────────────────────────────────────
     const getUserRole = () => {
@@ -46,42 +25,23 @@ const ProtectedRoute = ({ allowedRole }) => {
         navigate("/login", { replace: true });
     };
 
-    // ── Schedule a proactive logout timer ────────────────────────────────────
-    const scheduleLogout = () => {
-        if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
-
-        const ms = msUntilExpiry();
-        if (ms === 0) {
-            logout("token already expired");
-            return;
-        }
-        if (ms === Infinity) return; // no-expiry token — skip scheduling
-
-        logoutTimerRef.current = setTimeout(() => {
-            logout("token lifetime reached");
-        }, ms);
-    };
-
     useEffect(() => {
-        if (!isTokenValid()) {
-            logout("no valid token on mount");
+        if (!canSessionContinue()) {
+            logout("no valid session on mount");
             return;
         }
 
         // Role check
         if (allowedRole && userRole !== allowedRole) {
             console.error(`[ProtectedRoute] Access denied. Required: ${allowedRole}, Found: ${userRole}`);
-            // Don't log out, just redirect to their correct dashboard or login
             if (userRole === "Admin") navigate("/admin", { replace: true });
             else if (userRole === "Employee") navigate("/employee", { replace: true });
             else navigate("/login", { replace: true });
             return;
         }
 
-        scheduleLogout();
-
         const handleStorage = (e) => {
-            if (e.key === "token" && !e.newValue) {
+            if ((e.key === "token" || e.key === "refreshToken") && !e.newValue) {
                 logout("token removed in another tab");
             }
         };
@@ -91,7 +51,6 @@ const ProtectedRoute = ({ allowedRole }) => {
         window.addEventListener("auth:logout", handleForceLogout);
 
         return () => {
-            if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
             window.removeEventListener("storage", handleStorage);
             window.removeEventListener("auth:logout", handleForceLogout);
         };
@@ -99,7 +58,7 @@ const ProtectedRoute = ({ allowedRole }) => {
     }, [allowedRole, userRole]);
 
     // Initial basic check
-    if (!isTokenValid()) {
+    if (!canSessionContinue()) {
         return <Navigate to="/login" replace />;
     }
 

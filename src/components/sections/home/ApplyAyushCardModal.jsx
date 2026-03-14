@@ -153,32 +153,57 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
   const handleDocumentUpload = (e, side) => {
     const file = e.target.files[0];
     if (file) {
-      const fileData = {
-        name: file.name,
-        size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
-        url: URL.createObjectURL(file), // Store URL for preview
+      if (file.size > 5 * 1024 * 1024) {
+        toastWarn("Image size should be less than 5MB");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const fileData = {
+          name: file.name,
+          size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
+          url: URL.createObjectURL(file), // Still keep for instant preview
+          base64: reader.result, // Add base64 for backend
+        };
+        if (side === "front") setDocFront(fileData);
+        else setDocBack(fileData);
       };
-      if (side === "front") setDocFront(fileData);
-      else setDocBack(fileData);
+      reader.readAsDataURL(file);
     }
   };
 
   const handleHeadImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      const imageUrl = URL.createObjectURL(file);
-      setHeadImage(imageUrl);
+      if (file.size > 5 * 1024 * 1024) {
+        toastWarn("Image size should be less than 5MB");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setHeadImage(reader.result); // Use base64 directly
+      };
+      reader.readAsDataURL(file);
     }
   };
 
   const handlePaymentScreenshotUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      setPaymentScreenshot({
-        name: file.name,
-        size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
-        url: URL.createObjectURL(file),
-      });
+      if (file.size > 5 * 1024 * 1024) {
+        toastWarn("Image size should be less than 5MB");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPaymentScreenshot({
+          name: file.name,
+          size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
+          url: URL.createObjectURL(file),
+          base64: reader.result,
+        });
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -247,7 +272,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
         docFront && {
           filename: docFront.name,
           originalName: docFront.name,
-          path: docFront.url || `/uploads/${docFront.name}`,
+          path: docFront.base64 || docFront.url,
           size: 0,
           mimetype: 'image/jpeg',
           type: 'aadhaar_front',
@@ -256,7 +281,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
         docBack && {
           filename: docBack.name,
           originalName: docBack.name,
-          path: docBack.url || `/uploads/${docBack.name}`,
+          path: docBack.base64 || docBack.url,
           size: 0,
           mimetype: 'image/jpeg',
           type: 'aadhaar_back',
@@ -265,7 +290,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
         headImage && {
           filename: 'family_head_photo.jpg',
           originalName: 'family_head_photo.jpg',
-          path: headImage, 
+          path: headImage, // This is already base64 now
           size: 0,
           mimetype: 'image/jpeg',
           type: 'profile_photo',
@@ -274,7 +299,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
         paymentScreenshot && {
           filename: paymentScreenshot.name,
           originalName: paymentScreenshot.name,
-          path: paymentScreenshot.url,
+          path: paymentScreenshot.base64 || paymentScreenshot.url,
           size: 0,
           mimetype: 'image/jpeg',
           type: 'payment_screenshot',

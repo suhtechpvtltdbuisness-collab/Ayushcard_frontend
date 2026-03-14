@@ -70,10 +70,25 @@ export const msUntilExpiry = () => {
 };
 
 /**
+ * Returns true if a refresh token is stored.
+ */
+export const hasRefreshToken = () =>
+    !!(localStorage.getItem('refreshToken') || sessionStorage.getItem('refreshToken'));
+
+/**
+ * Returns true if the user can continue their session.
+ * Meaning they either have a valid access token OR they have a refresh token
+ * which can be used to obtain a new access token.
+ */
+export const canSessionContinue = () => {
+    return isTokenValid() || hasRefreshToken();
+};
+
+/**
  * Clear all auth tokens from both storages.
  */
 export const clearTokens = () => {
-    ['token', 'refreshToken', 'user'].forEach((key) => {
+    ['token', 'refreshToken', 'user', 'userRole'].forEach((key) => {
         localStorage.removeItem(key);
         sessionStorage.removeItem(key);
     });

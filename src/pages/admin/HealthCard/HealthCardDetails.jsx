@@ -42,6 +42,8 @@ const apiToForm = (card) => ({
   relation: card.relation || "",
   relatedPerson: card.relatedPerson || "",
   profileImage: card.profileImage || (Array.isArray(card.documents) && card.documents.length > 0 ? card.documents[0].path : ""),
+  documentFront: card.documentFront || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentFront")?.path : "") || "",
+  documentBack: card.documentBack || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentBack")?.path : "") || "",
   documents: Array.isArray(card.documents) ? card.documents : [],
   // NGO details for preview
   ngoLocation: card.ngoLocation || "Mangla Vihar Kanpur - 208015",
