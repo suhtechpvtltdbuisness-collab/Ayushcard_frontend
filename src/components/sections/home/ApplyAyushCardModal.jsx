@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   X,
   ArrowRight,
@@ -39,6 +39,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
   const [isEditingReview, setIsEditingReview] = useState(false);
   
   // Payment States
+  const [paymentMethod, setPaymentMethod] = useState("online"); // 'online' | 'manual'
   const [onlinePaymentLoading, setOnlinePaymentLoading] = useState(false);
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [orderId, setOrderId] = useState(null);
@@ -54,11 +55,51 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
     contactNumber: "",
     aadhaarNumber: "",
     emailAddress: "",
+    relation: "",
+    relatedPerson: "",
+    address: "",
+    pincode: "",
   });
 
-  // Step 3 State (Members)
   const [members, setMembers] = useState([]);
   const [activeMemberTab, setActiveMemberTab] = useState(0); // 0 is head, 1+ is members
+
+  const resetForm = () => {
+    setCurrentStep(1);
+    setApplicationId(null);
+    setActiveTab(null);
+    setDocFront(null);
+    setDocBack(null);
+    setHeadImage(null);
+    setPaymentScreenshot(null);
+    setIsEditingReview(false);
+    setOnlinePaymentLoading(false);
+    setVerifyLoading(false);
+    setOrderId(null);
+    setTxnId("");
+    setSaveError("");
+    setPaymentMethod("online");
+    setFamilyHead({
+      fullName: "",
+      dob: "",
+      gender: "",
+      contactNumber: "",
+      aadhaarNumber: "",
+      emailAddress: "",
+      relation: "",
+      relatedPerson: "",
+      address: "",
+      pincode: "",
+    });
+    setMembers([]);
+    setActiveMemberTab(0);
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      resetForm();
+    }
+  }, [isOpen]);
 
   const parseAadhaarQR = (text) => {
     try {
@@ -104,7 +145,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
         }));
         
         // Use a generic Aadhaar placeholder if actual image isn't available from QR
-        const placeholderUrl = "https://th.bing.com/th/id/OIP.XGvUf3m_7B-E-5_y_XW1OAHaEK?rs=1&pid=ImgDetMain"; 
+        const placeholderUrl = "https://placehold.co/600x400/f8f9fa/6c757d?text=Aadhaar+Scanned"; 
         
         setDocFront({ 
           name: "Scanned Aadhaar Front.jpg", 
@@ -130,9 +171,10 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
     let { name, value } = e.target;
 
     // Validations
-    if (name === "fullName") value = value.replace(/[0-9]/g, "");
+    if (name === "fullName" || name === "relatedPerson") value = value.replace(/[0-9]/g, "");
     if (name === "contactNumber") value = value.replace(/\D/g, "").slice(0, 10);
     if (name === "aadhaarNumber") value = value.replace(/\D/g, "").slice(0, 12);
+    if (name === "pincode") value = value.replace(/\D/g, "").slice(0, 6);
 
     setFamilyHead((prev) => ({ ...prev, [name]: value }));
   };
@@ -213,11 +255,8 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
       ...members,
       {
         fullName: "",
-        dob: "",
-        gender: "",
-        contactNumber: "",
-        aadhaarNumber: "",
-        emailAddress: "",
+        relation: "",
+        age: "",
       },
     ]);
     setActiveMemberTab(members.length + 1); // Switch to newly created member
@@ -261,8 +300,12 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
       contact: familyHead.contactNumber,
       alternateContact: '',
       email: familyHead.emailAddress,
-      relation: 'Self',
-      relatedPerson: familyHead.fullName,
+      relation: familyHead.relation,
+      relatedPerson: familyHead.relatedPerson,
+      gender: familyHead.gender,
+      dob: familyHead.dob,
+      address: familyHead.address,
+      pincode: familyHead.pincode,
       cardIssueDate: today,
       cardExpiredDate: cardExpiryDate,
       verificationDate: today,
@@ -310,10 +353,8 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
       members: members.map((m) => {
         return {
           name: m.fullName,
-          relation: 'Family Member',
-          age: m.dob
-            ? Math.floor((Date.now() - new Date(m.dob).getTime()) / (1000 * 60 * 60 * 24 * 365))
-            : 0,
+          relation: m.relation || 'Family Member',
+          age: parseInt(m.age) || 0,
         };
       }),
       payment: {
@@ -466,6 +507,10 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
       if (!fg.contactNumber) missingFields.push("Contact Number");
       if (!fg.aadhaarNumber) missingFields.push("Aadhaar Number");
       if (!fg.emailAddress) missingFields.push("Email Address");
+      if (!fg.relation) missingFields.push("Relation");
+      if (!fg.relatedPerson) missingFields.push("Father/Husband Name");
+      if (!fg.address) missingFields.push("Full Address");
+      if (!fg.pincode) missingFields.push("Pincode");
 
       if (missingFields.length > 0) {
         toastWarn(`Please fill missing family head details: ${missingFields.join(", ")}`);
@@ -478,6 +523,10 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
       }
       if (fg.aadhaarNumber.length < 12) {
         toastWarn("Aadhaar number must be 12 digits.");
+        return;
+      }
+      if (fg.pincode.length < 6) {
+        toastWarn("Pincode must be 6 digits.");
         return;
       }
 
@@ -493,23 +542,8 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
     if (currentStep === 2) {
       for (let i = 0; i < members.length; i++) {
         const p = members[i];
-        if (
-          !p.fullName ||
-          !p.dob ||
-          !p.gender ||
-          !p.contactNumber ||
-          !p.aadhaarNumber ||
-          !p.emailAddress
-        ) {
+        if (!p.fullName || !p.relation || !p.age) {
           toastWarn(`Please fill all details for Member ${i + 1}`);
-          return;
-        }
-        if (p.contactNumber.length < 10) {
-          toastWarn(`Please enter a valid 10 digit contact number for Member ${i + 1}`);
-          return;
-        }
-        if (p.aadhaarNumber.length < 12) {
-          toastWarn(`Please enter a valid 12 digit aadhaar number for Member ${i + 1}`);
           return;
         }
       }
@@ -928,6 +962,74 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                         className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
                       />
                     </div>
+
+                    <div>
+                      <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                        Relation
+                      </label>
+                      <select
+                        name="relation"
+                        value={familyHead.relation}
+                        onChange={handleHeadChange}
+                        style={{ fontFamily: "'Inter', sans-serif" }}
+                        className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] appearance-none bg-white"
+                      >
+                        <option value="">Select Relation</option>
+                        <option value="Self">Self</option>
+                        <option value="Spouse">Spouse</option>
+                        <option value="Child">Child</option>
+                        <option value="Parent">Parent</option>
+                        <option value="S/O">S/O (Son of)</option>
+                        <option value="D/O">D/O (Daughter of)</option>
+                        <option value="W/O">W/O (Wife of)</option>
+                        <option value="C/O">C/O (Care of)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                        Father/Husband Name
+                      </label>
+                      <input
+                        type="text"
+                        name="relatedPerson"
+                        value={familyHead.relatedPerson}
+                        onChange={handleHeadChange}
+                        placeholder="Enter Father/Husband Name"
+                        style={{ fontFamily: "'Inter', sans-serif" }}
+                        className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                        Pincode
+                      </label>
+                      <input
+                        type="text"
+                        name="pincode"
+                        value={familyHead.pincode}
+                        onChange={handleHeadChange}
+                        placeholder="6-digit Pincode"
+                        style={{ fontFamily: "'Inter', sans-serif" }}
+                        className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                        Full Address
+                      </label>
+                      <textarea
+                        name="address"
+                        value={familyHead.address}
+                        onChange={handleHeadChange}
+                        placeholder="Enter your complete address"
+                        rows={2}
+                        style={{ fontFamily: "'Inter', sans-serif" }}
+                        className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors resize-none"
+                      />
+                    </div>
                   </div>
                 </div>
               )}
@@ -1098,6 +1200,74 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                           className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
                         />
                       </div>
+
+                      <div>
+                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                          Relation
+                        </label>
+                        <select
+                          name="relation"
+                          value={familyHead.relation}
+                          onChange={handleHeadChange}
+                          style={{ fontFamily: "'Inter', sans-serif" }}
+                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] appearance-none bg-white"
+                        >
+                          <option value="">Select Relation</option>
+                          <option value="Self">Self</option>
+                          <option value="Spouse">Spouse</option>
+                          <option value="Child">Child</option>
+                          <option value="Parent">Parent</option>
+                          <option value="S/O">S/O (Son of)</option>
+                          <option value="D/O">D/O (Daughter of)</option>
+                          <option value="W/O">W/O (Wife of)</option>
+                          <option value="C/O">C/O (Care of)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                          Father/Husband Name
+                        </label>
+                        <input
+                          type="text"
+                          name="relatedPerson"
+                          value={familyHead.relatedPerson}
+                          onChange={handleHeadChange}
+                          placeholder="Enter Father/Husband Name"
+                          style={{ fontFamily: "'Inter', sans-serif" }}
+                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                          Pincode
+                        </label>
+                        <input
+                          type="text"
+                          name="pincode"
+                          value={familyHead.pincode}
+                          onChange={handleHeadChange}
+                          placeholder="6-digit Pincode"
+                          style={{ fontFamily: "'Inter', sans-serif" }}
+                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                          Full Address
+                        </label>
+                        <textarea
+                          name="address"
+                          value={familyHead.address}
+                          onChange={handleHeadChange}
+                          placeholder="Enter your complete address"
+                          rows={2}
+                          style={{ fontFamily: "'Inter', sans-serif" }}
+                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors resize-none"
+                        />
+                      </div>
                     </div>
                   ) : (
                     /* Display Active Member Fields */
@@ -1116,91 +1286,50 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                           onChange={(e) =>
                             handleMemberChange(activeMemberTab - 1, e)
                           }
-                          placeholder="As per identity document"
+                          placeholder="Full Name"
                           style={{ fontFamily: "'Inter', sans-serif" }}
                           className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
                         />
                       </div>
                       <div>
                         <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
-                          Date of Birth
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="date"
-                            name="dob"
-                            value={members[activeMemberTab - 1]?.dob || ""}
-                            onChange={(e) =>
-                              handleMemberChange(activeMemberTab - 1, e)
-                            }
-                            style={{ fontFamily: "'Inter', sans-serif" }}
-                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
-                          Gender
+                          Relation
                         </label>
                         <select
-                          name="gender"
-                          value={members[activeMemberTab - 1].gender}
+                          name="relation"
+                          value={members[activeMemberTab - 1].relation}
                           onChange={(e) =>
                             handleMemberChange(activeMemberTab - 1, e)
                           }
                           style={{ fontFamily: "'Inter', sans-serif" }}
                           className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] appearance-none bg-white"
                         >
-                          <option value="">Select gender</option>
-                          <option value="Male">Male</option>
-                          <option value="Female">Female</option>
+                          <option value="">Select Relation</option>
+                          <option value="Spouse">Spouse</option>
+                          <option value="Son">Son</option>
+                          <option value="Daughter">Daughter</option>
+                          <option value="Father">Father</option>
+                          <option value="Mother">Mother</option>
+                          <option value="Brother">Brother</option>
+                          <option value="Sister">Sister</option>
+                          <option value="Grandfather">Grandfather</option>
+                          <option value="Grandmother">Grandmother</option>
                           <option value="Other">Other</option>
                         </select>
                       </div>
                       <div>
                         <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
-                          Contact Number
+                          Age
                         </label>
                         <input
-                          type="tel"
-                          name="contactNumber"
-                          value={members[activeMemberTab - 1].contactNumber}
-                          onChange={(e) =>
-                            handleMemberChange(activeMemberTab - 1, e)
-                          }
-                          placeholder="Enter contact no."
-                          style={{ fontFamily: "'Inter', sans-serif" }}
-                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
-                          Aadhaar Number
-                        </label>
-                        <input
-                          type="text"
-                          name="aadhaarNumber"
-                          value={members[activeMemberTab - 1].aadhaarNumber}
-                          onChange={(e) =>
-                            handleMemberChange(activeMemberTab - 1, e)
-                          }
-                          placeholder="Select aadhaar no."
-                          style={{ fontFamily: "'Inter', sans-serif" }}
-                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
-                          Email Address
-                        </label>
-                        <input
-                          type="email"
-                          name="emailAddress"
-                          value={members[activeMemberTab - 1].emailAddress}
-                          onChange={(e) =>
-                            handleMemberChange(activeMemberTab - 1, e)
-                          }
-                          placeholder="Enter email"
+                          type="number"
+                          name="age"
+                          value={members[activeMemberTab - 1].age}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, "").slice(0, 3);
+                            handleMemberChange(activeMemberTab - 1, { target: { name: 'age', value: val } });
+                          }}
+                          placeholder="Age"
                           style={{ fontFamily: "'Inter', sans-serif" }}
                           className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
                         />
@@ -1247,11 +1376,25 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                             {docFront ? (
                               <>
                                 {docFront.url ? (
-                                  <img
-                                    src={docFront.url}
-                                    className="w-full h-full object-cover"
-                                    alt="Front"
-                                  />
+                                  <div className="relative w-full h-full group">
+                                    <img
+                                      src={docFront.url}
+                                      className="w-full h-full object-cover"
+                                      alt="Front"
+                                    />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                      <button 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          window.open(docFront.url, '_blank');
+                                        }}
+                                        className="bg-white/90 hover:bg-white text-[#222222] p-1.5 rounded-full shadow-lg transition-all"
+                                        title="View Document"
+                                      >
+                                        <ScanLine size={16} />
+                                      </button>
+                                    </div>
+                                  </div>
                                 ) : (
                                   <div className="text-gray-500 flex flex-col items-center">
                                     <FileText size={32} className="mb-2" />
@@ -1298,11 +1441,25 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                             {docBack ? (
                               <>
                                 {docBack.url ? (
-                                  <img
-                                    src={docBack.url}
-                                    className="w-full h-full object-cover"
-                                    alt="Back"
-                                  />
+                                  <div className="relative w-full h-full group">
+                                    <img
+                                      src={docBack.url}
+                                      className="w-full h-full object-cover"
+                                      alt="Back"
+                                    />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                      <button 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          window.open(docBack.url, '_blank');
+                                        }}
+                                        className="bg-white/90 hover:bg-white text-[#222222] p-1.5 rounded-full shadow-lg transition-all"
+                                        title="View Document"
+                                      >
+                                        <ScanLine size={16} />
+                                      </button>
+                                    </div>
+                                  </div>
                                 ) : (
                                   <div className="text-gray-500 flex flex-col items-center">
                                     <FileText size={32} className="mb-2" />
@@ -1346,11 +1503,26 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                           <div className="w-full md:w-[240px] h-[150px] bg-gray-200 rounded-lg flex items-center justify-center relative overflow-hidden group">
                             {headImage ? (
                               <>
-                                <img
-                                  src={headImage}
-                                  alt="Head"
-                                  className="w-full h-full object-cover"
-                                />
+                                <div className="relative w-full h-full group">
+                                  <img
+                                    src={headImage}
+                                    alt="Head"
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const win = window.open();
+                                        win.document.write(`<img src="${headImage}" />`);
+                                      }}
+                                      className="bg-white/90 hover:bg-white text-[#222222] p-1.5 rounded-full shadow-lg transition-all"
+                                      title="View Photo"
+                                    >
+                                      <ScanLine size={16} />
+                                    </button>
+                                  </div>
+                                </div>
                                 {isEditingReview && (
                                   <button
                                     onClick={() => setHeadImage(null)}
@@ -1494,6 +1666,87 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                             </p>
                           )}
                         </div>
+                        <div>
+                          <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                            Relation
+                          </p>
+                          {isEditingReview ? (
+                            <select
+                              name="relation"
+                              value={familyHead.relation}
+                              onChange={handleHeadChange}
+                              className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222] bg-white"
+                            >
+                              <option value="">Select Relation</option>
+                              <option value="Self">Self</option>
+                              <option value="Spouse">Spouse</option>
+                              <option value="Child">Child</option>
+                              <option value="Parent">Parent</option>
+                              <option value="S/O">S/O (Son of)</option>
+                              <option value="D/O">D/O (Daughter of)</option>
+                              <option value="W/O">W/O (Wife of)</option>
+                              <option value="C/O">C/O (Care of)</option>
+                            </select>
+                          ) : (
+                            <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                              {familyHead.relation || "Not provided"}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                            Father/Husband Name
+                          </p>
+                          {isEditingReview ? (
+                            <input
+                              type="text"
+                              name="relatedPerson"
+                              value={familyHead.relatedPerson}
+                              onChange={handleHeadChange}
+                              className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                            />
+                          ) : (
+                            <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                              {familyHead.relatedPerson || "Not provided"}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                            Pincode
+                          </p>
+                          {isEditingReview ? (
+                            <input
+                              type="text"
+                              name="pincode"
+                              value={familyHead.pincode}
+                              onChange={handleHeadChange}
+                              className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                            />
+                          ) : (
+                            <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                              {familyHead.pincode || "XXXXXX"}
+                            </p>
+                          )}
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                            Full Address
+                          </p>
+                          {isEditingReview ? (
+                            <textarea
+                              name="address"
+                              value={familyHead.address}
+                              onChange={handleHeadChange}
+                              rows={2}
+                              className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222] resize-none"
+                            />
+                          ) : (
+                            <p className="text-[14px] font-semibold text-[#222222] w-full pr-2 line-clamp-2">
+                              {familyHead.address || "Not provided"}
+                            </p>
+                          )}
+                        </div>
                       </div>
 
                       {isEditingReview && (
@@ -1529,10 +1782,10 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                               <h4 className="font-bold text-[#222222] mb-4 pb-2 border-b border-gray-100 uppercase tracking-wider text-[11px]">
                                 Member {idx + 1}
                               </h4>
-                              <div className="grid grid-cols-2 gap-y-6">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div>
                                   <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
-                                    Full Name
+                                    Member Name
                                   </p>
                                   {isEditingReview ? (
                                     <input
@@ -1552,85 +1805,53 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                                 </div>
                                 <div>
                                   <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
-                                    Date of Birth
-                                  </p>
-                                  {isEditingReview ? (
-                                    <input
-                                      type="date"
-                                      name="dob"
-                                      value={member.dob}
-                                      onChange={(e) =>
-                                        handleMemberChange(idx, e)
-                                      }
-                                      className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
-                                    />
-                                  ) : (
-                                    <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
-                                      {member.dob || "—"}
-                                    </p>
-                                  )}
-                                </div>
-                                <div>
-                                  <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
-                                    Gender
+                                    Relation
                                   </p>
                                   {isEditingReview ? (
                                     <select
-                                      name="gender"
-                                      value={member.gender}
+                                      name="relation"
+                                      value={member.relation}
                                       onChange={(e) =>
                                         handleMemberChange(idx, e)
                                       }
-                                      className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                                      className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222] bg-white"
                                     >
-                                      <option value="">Select Gender</option>
-                                      <option value="Male">Male</option>
-                                      <option value="Female">Female</option>
+                                      <option value="">Select Relation</option>
+                                      <option value="Spouse">Spouse</option>
+                                      <option value="Son">Son</option>
+                                      <option value="Daughter">Daughter</option>
+                                      <option value="Father">Father</option>
+                                      <option value="Mother">Mother</option>
+                                      <option value="Brother">Brother</option>
+                                      <option value="Sister">Sister</option>
+                                      <option value="Grandfather">Grandfather</option>
+                                      <option value="Grandmother">Grandmother</option>
                                       <option value="Other">Other</option>
                                     </select>
                                   ) : (
                                     <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
-                                      {member.gender || "—"}
+                                      {member.relation || "—"}
                                     </p>
                                   )}
                                 </div>
                                 <div>
                                   <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
-                                    Contact
+                                    Age
                                   </p>
                                   {isEditingReview ? (
                                     <input
-                                      type="tel"
-                                      name="contactNumber"
-                                      value={member.contactNumber}
-                                      onChange={(e) =>
-                                        handleMemberChange(idx, e)
-                                      }
+                                      type="number"
+                                      name="age"
+                                      value={member.age}
+                                      onChange={(e) => {
+                                        const val = e.target.value.replace(/\D/g, "").slice(0, 3);
+                                        handleMemberChange(idx, { target: { name: 'age', value: val } });
+                                      }}
                                       className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
                                     />
                                   ) : (
                                     <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
-                                      {member.contactNumber || "—"}
-                                    </p>
-                                  )}
-                                </div>
-                                <div>
-                                  <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
-                                    Aadhaar Number
-                                  </p>
-                                  {isEditingReview ? (
-                                    <input
-                                      type="text"
-                                      name="aadhaarNumber"
-                                      value={member.aadhaarNumber}
-                                      onChange={(e) =>
-                                        handleMemberChange(idx, e)
-                                      }
-                                      className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
-                                    />
-                                  ) : (
-                                    <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
-                                      {member.aadhaarNumber || "—"}
+                                      {member.age || "—"}
                                     </p>
                                   )}
                                 </div>
@@ -1667,11 +1888,40 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                     </h3>
                   </div>
                   
-                  <div className="flex flex-col items-center justify-center py-4">
-                    <div className="bg-white border-2 border-[#fa8112] rounded-3xl p-8 flex flex-col items-center shadow-xl w-full max-w-md">
-                      <div className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-2">Total Payable Amount</div>
-                      <h2 className="text-5xl font-extrabold text-[#222222] mb-8">
-                        ₹{estimatedFee}.00
+                  <div className="flex flex-col items-center justify-center py-2">
+                    {/* Payment Mode Tabs */}
+                    {!txnId && !paymentScreenshot && (
+                      <div className="flex bg-gray-100 p-1 rounded-xl mb-6 w-full max-w-md">
+                        <button
+                          onClick={() => setPaymentMethod("online")}
+                          className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                            paymentMethod === "online"
+                              ? "bg-white text-[#fa8112] shadow-sm"
+                              : "text-gray-500 hover:text-gray-700"
+                          }`}
+                        >
+                          Credit Card / UPI
+                        </button>
+                        <button
+                          onClick={() => setPaymentMethod("manual")}
+                          className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                            paymentMethod === "manual"
+                              ? "bg-white text-[#fa8112] shadow-sm"
+                              : "text-gray-500 hover:text-gray-700"
+                          }`}
+                        >
+                          Manual / QR
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="bg-white border-2 border-[#fa8112] rounded-3xl p-8 flex flex-col items-center shadow-xl w-full max-w-md relative overflow-hidden">
+                      {/* Decorative background for amount */}
+                      <div className="absolute top-0 left-0 w-full h-1 bg-[#fa8112]"></div>
+                      
+                      <div className="text-gray-400 text-[10px] font-bold uppercase tracking-[0.2em] mb-2 font-inter">Total Payable Amount</div>
+                      <h2 className="text-5xl font-extrabold text-[#222222] mb-8 font-inter">
+                        <span className="text-2xl font-semibold mr-1">₹</span>{estimatedFee}.00
                       </h2>
 
                       {saveError && (
@@ -1680,29 +1930,44 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                         </div>
                       )}
 
-                      {txnId ? (
+                      {txnId || paymentScreenshot ? (
                         <div className="w-full flex flex-col gap-4 animate-in fade-in zoom-in duration-500">
-                          <div className="bg-green-50 border border-green-200 rounded-2xl p-6 flex flex-col items-center gap-3">
-                            <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center text-white shadow-lg mb-2">
-                              <Check size={32} strokeWidth={3} />
+                          <div className={`border rounded-2xl p-6 flex flex-col items-center gap-3 ${txnId ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'}`}>
+                            <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg mb-1 ${txnId ? 'bg-green-500' : 'bg-orange-500'}`}>
+                              <Check size={28} strokeWidth={3} />
                             </div>
-                            <h3 className="text-xl font-bold text-green-700">Payment Verified!</h3>
-                            <p className="text-xs text-green-600 text-center">
-                              Transaction Reference:<br/>
-                              <span className="font-mono font-bold uppercase select-all tracking-wider text-[10px] break-all">{txnId}</span>
+                            <h3 className={`text-lg font-bold ${txnId ? 'text-green-700' : 'text-orange-700'}`}>
+                              {txnId ? "Payment Verified!" : "Screenshot Uploaded!"}
+                            </h3>
+                            <p className={`text-[11px] text-center font-medium ${txnId ? 'text-green-600' : 'text-orange-600'}`}>
+                              {txnId ? (
+                                <>
+                                  Ref: <span className="font-mono font-bold uppercase select-all tracking-wider">{txnId}</span>
+                                </>
+                              ) : (
+                                "Manual verification in progress after submission"
+                              )}
                             </p>
+                            {paymentScreenshot && !txnId && (
+                               <button 
+                                 onClick={() => setPaymentScreenshot(null)}
+                                 className="text-[10px] text-orange-400 hover:text-orange-600 underline"
+                               >
+                                 Remove and change method
+                               </button>
+                            )}
                           </div>
                           
                           <button
                             onClick={() => submitFinalApplication(txnId)}
                             disabled={submitting}
-                            className="w-full bg-[#10b981] hover:bg-[#059669] active:scale-95 text-white font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-3 disabled:opacity-70"
+                            className="w-full bg-[#fa8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:active:scale-100"
                           >
                             {submitting ? (
                               <Loader2 className="animate-spin" size={24} />
                             ) : (
                               <>
-                                <Check size={24} />
+                                <CheckCircle2 size={24} />
                                 Complete Registration
                               </>
                             )}
@@ -1710,74 +1975,90 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                         </div>
                       ) : (
                         <>
-                          {!orderId ? (
-                            <button
-                              onClick={handleInitiateCashfreePayment}
-                              disabled={onlinePaymentLoading}
-                              className="w-full bg-[#fa8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:active:scale-100"
-                            >
-                              {onlinePaymentLoading ? (
-                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              ) : (
-                                <span className="text-xl">💳</span>
-                              )}
-                              {onlinePaymentLoading ? "Preparing Gateway..." : "Pay with Cashfree"}
-                            </button>
-                          ) : (
+                          {paymentMethod === "online" ? (
                             <div className="w-full space-y-4">
-                              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex flex-col items-center gap-2">
-                                <div className="flex items-center gap-2 text-[#fa8112] font-bold text-sm">
-                                  <span className="w-2 h-2 rounded-full bg-[#fa8112] animate-pulse"></span>
-                                  Awaiting Payment...
-                                </div>
-                                <p className="text-[10px] text-gray-500 text-center">
-                                  OrderId: {orderId}
-                                </p>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-3">
+                              {!orderId ? (
                                 <button
-                                  onClick={() => setOrderId(null)}
-                                  className="py-3 border border-gray-300 rounded-xl text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors"
+                                  onClick={handleInitiateCashfreePayment}
+                                  disabled={onlinePaymentLoading}
+                                  className="w-full bg-[#fa8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:active:scale-100"
                                 >
-                                  Retry
-                                </button>
-                                <button
-                                  onClick={() => handleVerifyCashfreePayment()}
-                                  disabled={verifyLoading}
-                                  className="py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-70"
-                                >
-                                  {verifyLoading ? (
-                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  {onlinePaymentLoading ? (
+                                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                                   ) : (
-                                    "Verify"
+                                    <span className="text-xl">💳</span>
                                   )}
+                                  {onlinePaymentLoading ? "Preparing Gateway..." : "Pay with Cashfree"}
                                 </button>
+                              ) : (
+                                <div className="w-full space-y-4">
+                                  <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex flex-col items-center gap-2">
+                                    <div className="flex items-center gap-2 text-[#fa8112] font-bold text-sm">
+                                      <span className="w-2 h-2 rounded-full bg-[#fa8112] animate-pulse"></span>
+                                      Awaiting Payment...
+                                    </div>
+                                    <p className="text-[10px] text-gray-500 text-center font-mono">
+                                      OrderId: {orderId}
+                                    </p>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                      onClick={() => setOrderId(null)}
+                                      className="py-3 border border-gray-300 rounded-xl text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors"
+                                    >
+                                      Retry
+                                    </button>
+                                    <button
+                                      onClick={() => handleVerifyCashfreePayment()}
+                                      disabled={verifyLoading}
+                                      className="py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-70"
+                                    >
+                                      {verifyLoading ? (
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                      ) : (
+                                        "Verify"
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              <div className="pt-6 border-t border-gray-50 flex items-center justify-center gap-6 grayscale opacity-40">
+                                <img src="https://www.cashfree.com/wp-content/uploads/2022/10/cashfree-logo.png" className="h-4" alt="Cashfree" />
+                                <div className="h-4 w-px bg-gray-200" />
+                                <div className="flex gap-2">
+                                  <span className="text-[9px] font-bold text-gray-400">UPI</span>
+                                  <span className="text-[9px] font-bold text-gray-400">CARDS</span>
+                                  <span className="text-[9px] font-bold text-gray-400">NETBANKING</span>
+                                </div>
                               </div>
+                            </div>
+                          ) : (
+                            <div className="w-full flex flex-col items-center">
+                               <div className="w-full aspect-square max-w-[160px] bg-white border border-gray-100 rounded-2xl shadow-sm p-3 mb-4 flex items-center justify-center relative">
+                                  {/* Replace with actual static QR if available */}
+                                  <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=BKBS-TRUST-PAYMENT" alt="Static QR" className="w-full h-full opacity-80" />
+                                  <div className="absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-xs flex-col p-2 text-center rounded-2xl">
+                                     <ScanLine size={32} className="text-[#fa8112] mb-1" />
+                                     <span className="text-[10px] font-bold text-gray-600">Scan & Pay via any UPI App</span>
+                                  </div>
+                               </div>
+                               
+                               <button 
+                                onClick={() => paymentInputRef.current?.click()}
+                                className="w-full flex flex-col items-center justify-center py-6 px-4 rounded-2xl border-2 border-dashed border-[#fa8112] bg-orange-50/50 hover:bg-orange-50 transition-all group"
+                              >
+                                <div className="w-10 h-10 bg-[#fa8112] rounded-full flex items-center justify-center text-white mb-2 shadow-sm group-hover:scale-110 transition-transform">
+                                  <UploadCloud size={20} />
+                                </div>
+                                <span className="text-sm font-bold text-[#222222]">Upload Payment Screenshot</span>
+                                <span className="text-[11px] text-gray-500 mt-1">PNG, JPG up to 5MB</span>
+                              </button>
                             </div>
                           )}
                         </>
                       )}
-
-                      <div className="mt-8 pt-8 border-t border-gray-100 w-full flex items-center justify-center gap-6">
-                        <img src="https://www.cashfree.com/wp-content/uploads/2022/10/cashfree-logo.png" className="h-4 opacity-50 grayscale hover:grayscale-0 transition-all cursor-crosshair" alt="Cashfree" />
-                        <div className="h-4 w-px bg-gray-200" />
-                        <div className="flex gap-2">
-                          <span className="text-[10px] font-bold text-gray-300">UPI</span>
-                          <span className="text-[10px] font-bold text-gray-300">CARDS</span>
-                          <span className="text-[10px] font-bold text-gray-300">NETBANKING</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-8 flex flex-col items-center gap-2">
-                      <p className="text-[11px] text-gray-400 font-medium">Alternative Payment Method</p>
-                      <button 
-                        onClick={() => paymentInputRef.current?.click()}
-                        className="text-[13px] text-[#fa8112] font-semibold flex items-center gap-2 hover:underline"
-                      >
-                        {paymentScreenshot ? "✓ Screenshot Uploaded" : "Upload Manual Payment Screenshot"}
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -1882,16 +2163,25 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
 
               {/* Action Buttons */}
               <div className="flex flex-col gap-3">
-                <button
-                  onClick={() => window.print()}
-                  className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-3 px-6 rounded-xl transition-all shadow-sm"
-                >
-                  <Printer size={18} />
-                  Print Receipt
-                </button>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => window.print()}
+                    className="flex items-center justify-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-3.5 px-6 rounded-xl transition-all shadow-sm"
+                  >
+                    <Printer size={18} />
+                    Print Receipt
+                  </button>
+                  <button
+                    onClick={resetForm}
+                    className="flex items-center justify-center gap-2 bg-white border border-[#fa8112] text-[#fa8112] hover:bg-orange-50 font-bold py-3.5 px-6 rounded-xl transition-all shadow-sm"
+                  >
+                    <Plus size={18} />
+                    Apply New
+                  </button>
+                </div>
                 <button
                   onClick={onClose}
-                  className="w-full flex items-center justify-center gap-2 bg-[#FA8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md"
+                  className="w-full flex items-center justify-center gap-2 bg-[#FA8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-md mt-1"
                 >
                   <ArrowLeft size={18} />
                   Return to Home

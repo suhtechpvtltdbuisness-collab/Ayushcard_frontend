@@ -193,8 +193,8 @@ const apiService = {
     },
 
     // GET /api/users
-    getEmployees: async () => {
-        const response = await api.get('/api/users');
+    getEmployees: async (params = {}) => {
+        const response = await api.get('/api/users', { params });
         return response.data;
     },
 
@@ -250,8 +250,8 @@ const apiService = {
     },
 
     // GET /api/cards
-    getHealthCards: async () => {
-        const response = await api.get('/api/cards');
+    getHealthCards: async (params = {}) => {
+        const response = await api.get('/api/cards', { params });
         return response.data;
     },
 
@@ -299,8 +299,8 @@ const apiService = {
     },
 
     // GET /api/cards/verified/not-printed
-    getVerifiedNotPrintedCards: async () => {
-        const response = await api.get('/api/cards/verified/not-printed');
+    getVerifiedNotPrintedCards: async (params = {}) => {
+        const response = await api.get('/api/cards/verified/not-printed', { params });
         return response.data;
     },
 
@@ -311,13 +311,8 @@ const apiService = {
     },
 
     // GET /api/cards/printed
-    getPrintedCards: async (cardIds = []) => {
-        // If cardIds are provided, the backend might use them to filter, though the request 
-        // structure for a GET usually doesn't have a body. We'll pass them as params if needed
-        // but sticking to the user's description of GET with optional body/structure.
-        const response = await api.get('/api/cards/printed', {
-            params: cardIds.length > 0 ? { cardIds: cardIds.join(',') } : {}
-        });
+    getPrintedCards: async (params = {}) => {
+        const response = await api.get('/api/cards/printed', { params });
         return response.data;
     },
 
@@ -338,8 +333,8 @@ const apiService = {
     },
 
     // GET /api/organizations
-    getOrganizations: async () => {
-        const response = await api.get('/api/organizations');
+    getOrganizations: async (params = {}) => {
+        const response = await api.get('/api/organizations', { params });
         return response.data;
     },
 
