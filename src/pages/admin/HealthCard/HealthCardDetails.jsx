@@ -42,6 +42,8 @@ const apiToForm = (card) => ({
   relation: card.relation || "",
   relatedPerson: card.relatedPerson || "",
   profileImage: card.profileImage || (Array.isArray(card.documents) && card.documents.length > 0 ? card.documents[0].path : ""),
+  documentFront: card.documentFront || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentFront")?.path : "") || "",
+  documentBack: card.documentBack || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentBack")?.path : "") || "",
   documents: Array.isArray(card.documents) ? card.documents : [],
   // NGO details for preview
   ngoLocation: card.ngoLocation || "Mangla Vihar Kanpur - 208015",
@@ -201,7 +203,7 @@ const HealthCardDetails = () => {
         ...prev,
         documents: [
           ...(prev.documents || []),
-          { name: file.name, url: reader.result, pending: true },
+          { name: file.name, path: reader.result, pending: true },
         ],
       }));
     };
@@ -537,25 +539,63 @@ const HealthCardDetails = () => {
                 <p className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wide">
                   Documents ({formData.documents.length})
                 </p>
-                {formData.documents.map((doc, i) => (
-                  <a
-                    key={i}
-                    href={doc.url || doc.path || "#"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-3 py-2 border border-[#E2E8F0] rounded-lg hover:bg-[#F8FAFC] transition-colors group"
-                  >
-                    <FileText size={16} className="text-[#1849D6] shrink-0" />
-                    <span className="text-[13px] text-[#22333B] truncate flex-1">
-                      {doc.name || doc.originalName || `Document ${i + 1}`}
-                    </span>
-                    {doc.pending ? (
-                      <span className="text-[11px] text-amber-600 font-medium">Pending save</span>
-                    ) : (
-                      <span className="text-[11px] text-[#94A3B8] group-hover:text-[#1849D6]">View →</span>
-                    )}
-                  </a>
-                ))}
+                {formData.documents.map((doc, i) => {
+                  const resolveUrl = (path) => {
+                    if (!path) return "";
+                    if (path.startsWith("http") || path.startsWith("data:") || path.startsWith("blob:")) return path;
+                    
+                    let baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+                    if (!baseUrl && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
+                      baseUrl = "https://bkbs-backend.vercel.app";
+                    }
+
+                    const fileBase = baseUrl.replace(/\/api$/, "");
+                    const cleanBase = fileBase.endsWith("/") ? fileBase.slice(0, -1) : fileBase;
+                    const cleanPath = path.startsWith("/") ? path : `/${path}`;
+                    return `${cleanBase}${cleanPath}`;
+                  };
+
+                  const handleView = (e) => {
+                    e.preventDefault();
+                    const url = resolveUrl(doc.url || doc.path);
+                    if (!url) return;
+                    
+                    if (url.startsWith('data:')) {
+                      const newWindow = window.open();
+                      if (newWindow) {
+                        newWindow.document.write(`
+                          <html>
+                            <head><title>Document View</title></head>
+                            <body style="margin:0; padding:0; height:100vh; overflow:hidden;">
+                              <iframe src="${url}" frameborder="0" style="border:0; width:100%; height:100%;" allowfullscreen></iframe>
+                            </body>
+                          </html>
+                        `);
+                        newWindow.document.close();
+                      }
+                    } else {
+                      window.open(url, '_blank', 'noopener,noreferrer');
+                    }
+                  };
+
+                  return (
+                    <div
+                      key={i}
+                      onClick={handleView}
+                      className="flex items-center gap-2 px-3 py-2 border border-[#E2E8F0] rounded-lg hover:bg-[#F8FAFC] transition-colors group cursor-pointer"
+                    >
+                      <FileText size={16} className="text-[#1849D6] shrink-0" />
+                      <span className="text-[13px] text-[#22333B] truncate flex-1">
+                        {doc.name || doc.originalName || `Document ${i + 1}`}
+                      </span>
+                      {doc.pending ? (
+                        <span className="text-[11px] text-amber-600 font-medium">Pending save</span>
+                      ) : (
+                        <span className="text-[11px] text-[#94A3B8] group-hover:text-[#1849D6]">View →</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <p className="text-[12px] text-[#94A3B8] text-center">No documents uploaded yet.</p>

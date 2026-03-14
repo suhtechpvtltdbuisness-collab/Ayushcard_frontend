@@ -61,25 +61,32 @@ const processQueue = (error, newToken = null) => {
 
 const doRefresh = async () => {
     const refreshToken = getRefreshToken();
-    if (!refreshToken) throw new Error('No refresh token');
+    if (!refreshToken) throw new Error('No refresh token available');
 
-    // Call the refresh endpoint — adjust URL if your backend differs
-    const response = await axios.post(
-        `${import.meta.env.VITE_API_BASE_URL || ''}/api/auth/refresh-token`,
-        { refreshToken },
-        { headers: { 'Content-Type': 'application/json' } }
-    );
+    try {
+        // Use publicApi to call the refresh endpoint
+        const response = await publicApi.post('/api/auth/refresh-token', { refreshToken });
 
-    const newAccessToken = response.data?.data?.accessToken || response.data?.accessToken;
-    const newRefreshToken = response.data?.data?.refreshToken || response.data?.refreshToken;
+        // User's response structure: { success, message, data: { accessToken } }
+        // We also check for refreshToken in case the backend supports rotation
+        const newAccessToken = response.data?.data?.accessToken || response.data?.accessToken;
+        const newRefreshToken = response.data?.data?.refreshToken || response.data?.refreshToken;
 
-    if (!newAccessToken) throw new Error('Refresh response missing accessToken');
+        if (!newAccessToken) {
+            throw new Error('Refresh response missing accessToken');
+        }
 
-    // Save new tokens
-    storage.set('token', newAccessToken);
-    if (newRefreshToken) storage.set('refreshToken', newRefreshToken);
+        // Save new tokens
+        storage.set('token', newAccessToken);
+        if (newRefreshToken) {
+            storage.set('refreshToken', newRefreshToken);
+        }
 
-    return newAccessToken;
+        return newAccessToken;
+    } catch (error) {
+        console.error('[service] Refresh token failed:', error.response?.data || error.message);
+        throw error;
+    }
 };
 
 // ─── REQUEST INTERCEPTOR ───────────────────────────────────────────────────
@@ -186,8 +193,8 @@ const apiService = {
     },
 
     // GET /api/users
-    getEmployees: async () => {
-        const response = await api.get('/api/users');
+    getEmployees: async (params = {}) => {
+        const response = await api.get('/api/users', { params });
         return response.data;
     },
 
@@ -225,6 +232,17 @@ const apiService = {
              cardData.payment.transactionId = `TXN${Date.now()}${Math.floor(Math.random() * 1000)}`;
         }
 
+        if (file) {
+            const formData = new FormData();
+            formData.append('data', JSON.stringify(cardData));
+            formData.append('document', file);
+            
+            const response = await api.post('/api/cards', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            return response.data;
+        }
+
         const response = await api.post('/api/cards', cardData, {
              headers: { 'Content-Type': 'application/json' },
         });
@@ -232,8 +250,8 @@ const apiService = {
     },
 
     // GET /api/cards
-    getHealthCards: async () => {
-        const response = await api.get('/api/cards');
+    getHealthCards: async (params = {}) => {
+        const response = await api.get('/api/cards', { params });
         return response.data;
     },
 
@@ -250,7 +268,18 @@ const apiService = {
     },
 
     // PUT /api/cards/:id
-    updateHealthCard: async (id, cardData) => {
+    updateHealthCard: async (id, cardData, file = null) => {
+        if (file) {
+            const formData = new FormData();
+            formData.append('data', JSON.stringify(cardData));
+            formData.append('document', file);
+
+            const response = await api.put(`/api/cards/${id}`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            return response.data;
+        }
+
         const response = await api.put(`/api/cards/${id}`, cardData, {
              headers: { 'Content-Type': 'application/json' },
         });
@@ -266,6 +295,24 @@ const apiService = {
     // DELETE /api/cards/:id
     deleteHealthCard: async (id) => {
         const response = await api.delete(`/api/cards/${id}`);
+        return response.data;
+    },
+
+    // GET /api/cards/verified/not-printed
+    getVerifiedNotPrintedCards: async (params = {}) => {
+        const response = await api.get('/api/cards/verified/not-printed', { params });
+        return response.data;
+    },
+
+    // PUT /api/cards/print-status
+    updatePrintStatus: async (cardIds, isPrint) => {
+        const response = await api.put('/api/cards/print-status', { cardIds, isPrint });
+        return response.data;
+    },
+
+    // GET /api/cards/printed
+    getPrintedCards: async (params = {}) => {
+        const response = await api.get('/api/cards/printed', { params });
         return response.data;
     },
 
@@ -286,8 +333,8 @@ const apiService = {
     },
 
     // GET /api/organizations
-    getOrganizations: async () => {
-        const response = await api.get('/api/organizations');
+    getOrganizations: async (params = {}) => {
+        const response = await api.get('/api/organizations', { params });
         return response.data;
     },
 
@@ -370,6 +417,41 @@ const apiService = {
     },
 
     // ─── UTILITY ──────────────────────────────────────────────────────────
+
+
+    // ─── PAYMENTS ──────────────────────────────────────────────────────────────
+
+    // POST /api/payments/create-order
+    // Body: { amount, customerName, customerEmail, customerPhone }
+    createPaymentOrder: async (payload) => {
+        const response = await api.post('/api/payments/create-order', payload);
+        return response.data;
+    },
+
+    // POST /api/payments/create-order (public)
+    createPublicPaymentOrder: async (payload) => {
+        const response = await publicApi.post('/api/payments/create-order', payload);
+        return response.data;
+    },
+
+    // GET /api/payments/verify/:orderId
+    // Body (as params): { amount, customerName, customerEmail, customerPhone }
+    verifyPayment: async (orderId, data = {}) => {
+        const response = await api.get(`/api/payments/verify/${orderId}`, { params: data });
+        return response.data;
+    },
+
+    // GET /api/payments/verify/:orderId (public)
+    verifyPublicPayment: async (orderId, data = {}) => {
+        const response = await publicApi.get(`/api/payments/verify/${orderId}`, { params: data });
+        return response.data;
+    },
+
+    // POST /api/payments/webhook
+    webhookPayment: async (payload) => {
+        const response = await api.post('/api/payments/webhook', payload);
+        return response.data;
+    },
 
     logout: () => {
         storage.clear();

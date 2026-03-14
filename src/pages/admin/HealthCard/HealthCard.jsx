@@ -14,6 +14,7 @@ import { useNavigate } from "react-router-dom";
 import apiService from "../../../api/service";
 import { exportToCSV } from "../../../utils/exportUtils";
 import { useToast } from "../../../components/ui/Toast";
+import Pagination from "../../../components/ui/Pagination";
 
 // Normalize an API card object to the shape the table expects
 const normalizeCard = (card) => ({
@@ -148,27 +149,39 @@ const HealthCard = () => {
   const [deleteError, setDeleteError] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   
-  const ITEMS_PER_PAGE = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     fetchCards();
-  }, []);
+  }, [currentPage, itemsPerPage]);
 
   const fetchCards = async () => {
     try {
       setLoading(true);
       setFetchError("");
-      const res = await apiService.getHealthCards();
+      const params = {
+        page: currentPage,
+        limit: itemsPerPage,
+      };
+      const res = await apiService.getHealthCards(params);
       const raw = Array.isArray(res?.data?.cards)
         ? res.data.cards
         : Array.isArray(res?.data)
-          ? res.data
-          : Array.isArray(res)
-            ? res
-            : [];
-
-      const normalized = raw.map(normalizeCard);
-      setHealthCards(normalized);
+        ? res.data
+        : Array.isArray(res)
+        ? res
+        : [];
+      
+      setHealthCards(raw.map(normalizeCard));
+      
+      const pagination = res?.pagination || res?.data?.pagination || {};
+      const total = pagination.total ?? res?.total ?? res?.count ?? res?.data?.total ?? raw.length;
+      const pages = pagination.pages ?? (Math.ceil(total / itemsPerPage) || 1);
+      
+      setTotalItems(Number(total));
+      setTotalPages(Number(pages));
     } catch (err) {
       console.error("[HealthCard] GET /api/cards failed:", err?.response?.data || err?.message);
       setFetchError("Could not load cards from server.");
@@ -259,65 +272,16 @@ const HealthCard = () => {
     return result;
   }, [healthCards, searchQuery, activeFilter, sortConfig]);
 
-  const totalPages = Math.ceil(processedData.length / ITEMS_PER_PAGE) || 1;
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedData = processedData.slice(
-    startIndex,
-    startIndex + ITEMS_PER_PAGE,
-  );
+  // totalPages is now managed via state from backend response
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  
+  // If the data is already paginated by the server, we don't slice.
+  // We only slice if the server returned more items than the limit (fallback).
+  const paginatedData = processedData.length > itemsPerPage 
+    ? processedData.slice(startIndex, startIndex + itemsPerPage)
+    : processedData;
 
-  const renderPaginationButtons = () => {
-    let pages = [];
-    if (totalPages <= 7) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
-    } else {
-      if (currentPage <= 4) {
-        pages = [1, 2, 3, 4, 5, "...", totalPages];
-      } else if (currentPage >= totalPages - 3) {
-        pages = [
-          1,
-          "...",
-          totalPages - 4,
-          totalPages - 3,
-          totalPages - 2,
-          totalPages - 1,
-          totalPages,
-        ];
-      } else {
-        pages = [
-          1,
-          "...",
-          currentPage - 1,
-          currentPage,
-          currentPage + 1,
-          "...",
-          totalPages,
-        ];
-      }
-    }
-
-    return pages.map((page, idx) =>
-      page === "..." ? (
-        <span
-          key={idx}
-          className="w-7 h-7 flex items-center justify-center text-[#9CA3AF]"
-        >
-          ...
-        </span>
-      ) : (
-        <button
-          key={idx}
-          onClick={() => setCurrentPage(page)}
-          className={`w-7 h-7 flex items-center justify-center rounded-md text-sm font-medium ${currentPage === page
-            ? "bg-[#374151] text-[#FFFCFB]"
-            : "text-[#4B5563] hover:bg-gray-100"
-            }`}
-        >
-          {page}
-        </button>
-      ),
-    );
-  };
+  // renderPaginationButtons removed as it's now handled by the Pagination component.
 
   const isFiltered = searchQuery !== "" || activeFilter !== "All";
 
@@ -594,30 +558,17 @@ const HealthCard = () => {
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-center px-2 py-4 relative mt-2 shrink-0">
-        <span className="absolute left-0 text-sm font-medium text-[#4B5563]">
-          Showing {processedData.length > 0 ? startIndex + 1 : 0} -{" "}
-          {Math.min(startIndex + ITEMS_PER_PAGE, processedData.length)} of{" "}
-          {processedData.length}
-        </span>
-        <div className="flex items-center gap-1 text-sm font-medium">
-          <button
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-            className={`px-2 py-1 flex items-center gap-1 ${currentPage === 1 ? "text-[#D1D5DB] cursor-not-allowed" : "text-[#4B5563] hover:text-[#22333B]"}`}
-          >
-            &larr; Previous
-          </button>
-          {renderPaginationButtons()}
-          <button
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
-            className={`px-2 py-1 flex items-center gap-1 ${currentPage === totalPages ? "text-[#D1D5DB] cursor-not-allowed" : "text-[#4B5563] hover:text-[#22333B]"}`}
-          >
-            Next &rarr;
-          </button>
-        </div>
-      </div>
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={setCurrentPage}
+        itemsPerPage={itemsPerPage}
+        onItemsPerPageChange={(val) => {
+          setItemsPerPage(val);
+          setCurrentPage(1);
+        }}
+        totalItems={totalItems}
+      />
 
       {/* Delete Confirmation Modal */}
       {itemToDelete && (

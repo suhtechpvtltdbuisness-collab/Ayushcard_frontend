@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import apiService from "../../../api/service";
 import ExportPrintModal from "../../../components/admin/ExportPrintModal";
 import { useToast } from "../../../components/ui/Toast";
+import Pagination from "../../../components/ui/Pagination";
 
 const normalizeCard = (card) => ({
   ...card,
@@ -101,16 +102,20 @@ export default function ExportedCards() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState("");
 
-  const ITEMS_PER_PAGE = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
 
   useEffect(() => {
     fetchCards();
-  }, []);
+  }, [currentPage, itemsPerPage]);
 
   const fetchCards = async () => {
     try {
       setLoading(true);
-      const res = await apiService.getHealthCards();
+      const res = await apiService.getPrintedCards({
+        page: currentPage,
+        limit: itemsPerPage,
+      });
       const raw = Array.isArray(res?.data?.cards)
         ? res.data.cards
         : Array.isArray(res?.data)
@@ -119,8 +124,14 @@ export default function ExportedCards() {
             ? res
             : [];
       const normalized = raw.map(normalizeCard);
-      // ONLY SHOW EXPORTED CARDS
-      setHealthCards(normalized.filter((c) => c.status === "Exported"));
+      setHealthCards(normalized);
+      
+      const pagination = res?.pagination || res?.data?.pagination || {};
+      const total = pagination.total ?? res?.total ?? res?.count ?? res?.data?.total ?? normalized.length;
+      const pages = pagination.pages ?? (Math.ceil(total / itemsPerPage) || 1);
+      
+      setTotalItems(Number(total));
+      setTotalPages(Number(pages));
     } catch (err) {
       console.error("[ExportedCards] Failed to fetch:", err);
     } finally {
@@ -162,12 +173,11 @@ export default function ExportedCards() {
     });
   }, [healthCards, searchQuery]);
 
-  const totalPages = Math.ceil(processedData.length / ITEMS_PER_PAGE) || 1;
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedData = processedData.slice(
-    startIndex,
-    startIndex + ITEMS_PER_PAGE,
-  );
+  // totalPages is now managed via state from backend response
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedData = processedData.length > itemsPerPage 
+    ? processedData.slice(startIndex, startIndex + itemsPerPage)
+    : processedData;
 
   const handleSelectAll = (e) => {
     if (e.target.checked) setSelectedRows(processedData.map((_, idx) => idx));
@@ -330,6 +340,18 @@ export default function ExportedCards() {
           </div>
         )}
       </div>
+
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={setCurrentPage}
+        itemsPerPage={itemsPerPage}
+        onItemsPerPageChange={(val) => {
+          setItemsPerPage(val);
+          setCurrentPage(1);
+        }}
+        totalItems={totalItems}
+      />
 
       {isExportModalOpen && (
         <ExportPrintModal
