@@ -17,7 +17,17 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
   /* ================= FRONT ================= */
 
   const Front = () => (
-    <div className={`absolute inset-0 backface-hidden`} style={{ backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}>
+    <div 
+      className={`absolute inset-0 backface-hidden z-20`} 
+      style={{ 
+        backfaceVisibility: "hidden", 
+        WebkitBackfaceVisibility: "hidden",
+        opacity: isFlipped ? 0 : 1,
+        pointerEvents: isFlipped ? "none" : "auto",
+        zIndex: isFlipped ? 0 : 20,
+        transition: "opacity 0.3s ease-in-out"
+      }}
+    >
       {/* Golden Wrapper */}
       <div className="h-full w-full bg-[#E5B556] rounded-[36px] py-[18px]">
         {/* Main Card */}
@@ -159,7 +169,11 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
       style={{
         backfaceVisibility: "hidden",
         WebkitBackfaceVisibility: "hidden",
-        transform: exportMode ? "rotate(180deg)" : "rotateY(180deg)"
+        transform: exportMode ? "rotate(180deg)" : "rotateY(180deg)",
+        opacity: isFlipped ? 1 : 0,
+        pointerEvents: isFlipped ? "auto" : "none",
+        zIndex: isFlipped ? 20 : 0,
+        transition: "opacity 0.3s ease-in-out"
       }}
     >
       {/* Golden Wrapper */}
@@ -324,16 +338,17 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
           className="w-full h-full relative preserve-3d transition-transform duration-700"
           style={{
             transformStyle: "preserve-3d",
+            WebkitTransformStyle: "preserve-3d",
             transform: exportMode ? "none" : (isFlipped ? "rotateY(180deg)" : "rotateY(0deg)"),
           }}
         >
           {exportMode ? (
             side === "front" ? <Front /> : <Back />
           ) : (
-            <div className="w-full h-full relative preserve-3d">
+            <>
               <Front />
               <Back />
-            </div>
+            </>
           )}
         </div>
       </div>
