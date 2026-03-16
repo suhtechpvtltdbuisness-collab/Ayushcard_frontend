@@ -98,7 +98,7 @@ const Pagination = ({
             className="bg-[#F9FAFB] border border-[#E5E7EB] text-[#374151] text-sm rounded-lg focus:ring-[#F68E5F] focus:border-[#F68E5F] block px-2.5 py-1.5 outline-none cursor-pointer hover:bg-gray-50 transition-colors"
           >
             <option value={10}>10</option>
-            <option value={20}>20</option>
+            <option value={25}>25</option>
             <option value={50}>50</option>
           </select>
         </div>
