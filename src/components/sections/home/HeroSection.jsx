@@ -27,16 +27,13 @@ const HeroSection = () => {
           {/* Content */}
           <div className="relative z-10 flex flex-col justify-center h-full px-6 py-12 md:pl-16 lg:pl-28 md:pr-12 max-w-2xl text-center md:text-left items-center md:items-start">
             <h1 className="text-white font-bold leading-tight mb-2 text-3xl sm:text-4xl md:text-3xl lg:text-5xl">
-              Empowering Communities
+              Get access to  
               <br />
-              Through Healthcare &
-              <br />
-              Support
+              affordable healthcare with the Ayush Card.
             </h1>
 
             <p className="text-gray-100 md:text-gray-200 text-sm md:text-base leading-relaxed mb-8 max-w-lg">
-              Lorem ipsum dolor sit amet consectetur. Eu netus sed quisque at.
-              Lorem ipsum dolor sit amet consectetur. Eu netus sed quisque at.
+              Check your eligibility, register easily, and receive financial protection for hospital treatments across approved hospitals. 
             </p>
 
             {/* Buttons */}

@@ -19,13 +19,12 @@ const About = () => {
             About us
           </button>
 
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-800 leading-tight mb-6">
-            Lorem ipsum dolor sit amet consectetur.
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800 leading-tight mb-6">
+            We help citizens easily register and verify their Ayushman Bharat Card to access government-supported healthcare benefits
           </h2>
 
           <p className="text-gray-500 text-base md:text-lg leading-relaxed">
-            Lorem ipsum dolor sit amet consectetur. Eu netus sed quisque at.
-            Lorem ipsum dolor sit amet consectetur. Eu netus sed quisque at.
+            Our goal is to make cashless medical treatment accessible for every eligible family.
           </p>
         </div>
       </div>
@@ -38,8 +37,7 @@ const About = () => {
             30+
           </h2>
           <p className="text-gray-500 text-sm leading-relaxed">
-            Lorem ipsum dolor sit amet consectetur. Neque tincidunt facilisi
-            elit tempor laoreet
+            Supporting communities through awareness programs and digital education initiatives.
           </p>
         </div>
 
@@ -49,8 +47,7 @@ const About = () => {
             500+
           </h2>
           <p className="text-gray-500 text-sm leading-relaxed">
-            Lorem ipsum dolor sit amet consectetur. Neque tincidunt facilisi
-            elit tempor laoreet
+            Helping families access Ayushman Bharat healthcare services and hospital support.
           </p>
         </div>
 
@@ -62,8 +59,7 @@ const About = () => {
             200K+
           </h2>
           <p className="text-gray-500 text-sm leading-relaxed">
-            Lorem ipsum dolor sit amet consectetur. Neque tincidunt facilisi
-            elit tempor laoreet
+            Assisting citizens in accessing government welfare schemes and financial benefits.
           </p>
         </div>
 
@@ -75,8 +71,7 @@ const About = () => {
             180K+
           </h2>
           <p className="text-gray-500 text-sm leading-relaxed">
-            Lorem ipsum dolor sit amet consectetur. Neque tincidunt facilisi
-            elit tempor laoreet
+            Promoting sustainable practices and community-driven environmental awareness programs.
           </p>
         </div>
       </div>
