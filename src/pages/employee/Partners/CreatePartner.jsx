@@ -49,9 +49,9 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd, saving }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-xl w-full max-w-lg shadow-xl" style={{ fontFamily: 'Inter, sans-serif' }}>
-        <div className="flex justify-between items-center p-6 border-b border-gray-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white rounded-xl w-full max-w-lg shadow-xl max-h-[92vh] overflow-hidden" style={{ fontFamily: 'Inter, sans-serif' }}>
+        <div className="flex justify-between items-center p-4 sm:p-6 border-b border-gray-100 gap-3">
           <div>
             <h3 className="text-lg font-bold text-[#22333B]">Add Doctor</h3>
             <p className="text-sm text-[#6B7280]">Fill in the doctor details below</p>
@@ -59,8 +59,8 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd, saving }) => {
           <button type="button" onClick={onClose} className="text-[#9CA3AF] hover:text-[#22333B] transition-colors"><X size={20} /></button>
         </div>
 
-        <div className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+        <div className="p-4 sm:p-6 space-y-4 overflow-y-auto max-h-[calc(92vh-84px)]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-[#22333B] mb-1.5">Name <span className="text-red-500">*</span></label>
               <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -79,10 +79,10 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd, saving }) => {
 
           <div>
             <label className="block text-xs font-medium text-[#22333B] mb-1.5">Timing <span className="text-red-500">*</span></label>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <input type="time" value={formData.timeFrom} onChange={(e) => setFormData({ ...formData, timeFrom: e.target.value })}
                 className={`flex-1 border rounded-lg px-3 py-2 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-[#F68E5F] ${errors.timeFrom ? 'border-red-400' : 'border-gray-200'}`} />
-              <span className="text-sm text-gray-500">To</span>
+              <span className="text-sm text-gray-500 self-center">To</span>
               <input type="time" value={formData.timeTo} onChange={(e) => setFormData({ ...formData, timeTo: e.target.value })}
                 className={`flex-1 border rounded-lg px-3 py-2 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-[#F68E5F] ${errors.timeTo ? 'border-red-400' : 'border-gray-200'}`} />
             </div>
@@ -112,10 +112,10 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd, saving }) => {
             {errors.days && <p className="text-xs text-red-500 mt-1">{errors.days}</p>}
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-            <button type="button" onClick={onClose} className="px-6 py-2 border border-gray-200 rounded-lg text-sm font-medium text-[#22333B] hover:bg-gray-50">Cancel</button>
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-4 border-t border-gray-100">
+            <button type="button" onClick={onClose} className="w-full sm:w-auto px-6 py-2 border border-gray-200 rounded-lg text-sm font-medium text-[#22333B] hover:bg-gray-50">Cancel</button>
             <button type="button" onClick={handleSubmit} disabled={saving}
-              className="px-6 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff6e2b] transition-colors disabled:opacity-60">
+              className="w-full sm:w-auto px-6 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff6e2b] transition-colors disabled:opacity-60">
               Add
             </button>
           </div>
@@ -255,21 +255,21 @@ const CreatePartner = () => {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto pb-10" style={{ fontFamily: "Inter, sans-serif" }}>
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
           <button onClick={() => navigate('/employee/partners')}
             className="w-10 h-10 border border-gray-200 rounded-full flex items-center justify-center text-[#4B5563] bg-white hover:bg-gray-50 transition-colors shadow-sm">
             <ArrowLeft size={20} />
           </button>
           <h2 className="text-xl font-bold text-[#22333B]">Add New Partner</h2>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 w-full sm:w-auto">
           <button onClick={() => navigate('/employee/partners')}
-            className="px-6 py-2 border border-gray-200 rounded-lg text-[15px] font-medium text-[#374151] hover:bg-gray-50 bg-white">
+            className="flex-1 sm:flex-none px-6 py-2 border border-gray-200 rounded-lg text-[15px] font-medium text-[#374151] hover:bg-gray-50 bg-white">
             Cancel
           </button>
           <button onClick={handleSave} disabled={saving}
-            className="px-6 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff702d] transition-colors disabled:opacity-60">
+            className="flex-1 sm:flex-none px-6 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff702d] transition-colors disabled:opacity-60">
             {saving ? 'Saving...' : 'Save Partner'}
           </button>
         </div>
@@ -404,16 +404,16 @@ const CreatePartner = () => {
 
       {/* Available Doctors (Full Width) */}
       <div className="bg-white border border-[#E5E7EB] rounded-2xl p-6 mb-6 shadow-[0_4px_20px_0px_#0000000D]">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-6 gap-4">
           <h3 className="text-lg font-bold text-[#22333B]">Available Doctors</h3>
-          <div className="flex gap-3">
-            <div className="relative">
+          <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+            <div className="relative w-full sm:w-auto">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]" />
               <input type="text" placeholder="Search doctor..." value={doctorSearch} onChange={(e) => setDoctorSearch(e.target.value)}
-                className="pl-9 pr-4 py-2 border border-[#E5E7EB] rounded-lg text-sm w-80 focus:outline-none focus:border-[#F68E5F]" />
+                className="pl-9 pr-4 py-2 border border-[#E5E7EB] rounded-lg text-sm w-full sm:w-80 focus:outline-none focus:border-[#F68E5F]" />
             </div>
             <button onClick={() => setIsDoctorModalOpen(true)}
-              className="flex justify-center items-center gap-1.5 px-4 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff702d] transition-colors whitespace-nowrap">
+              className="flex w-full sm:w-auto justify-center items-center gap-1.5 px-4 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff702d] transition-colors whitespace-nowrap">
               <Plus size={16} /> Add Doctor
             </button>
           </div>

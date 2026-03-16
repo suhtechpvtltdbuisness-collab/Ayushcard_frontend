@@ -202,7 +202,7 @@ const Donations = () => {
 
   return (
     <div
-      className="flex flex-col h-[calc(100vh-170px)]"
+      className="flex flex-col h-[calc(100vh-170px)] min-h-[560px]"
       style={{ fontFamily: "Inter, sans-serif" }}
     >
       {/* Header */}
@@ -210,7 +210,7 @@ const Donations = () => {
         <h2 className="text-xl font-bold text-[#22333B]">Donation Enquiries</h2>
         <button
           onClick={handleExport}
-          className="px-4 py-1.5 border border-[#F68E5F] bg-[#FFFCFB] rounded-lg text-[15px] font-medium text-[#F68E5F] hover:bg-[#F68E5F] hover:text-[#FFFCFB] flex items-center gap-2 transition-colors"
+          className="w-full sm:w-auto px-4 py-1.5 border border-[#F68E5F] bg-[#FFFCFB] rounded-lg text-[15px] font-medium text-[#F68E5F] hover:bg-[#F68E5F] hover:text-[#FFFCFB] flex items-center justify-center gap-2 transition-colors"
         >
           Export <Download size={16} />
         </button>
@@ -218,9 +218,9 @@ const Donations = () => {
 
       {/* Filters Bar */}
       <div className="flex items-center justify-between mb-4 shrink-0 flex-wrap gap-4">
-        <div className="flex items-center gap-4 flex-wrap flex-1">
+        <div className="flex items-stretch sm:items-center gap-3 sm:gap-4 flex-col sm:flex-row flex-wrap flex-1">
           {/* Search */}
-          <div className="relative w-70">
+          <div className="relative w-full sm:w-70">
             <input
               type="text"
               placeholder="Search by name, id, phone"
@@ -244,7 +244,7 @@ const Donations = () => {
               setLocationFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-4 py-2 border border-[#ff7535] rounded-lg text-[16px] bg-[#F68E5F] text-[#FFFCFB] focus:outline-none focus:border-[#F68E5F]"
+            className="w-full sm:w-auto px-4 py-2 border border-[#ff7535] rounded-lg text-[16px] bg-[#F68E5F] text-[#FFFCFB] focus:outline-none focus:border-[#F68E5F]"
           >
             <option value="">Location</option>
             <option value="Kanpur,UP">Kanpur,UP</option>
@@ -260,7 +260,7 @@ const Donations = () => {
               setDateRangeFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-4 py-2 border border-[#ff7535] rounded-lg text-[16px] bg-[#F68E5F] text-[#FFFCFB] focus:outline-none focus:border-[#F68E5F]"
+            className="w-full sm:w-auto px-4 py-2 border border-[#ff7535] rounded-lg text-[16px] bg-[#F68E5F] text-[#FFFCFB] focus:outline-none focus:border-[#F68E5F]"
           >
             <option value="">Select Date range</option>
             <option value="today">Today</option>
@@ -279,7 +279,7 @@ const Donations = () => {
           </div>
         ) : paginatedData.length > 0 ? (
           <div className="overflow-y-auto overflow-x-auto flex-1">
-            <table className="w-full text-left border-collapse relative">
+            <table className="min-w-[980px] w-full text-left border-collapse relative">
               <thead className="sticky top-0 z-10 bg-[#FFFFFF]">
                 <tr>
                   <th className="py-3 px-4 w-12 text-center">

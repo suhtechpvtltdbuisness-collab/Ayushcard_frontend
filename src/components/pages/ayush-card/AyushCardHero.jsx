@@ -7,7 +7,7 @@ const AyushCardHero = () => {
   const navigate = useNavigate();
 
   return (
-    <section className="bg-[#FFFCFB] py-16 md:py-24 px-6 md:px-12 relative overflow-hidden">
+    <section className="bg-[#FFFCFB] py-14 md:py-24 px-4 sm:px-6 md:px-12 relative overflow-hidden">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center gap-12 lg:gap-20">
         {/* Left Side: Images Grid */}
         <div className="w-full md:w-1/2 relative flex justify-center">
@@ -22,10 +22,10 @@ const AyushCardHero = () => {
 
         {/* Right Side: Content */}
         <div className="w-full md:w-1/2 flex flex-col items-start text-left">
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-[#111111] leading-tight mb-6">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-[#111111] leading-tight mb-6">
             Ayush Health Card
           </h1>
-          <p className="text-[#666666] text-lg font-medium mb-4">
+          <p className="text-[#666666] text-base sm:text-lg font-medium mb-4">
             Affordable Healthcare for Everyone
           </p>
           <p className="text-[#666666] text-base leading-relaxed mb-10 max-w-lg">
@@ -38,7 +38,7 @@ const AyushCardHero = () => {
           <div className="flex flex-wrap items-center gap-4 w-full">
             <button
               onClick={() => setIsModalOpen(true)}
-              className="bg-[#F68E5F] hover:bg-[#E57A4B] text-white px-8 py-3.5 rounded-full font-semibold text-[16px] transition-all duration-200 shadow-md whitespace-nowrap "
+              className="w-full sm:w-auto bg-[#F68E5F] hover:bg-[#E57A4B] text-white px-8 py-3.5 rounded-full font-semibold text-[16px] transition-all duration-200 shadow-md whitespace-nowrap"
             >
               Apply for Ayush Card <span className="ml-1">›</span>
             </button>
@@ -49,7 +49,7 @@ const AyushCardHero = () => {
                   el.scrollIntoView({ behavior: "smooth" });
                 }
               }}
-              className="border-2 border-[#F68E5F] text-[#F68E5F] hover:bg-[#FFF5F1] px-8 py-3.5 rounded-full font-semibold text-[16px] transition-all duration-200 whitespace-nowrap"
+              className="w-full sm:w-auto border-2 border-[#F68E5F] text-[#F68E5F] hover:bg-[#FFF5F1] px-8 py-3.5 rounded-full font-semibold text-[16px] transition-all duration-200 whitespace-nowrap"
             >
               Check Eligibility
             </button>

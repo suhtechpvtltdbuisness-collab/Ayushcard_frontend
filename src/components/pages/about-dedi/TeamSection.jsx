@@ -29,7 +29,7 @@ const teamMembers = [
 
 const TeamSection = () => {
   return (
-    <section id="team-section" className="py-16 md:py-24 px-6 bg-[#f0f0f0]">
+    <section id="team-section" className="py-14 md:py-24 px-4 sm:px-6 bg-[#f0f0f0]">
       <div className="max-w-5xl mx-auto">
         {/* Badge */}
         <div className="flex justify-center mb-5">
@@ -39,7 +39,7 @@ const TeamSection = () => {
         </div>
 
         {/* Heading */}
-        <h2 className="text-3xl md:text-5xl font-extrabold text-gray-900 text-center leading-tight mb-4">
+        <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-gray-900 text-center leading-tight mb-4">
           Meet Our Team
         </h2>
 
@@ -54,9 +54,9 @@ const TeamSection = () => {
           {teamMembers.map((member) => (
             <div
               key={member.id}
-              className="flex flex-col items-center w-full sm:w-auto"
+              className="flex flex-col items-center w-full sm:w-auto max-w-[280px]"
               style={{
-                width: member.featured ? "260px" : "220px",
+                width: member.featured ? "min(260px, 100%)" : "min(220px, 100%)",
               }}
             >
               {/* Avatar Circle */}

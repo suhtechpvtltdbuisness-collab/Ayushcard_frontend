@@ -1,12 +1,47 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { MapPin, Phone, Mail } from "lucide-react";
 
 const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) => {
+  const BASE_WIDTH = 580;
+  const BASE_HEIGHT = 340;
+
   const [isFlipped, setIsFlipped] = useState(side === "back");
+  const [previewScale, setPreviewScale] = useState(1);
+  const wrapperRef = useRef(null);
 
   useEffect(() => {
     setIsFlipped(side === "back");
   }, [side]);
+
+  useLayoutEffect(() => {
+    if (exportMode) {
+      setPreviewScale(1);
+      return;
+    }
+
+    const element = wrapperRef.current;
+    if (!element) return;
+
+    const updateScale = () => {
+      const containerWidth = element.clientWidth || BASE_WIDTH;
+      const calculatedScale = Math.min(containerWidth / BASE_WIDTH, 1);
+      setPreviewScale(calculatedScale);
+    };
+
+    updateScale();
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateScale();
+    });
+
+    resizeObserver.observe(element);
+    window.addEventListener("resize", updateScale);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateScale);
+    };
+  }, [exportMode]);
 
   const handleFlip = () => {
     const newState = !isFlipped;
@@ -330,16 +365,25 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
   return (
     <div className="flex justify-center items-center w-full h-full">
       <div
-        className="w-[580px] h-[340px] relative cursor-pointer"
-        onClick={handleFlip}
-        style={{ perspective: exportMode ? "none" : "1000px" }}
+        ref={wrapperRef}
+        className="w-full max-w-[580px] relative overflow-visible"
+        style={{
+          height: exportMode ? `${BASE_HEIGHT}px` : `${BASE_HEIGHT * previewScale}px`,
+          perspective: exportMode ? "none" : "1000px",
+        }}
       >
         <div
-          className="w-full h-full relative preserve-3d transition-transform duration-700"
+          className="absolute top-0 left-1/2 preserve-3d transition-transform duration-700 cursor-pointer"
+          onClick={handleFlip}
           style={{
+            width: `${BASE_WIDTH}px`,
+            height: `${BASE_HEIGHT}px`,
+            transformOrigin: "top center",
             transformStyle: "preserve-3d",
             WebkitTransformStyle: "preserve-3d",
-            transform: exportMode ? "none" : (isFlipped ? "rotateY(180deg)" : "rotateY(0deg)"),
+            transform: exportMode
+              ? "translateX(-50%)"
+              : `translateX(-50%) ${isFlipped ? "rotateY(180deg)" : "rotateY(0deg)"} scale(${previewScale})`,
           }}
         >
           {exportMode ? (

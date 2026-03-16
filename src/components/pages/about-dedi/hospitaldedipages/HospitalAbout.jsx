@@ -18,11 +18,11 @@ const HospitalAbout = () => {
   const image = hospital?.image || "/Associate_hospital_img.svg";
 
   return (
-    <section style={{ backgroundColor: "#ffffff" }} className="px-6 pt-1">
+    <section style={{ backgroundColor: "#ffffff" }} className="px-4 sm:px-6 pt-1">
       <div className="max-w-3xl mx-auto">
 
         {/* Hospital Image */}
-        <div className="rounded-2xl overflow-hidden mb-10" style={{ height: "280px" }}>
+        <div className="rounded-2xl overflow-hidden mb-10 h-[220px] sm:h-[280px]">
           <img
             src={image}
             alt={name}
@@ -32,7 +32,7 @@ const HospitalAbout = () => {
 
         {/* About Section */}
         <div className="mb-14">
-          <h2 className="text-3xl font-extrabold text-gray-900 mb-4">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-4">
             About {name}
           </h2>
           <p className="text-gray-500 text-sm leading-relaxed mb-4">
@@ -50,7 +50,7 @@ const HospitalAbout = () => {
 
         {/* Health Card Benefits */}
         <div>
-          <h2 className="text-2xl font-extrabold text-gray-900 mb-6">
+          <h2 className="text-xl sm:text-2xl font-extrabold text-gray-900 mb-6">
             Health Card Benefits at {name}
           </h2>
 

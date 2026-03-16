@@ -273,8 +273,8 @@ const HealthCardDetails = () => {
       className="flex flex-col h-full bg-[#FFFFFF] pb-10"
       style={{ fontFamily: "Inter, sans-serif" }}
     >
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
           <button
             onClick={() => navigate(-1)}
             className="w-10 h-10 border border-gray-200 rounded-full flex items-center justify-center text-gray-600 hover:bg-gray-50 transition-colors"
@@ -285,20 +285,20 @@ const HealthCardDetails = () => {
             Application Details
           </h2>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 w-full sm:w-auto">
           {isEditing ? (
             <>
               <button
                 onClick={() => { setIsEditing(false); setSaveError(""); }}
                 disabled={saveLoading}
-                className="px-4 py-1.5 border border-gray-200 rounded-lg text-[15px] font-medium text-[#374151] hover:bg-gray-50 bg-white disabled:opacity-50"
+                className="flex-1 sm:flex-none px-4 py-1.5 border border-gray-200 rounded-lg text-[15px] font-medium text-[#374151] hover:bg-gray-50 bg-white disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSave}
                 disabled={saveLoading}
-                className="px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff702d] transition-colors flex items-center gap-2 disabled:opacity-60"
+                className="flex-1 sm:flex-none px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff702d] transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
               >
                 {saveLoading && <Loader2 size={14} className="animate-spin" />}
                 {saveLoading ? "Saving…" : "Save Changes"}
@@ -307,7 +307,7 @@ const HealthCardDetails = () => {
           ) : (
             <button
               onClick={() => setIsEditing(true)}
-              className="px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff6e2b] flex items-center gap-2 transition-colors"
+              className="w-full sm:w-auto px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff6e2b] flex items-center justify-center gap-2 transition-colors"
             >
               Edit
               <img src="/admin_images/Edit 3.svg" alt="" className="w-3.5 h-3.5" />
@@ -325,7 +325,7 @@ const HealthCardDetails = () => {
 
       <div className="space-y-6">
         {/* Application Details Section */}
-        <div className="border border-[#E2E8F0] rounded-xl p-6 bg-white">
+        <div className="border border-[#E2E8F0] rounded-xl p-4 sm:p-6 bg-white">
           <h3 className="font-bold text-[16px] text-[#22333B] mb-5">
             Application Details
           </h3>
@@ -498,7 +498,7 @@ const HealthCardDetails = () => {
         {/* Upload & QR */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Document Upload */}
-          <div className="border border-[#E2E8F0] rounded-xl p-6 bg-white flex flex-col gap-4">
+          <div className="border border-[#E2E8F0] rounded-xl p-4 sm:p-6 bg-white flex flex-col gap-4">
             <div>
               <h3 className="font-bold text-[15px] text-[#22333B]">Document Upload</h3>
               <p className="text-[13px] text-[#6D6D6D] mt-1">Upload supporting documents (Aadhar, photo, etc.)</p>
@@ -603,7 +603,7 @@ const HealthCardDetails = () => {
           </div>
 
           {/* QR Code */}
-          <div className="border border-[#E2E8F0] rounded-xl p-6 bg-white flex flex-col">
+          <div className="border border-[#E2E8F0] rounded-xl p-4 sm:p-6 bg-white flex flex-col">
             <h3 className="font-bold text-[15px] text-[#22333B]">QR Code</h3>
             <p className="text-[13px] text-[#6D6D6D] mb-5">A Unique QR code of your Health Card</p>
             <div className="flex-1 flex items-center justify-center">
@@ -698,9 +698,9 @@ const HealthCardDetails = () => {
               ))}
             </div>
           </div>
-          <div className="bg-[#F8FAFC] p-12 flex flex-col items-center justify-center min-h-112.5">
+          <div className="bg-[#F8FAFC] p-4 sm:p-8 md:p-12 flex flex-col items-center justify-center min-h-[360px] sm:min-h-112.5">
             <AyushCardPreview data={formData} side={cardSide} onFlip={(side) => setCardSide(side)} />
-            <p className="text-[13px] text-[#94A3B8] mt-10 flex items-center gap-2 font-medium">
+            <p className="text-[13px] text-[#94A3B8] mt-6 sm:mt-10 flex items-center gap-2 font-medium text-center">
               <img src="/admin_images/click.svg" alt="click" /> Click the card or use the buttons to flip • Preview reflects saved application data
             </p>
           </div>

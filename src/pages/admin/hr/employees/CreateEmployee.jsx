@@ -96,12 +96,12 @@ const CreateEmployee = () => {
 
   return (
     <div
-      className="flex flex-col h-full overflow-y-auto pb-10"
+      className="flex flex-col h-full overflow-y-auto pb-10 min-w-0"
       style={{ fontFamily: "Inter, sans-serif" }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 gap-4">
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
           <button
             type="button"
             onClick={() => navigate("/admin/hr/employees")}
@@ -109,15 +109,15 @@ const CreateEmployee = () => {
           >
             <ArrowLeft size={20} />
           </button>
-          <h2 className="text-xl font-bold text-[#22333B]">Create Employee</h2>
+          <h2 className="text-xl font-bold text-[#22333B] truncate">Create Employee</h2>
         </div>
-        <div className="flex gap-4 items-center">
-          {error && <span className="text-red-500 text-sm">{error}</span>}
+
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center w-full lg:w-auto">
           <button
             type="button"
             onClick={() => navigate("/admin/hr/employees")}
             disabled={loading}
-            className="px-6 py-2.5 border border-[#E5E7EB] text-[#4B5563] bg-white rounded-lg text-[15px] font-medium hover:bg-gray-50 transition-colors"
+            className="w-full sm:w-auto px-6 py-2.5 border border-[#E5E7EB] text-[#4B5563] bg-white rounded-lg text-[15px] font-medium hover:bg-gray-50 transition-colors"
           >
             Cancel
           </button>
@@ -125,13 +125,19 @@ const CreateEmployee = () => {
             type="submit"
             form="create-employee-form"
             disabled={loading}
-            className="px-6 py-2.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff7535] transition-colors flex items-center gap-2"
+            className="w-full sm:w-auto px-6 py-2.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff7535] transition-colors flex items-center justify-center gap-2"
           >
             {loading && <Loader2 size={16} className="animate-spin" />}
             Save Employee
           </button>
         </div>
       </div>
+
+      {error && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
+          {error}
+        </div>
+      )}
 
       {/* Details Card */}
       <form
@@ -140,7 +146,7 @@ const CreateEmployee = () => {
           e.preventDefault();
           handleSave();
         }}
-        className="bg-white border border-[#D9D9D9] rounded-2xl p-6 shadow-sm"
+        className="bg-white border border-[#D9D9D9] rounded-2xl p-4 sm:p-6 shadow-sm min-w-0"
       >
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div>
@@ -269,7 +275,7 @@ const CreateEmployee = () => {
             <label className="block text-[15px] font-medium text-[#4B5563] mb-1.5">
               Working Hours
             </label>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <input
                 type="text"
                 name="workingHoursFrom"
@@ -278,7 +284,7 @@ const CreateEmployee = () => {
                 placeholder="From (e.g. 10:00 AM)"
                 className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F] text-center"
               />
-              <span className="text-gray-400 font-medium">to</span>
+              <span className="text-gray-400 font-medium self-center">to</span>
               <input
                 type="text"
                 name="workingHoursTo"

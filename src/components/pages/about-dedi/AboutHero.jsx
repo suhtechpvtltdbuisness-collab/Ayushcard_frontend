@@ -2,7 +2,7 @@ import React from "react";
 
 const AboutHero = () => {
   return (
-    <section className="bg-[#ffffff] py-20 px-6">
+    <section className="bg-[#ffffff] py-14 md:py-20 px-4 sm:px-6">
       <div className="max-w-6xl mx-auto">
         {/* Badge */}
         <div className="flex justify-center mb-6">
@@ -12,7 +12,7 @@ const AboutHero = () => {
         </div>
 
         {/* Heading */}
-        <h1 className="text-4xl md:text-5xl font-bold text-gray-800 text-center mb-4">
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-800 text-center mb-4">
           Driven by Bold Vision
         </h1>
 
@@ -24,11 +24,11 @@ const AboutHero = () => {
         </p>
 
         {/* Hero Image - Bigger */}
-        <div className="rounded-3xl overflow-hidden mb-16">
+        <div className="rounded-3xl overflow-hidden mb-12 md:mb-16">
           <img
             src="/About_img.svg"
             alt="Team"
-            className="w-full h-[500px] md:h-[560px] object-cover"
+            className="w-full h-[260px] sm:h-[380px] md:h-[560px] object-cover"
           />
         </div>
 
