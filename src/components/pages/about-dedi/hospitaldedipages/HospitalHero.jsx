@@ -17,7 +17,7 @@ const HospitalHero = () => {
   };
 
   return (
-    <section style={{ backgroundColor: "#ffffff" }} className="min-h-screen py-10 px-6 pb-0">
+    <section style={{ backgroundColor: "#ffffff" }} className="min-h-screen py-8 md:py-10 px-4 sm:px-6 pb-0">
       <div className="max-w-5xl mx-auto">
 
         {/* Back button */}
@@ -29,7 +29,7 @@ const HospitalHero = () => {
         </button> */}
 
         {/* Orange Hero Banner */}
-        <div className="relative rounded-2xl overflow-hidden px-10 py-10" style={{ backgroundColor: "#f97316" }}>
+        <div className="relative rounded-2xl overflow-hidden p-6 sm:p-8 md:px-10 md:py-10" style={{ backgroundColor: "#f97316" }}>
 
           {/* Decorative shapes */}
           <div className="absolute top-0 right-0 opacity-20 pointer-events-none">
@@ -48,7 +48,7 @@ const HospitalHero = () => {
           </div>
 
           {/* Name */}
-          <h1 className="text-white font-extrabold text-3xl md:text-4xl mb-3 relative z-10">
+          <h1 className="text-white font-extrabold text-2xl sm:text-3xl md:text-4xl mb-3 relative z-10 break-words">
             {data.name}
           </h1>
 
@@ -58,7 +58,7 @@ const HospitalHero = () => {
           </p>
 
           {/* 3 Info Items */}
-          <div className="flex flex-col sm:flex-row gap-6 relative z-10">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-5 sm:gap-6 relative z-10">
 
             <div className="flex items-start gap-2">
               <div className="w-8 h-8 rounded-full bg-white bg-opacity-20 flex items-center justify-center flex-shrink-0 mt-0.5">

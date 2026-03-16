@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { exportToCSV } from "../../../utils/exportUtils";
 import { useToast } from "../../../components/ui/Toast";
 import apiService from "../../../api/service";
+import Pagination from "../../../components/ui/Pagination";
 
 const ActionButtons = ({ item, navigate, onDelete }) => {
   return (
@@ -250,7 +251,7 @@ const Donations = () => {
 
   return (
     <div
-      className="flex flex-col h-[calc(100vh-170px)]"
+      className="flex flex-col min-w-0 h-[calc(100vh-170px)] min-h-[560px]"
       style={{ fontFamily: "Inter, sans-serif" }}
     >
       {/* Header */}
@@ -258,7 +259,7 @@ const Donations = () => {
         <h2 className="text-xl font-bold text-[#22333B]">Donation Enquiries</h2>
         <button
           onClick={handleExport}
-          className="px-4 py-1.5 border border-[#F68E5F] bg-[#FFFCFB] rounded-lg text-[15px] font-medium text-[#F68E5F] hover:bg-[#F68E5F] hover:text-[#FFFCFB] flex items-center gap-2 transition-colors"
+          className="w-full sm:w-auto px-4 py-1.5 border border-[#F68E5F] bg-[#FFFCFB] rounded-lg text-[15px] font-medium text-[#F68E5F] hover:bg-[#F68E5F] hover:text-[#FFFCFB] flex items-center justify-center gap-2 transition-colors"
         >
           Export <Download size={16} />
         </button>
@@ -266,9 +267,9 @@ const Donations = () => {
 
       {/* Filters Bar */}
       <div className="flex items-center justify-between mb-4 shrink-0 flex-wrap gap-4">
-        <div className="flex items-center gap-4 flex-wrap flex-1">
+        <div className="flex items-stretch sm:items-center gap-3 sm:gap-4 flex-col sm:flex-row flex-wrap flex-1">
           {/* Search */}
-          <div className="relative w-70">
+          <div className="relative w-full sm:w-70">
             <input
               type="text"
               placeholder="Search by name, id, phone"
@@ -292,7 +293,7 @@ const Donations = () => {
               setLocationFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-4 py-2 border border-[#ff7535] rounded-lg text-[16px] bg-[#F68E5F] text-[#FFFCFB] focus:outline-none focus:border-[#F68E5F]"
+            className="w-full sm:w-auto px-4 py-2 border border-[#ff7535] rounded-lg text-[16px] bg-[#F68E5F] text-[#FFFCFB] focus:outline-none focus:border-[#F68E5F]"
           >
             <option value="">Location</option>
             <option value="Kanpur,UP">Kanpur,UP</option>
@@ -308,7 +309,7 @@ const Donations = () => {
               setDateRangeFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-4 py-2 border border-[#ff7535] rounded-lg text-[16px] bg-[#F68E5F] text-[#FFFCFB] focus:outline-none focus:border-[#F68E5F]"
+            className="w-full sm:w-auto px-4 py-2 border border-[#ff7535] rounded-lg text-[16px] bg-[#F68E5F] text-[#FFFCFB] focus:outline-none focus:border-[#F68E5F]"
           >
             <option value="">Select Date range</option>
             <option value="today">Today</option>
@@ -326,8 +327,62 @@ const Donations = () => {
             <p className="text-[#6B7280]">Loading enquiries...</p>
           </div>
         ) : paginatedData.length > 0 ? (
-          <div className="overflow-y-auto overflow-x-auto flex-1">
-            <table className="w-full text-left border-collapse relative">
+          <>
+            <div className="lg:hidden flex-1 overflow-y-auto p-3 space-y-3">
+              {paginatedData.map((row, index) => {
+                const globalIndex = startIndex + index;
+                const isChecked = selectedRows.includes(globalIndex);
+                return (
+                  <div key={index} className="border border-[#E5E7EB] rounded-xl p-3 bg-white">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="min-w-0">
+                        <p className="text-xs text-[#6B7280]">Enquiry ID</p>
+                        <p className="text-sm font-semibold text-[#22333B] truncate">{row.id}</p>
+                      </div>
+                      <label className="flex items-center gap-2 text-xs text-[#6B7280]">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleSelectRow(globalIndex)}
+                          className="w-4 h-4 rounded border-[#D1D5DB] text-[#22333B] focus:ring-[#111827]"
+                        />
+                        Select
+                      </label>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                      <div>
+                        <p className="text-xs text-[#6B7280]">Name</p>
+                        <p className="text-[#22333B] truncate" title={row.name}>{row.name || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-[#6B7280]">Contact</p>
+                        <p className="text-[#22333B]">{row.contact || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-[#6B7280]">Date</p>
+                        <p className="text-[#22333B]">{row.date || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-[#6B7280]">Time</p>
+                        <p className="text-[#22333B]">{row.time || "—"}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-xs text-[#6B7280]">Location</p>
+                        <p className="text-[#22333B] truncate" title={row.location}>{row.location || "—"}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <ActionButtons item={row} navigate={navigate} onDelete={setItemToDelete} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="hidden lg:block overflow-y-auto overflow-x-auto flex-1">
+              <table className="min-w-[980px] w-full text-left border-collapse relative">
               <thead className="sticky top-0 z-10 bg-[#FFFFFF]">
                 <tr>
                   <th className="py-3 px-4 w-12 text-center">
@@ -424,8 +479,9 @@ const Donations = () => {
                   );
                 })}
               </tbody>
-            </table>
-          </div>
+              </table>
+            </div>
+          </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center py-12 text-[#6B7280]">
             <div className="w-24 h-24 bg-[#F8FAFC] rounded-full flex items-center justify-center mb-6">
@@ -442,31 +498,14 @@ const Donations = () => {
         )}
       </div>
 
-      {/* Pagination */}
-      <div className="flex items-center justify-between px-2 py-4 relative mt-2 shrink-0">
-        <span className="text-sm font-medium text-[#4B5563]">
-          Showing {processedData.length > 0 ? startIndex + 1 : 0} -{" "}
-          {Math.min(startIndex + ITEMS_PER_PAGE, processedData.length)} of{" "}
-          {processedData.length}
-        </span>
-        <div className="flex items-center gap-1 text-sm font-medium absolute left-1/2 -translate-x-1/2">
-          <button
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-            className={`px-2 py-1 flex items-center gap-1 ${currentPage === 1 ? "text-[#D1D5DB] cursor-not-allowed" : "text-[#4B5563] hover:text-[#22333B]"}`}
-          >
-            &larr; Previous
-          </button>
-          {renderPaginationButtons()}
-          <button
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
-            className={`px-2 py-1 flex items-center gap-1 ${currentPage === totalPages ? "text-[#D1D5DB] cursor-not-allowed" : "text-[#4B5563] hover:text-[#22333B]"}`}
-          >
-            Next &rarr;
-          </button>
-        </div>
-      </div>
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={setCurrentPage}
+        itemsPerPage={ITEMS_PER_PAGE}
+        onItemsPerPageChange={() => {}}
+        totalItems={processedData.length}
+      />
 
       {/* Delete Confirmation Modal */}
       {itemToDelete && (

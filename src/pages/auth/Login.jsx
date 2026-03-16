@@ -83,37 +83,37 @@ const Login = () => {
       <img
         src="/orange2.svg"
         alt="decoration"
-        className="absolute top-0 left-0 w-48 md:w-104 select-none pointer-events-none"
+        className="absolute top-0 left-0 w-36 sm:w-48 md:w-104 select-none pointer-events-none"
       />
       <img
         src="/orange1.svg"
         alt="decoration"
-        className="absolute top-0 left-0 w-20 md:w-42 select-none pointer-events-none"
+        className="absolute top-0 left-0 w-16 sm:w-20 md:w-42 select-none pointer-events-none"
       />
       <img
         src="/orange3.svg"
         alt="decoration"
-        className="absolute -bottom-14 right-0 w-64 md:w-156 select-none pointer-events-none"
+        className="absolute -bottom-14 right-0 w-40 sm:w-64 md:w-156 select-none pointer-events-none"
       />
       <img
         src="/orange4.svg"
         alt="decoration"
-        className="absolute -bottom-6 right-0 w-40 md:w-96 select-none pointer-events-none"
+        className="absolute -bottom-6 right-0 w-28 sm:w-40 md:w-96 select-none pointer-events-none"
       />
 
       {/* Main Login Card Wrapper to allow Logo positioning */}
-      <div className="relative w-full max-w-150 px-4 sm:px-0 flex justify-center items-center">
+      <div className="relative w-full max-w-[600px] px-4 sm:px-6 md:px-0 flex justify-center items-center">
         {/* Logo protruding from top */}
-        <div className="absolute -top-20 left-0 right-0 z-10 flex justify-center w-full">
+        <div className="absolute -top-14 sm:-top-20 left-0 right-0 z-10 flex justify-center w-full">
           <img
             src="/logo_whitebg.svg"
             alt="Logo"
-            className="w-43 h-43 drop-shadow-sm rounded-full object-cover"
+            className="w-28 h-28 sm:w-43 sm:h-43 drop-shadow-sm rounded-full object-cover"
           />
         </div>
 
         {/* Card Component */}
-        <div className="bg-white rounded-4xl shadow-xl p-8 pt-20 relative w-135 h-137.5 border border-gray-100 flex flex-col justify-center">
+        <div className="bg-white rounded-3xl sm:rounded-4xl shadow-xl p-5 sm:p-8 pt-16 sm:pt-20 relative w-full max-w-[540px] min-h-[620px] sm:min-h-[680px] border border-gray-100 flex flex-col justify-center">
           {/* Tabs */}
           <div
             className="flex w-full mb-6 border rounded-xl border-[#F68E5F] p-2"
@@ -203,7 +203,7 @@ const Login = () => {
             )}
 
             {/* Checkbox and Forgot Password */}
-            <div className="flex items-center justify-between mt-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-2 gap-2 sm:gap-0">
               <label className="flex items-center gap-2 cursor-pointer group">
                 <div className="relative flex items-center justify-center w-5 h-5">
                   <input
@@ -233,7 +233,7 @@ const Login = () => {
 
               <button
                 type="button"
-                className="text-[16px] font-normal font-['Inter'] text-[#F68E5F] mt-0 hover:text-[#ff702d] transition-colors underline-offset-4 hover:underline"
+                className="text-sm sm:text-[16px] font-normal font-['Inter'] text-[#F68E5F] mt-0 hover:text-[#ff702d] transition-colors underline-offset-4 hover:underline self-start sm:self-auto"
               >
                 Forgot password?
               </button>
@@ -243,7 +243,7 @@ const Login = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 mt-14 text-white font-medium font-['Nunito_Sans'] rounded-full shadow-md transition-transform active:scale-[0.98] bg-[#F68E5F] hover:bg-[#ff702d] flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:active:scale-100"
+              className="w-full py-3 mt-10 sm:mt-14 text-white font-medium font-['Nunito_Sans'] rounded-full shadow-md transition-transform active:scale-[0.98] bg-[#F68E5F] hover:bg-[#ff702d] flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:active:scale-100"
             >
               {isLoading ? (
                 <>

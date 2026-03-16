@@ -1,9 +1,8 @@
 import React, { useState, useMemo } from "react";
 import { Search, Plus, Eye, Trash2, Download, ArrowUpDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { exportToCSV } from "../../../utils/exportUtils";
 import apiService from "../../../api/service";
-import { useToast } from "../../../components/ui/Toast";
+import Pagination from "../../../components/ui/Pagination";
 
 const ActionButtons = ({ item, navigate }) => {
   return (
@@ -157,7 +156,7 @@ const Partners = () => {
   );
 
   return (
-    <div className="flex flex-col h-[calc(100vh-170px)]" style={{ fontFamily: "Inter, sans-serif" }}>
+    <div className="flex flex-col min-w-0 h-[calc(100vh-170px)] min-h-[560px]" style={{ fontFamily: "Inter, sans-serif" }}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 shrink-0 gap-4 sm:gap-0">
         <h2 className="text-xl font-bold text-[#22333B]">Partners</h2>
@@ -166,7 +165,7 @@ const Partners = () => {
       {/* Filters Bar */}
       <div className="flex items-center justify-between mb-4 shrink-0 flex-wrap gap-4">
         <div className="flex items-center gap-4 flex-wrap flex-1">
-          <div className="relative w-70">
+          <div className="relative w-full sm:w-70">
             <input
               type="text"
               placeholder="Search by name, id, phone"
@@ -186,8 +185,46 @@ const Partners = () => {
             <div className="w-10 h-10 border-4 border-[#F68E5F] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
           </div>
         ) : paginatedData.length > 0 ? (
-          <div className="overflow-y-auto overflow-x-auto flex-1">
-            <table className="w-full text-left border-collapse relative">
+          <>
+            <div className="lg:hidden flex-1 overflow-y-auto p-3 space-y-3">
+              {paginatedData.map((row, index) => (
+                <div key={index} className="border border-[#E5E7EB] rounded-xl p-3 bg-white">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="min-w-0">
+                      <p className="text-xs text-[#6B7280]">Partner ID</p>
+                      <p className="text-sm font-semibold text-[#22333B] truncate">
+                        {row.partnerId || row._id || row.id || "—"}
+                      </p>
+                    </div>
+                    <span className="text-xs bg-[#FFF4ED] text-[#F68E5F] px-2 py-1 rounded-full">
+                      {row.type || "Hospital"}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                    <div>
+                      <p className="text-xs text-[#6B7280]">Organization</p>
+                      <p className="text-[#22333B] truncate" title={row.name || row.orgName}>{row.name || row.orgName || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[#6B7280]">Contact</p>
+                      <p className="text-[#22333B]">{row.contact || row.primaryContact || "—"}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-xs text-[#6B7280]">Location</p>
+                      <p className="text-[#22333B] truncate" title={row.location}>{row.location || "—"}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <ActionButtons item={row} navigate={navigate} />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden lg:block overflow-y-auto overflow-x-auto flex-1">
+              <table className="min-w-[960px] w-full text-left border-collapse relative">
               <thead className="sticky top-0 z-10 bg-[#FFFFFF]">
                 <tr>
                   <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-17.5">Sr.no</th>
@@ -223,8 +260,9 @@ const Partners = () => {
                   );
                 })}
               </tbody>
-            </table>
-          </div>
+              </table>
+            </div>
+          </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center py-12 text-[#6B7280]">
             <div className="w-24 h-24 bg-[#F8FAFC] rounded-full flex items-center justify-center mb-6">
@@ -235,30 +273,14 @@ const Partners = () => {
         )}
       </div>
 
-      {/* Pagination */}
-      <div className="flex items-center justify-center px-2 py-4 relative mt-2 shrink-0">
-        <span className="absolute left-0 text-sm font-medium text-[#4B5563]">
-          Showing {processedData.length > 0 ? startIndex + 1 : 0} –{" "}
-          {Math.min(startIndex + ITEMS_PER_PAGE, processedData.length)} of {processedData.length}
-        </span>
-        <div className="flex items-center gap-1 text-sm font-medium">
-          <button
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-            className={`px-2 py-1 flex items-center gap-1 ${currentPage === 1 ? "text-[#D1D5DB] cursor-not-allowed" : "text-[#4B5563] hover:text-[#22333B]"}`}
-          >
-            &larr; Previous
-          </button>
-          {renderPaginationButtons()}
-          <button
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
-            className={`px-2 py-1 flex items-center gap-1 ${currentPage === totalPages ? "text-[#D1D5DB] cursor-not-allowed" : "text-[#4B5563] hover:text-[#22333B]"}`}
-          >
-            Next &rarr;
-          </button>
-        </div>
-      </div>
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={setCurrentPage}
+        itemsPerPage={ITEMS_PER_PAGE}
+        onItemsPerPageChange={() => {}}
+        totalItems={processedData.length}
+      />
     </div>
   );
 };

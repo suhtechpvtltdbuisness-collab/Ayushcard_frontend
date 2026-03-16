@@ -18,14 +18,14 @@ const specialties = [
 
 const MedicalServices = () => {
   return (
-    <section style={{ backgroundColor: "#f0f0f0" }} className="py-16 px-6">
+    <section style={{ backgroundColor: "#f0f0f0" }} className="py-14 md:py-16 px-4 sm:px-6">
       <div className="max-w-3xl mx-auto">
 
-        <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 text-center mb-14">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 text-center mb-10 md:mb-14">
           Medical Services & Specialties
         </h2>
 
-        <div className="grid grid-cols-4 gap-x-6 gap-y-10">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 md:gap-x-6 gap-y-8 md:gap-y-10">
           {specialties.map((item, i) => {
             const Icon = item.icon;
             return (
