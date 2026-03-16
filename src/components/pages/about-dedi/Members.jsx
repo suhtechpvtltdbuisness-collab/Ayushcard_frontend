@@ -5,12 +5,12 @@ const Members = () => {
   return (
     <section
       id="join-team"
-      className="w-full py-16 px-6"
+      className="w-full py-12 md:py-16 px-4 sm:px-6"
       style={{ backgroundColor: "#ffffff" }}
     >
       <div className="max-w-6xl mx-auto">
         {/* TOP: Content Left + Images Right */}
-        <div className="grid md:grid-cols-2 gap-12 items-center mb-20">
+        <div className="grid md:grid-cols-2 gap-10 md:gap-12 items-center mb-14 md:mb-20">
           {/* LEFT — Content */}
           <div>
             <div className="inline-block mb-5">
@@ -19,7 +19,7 @@ const Members = () => {
               </span>
             </div>
 
-            <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 leading-tight mb-5">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-gray-900 leading-tight mb-5">
               Join Our Team –<br />
               Inspire Learners
               <br />
@@ -33,7 +33,7 @@ const Members = () => {
             </p>
 
             {/* Checklist */}
-            <div className="grid grid-cols-2 gap-3 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
               {[
                 "Make a Real Difference",
                 "Be Part of a Purposeful Network",
@@ -51,7 +51,7 @@ const Members = () => {
             </div>
 
             {/* Join our team button */}
-            <button className="flex items-center gap-2 bg-[#F68E5F] hover:bg-[#F68E5F] active:scale-95 text-white text-sm font-semibold pl-5 pr-1 py-1 rounded-full transition-all duration-200 shadow-md">
+            <button className="inline-flex w-full sm:w-auto items-center justify-center sm:justify-start gap-2 bg-[#F68E5F] hover:bg-[#F68E5F] active:scale-95 text-white text-sm font-semibold pl-5 pr-1 py-1 rounded-full transition-all duration-200 shadow-md">
               Join our team
               <span className="flex items-center justify-center bg-white rounded-full w-8 h-8">
                 <ArrowRight className="w-4 h-4 text-[#F68E5F]" />
@@ -60,8 +60,8 @@ const Members = () => {
           </div>
 
           {/* RIGHT — Single image */}
-          <div className="w-[420px] h-[420px] mx-auto rounded-[80px]">
-            <img src="/Aboutimage.svg" alt="about" className="w-full h-full" />
+          <div className="w-full max-w-[420px] aspect-square mx-auto rounded-[40px] md:rounded-[80px] overflow-hidden">
+            <img src="/Aboutimage.svg" alt="about" className="w-full h-full object-cover" />
           </div>
         </div>
       </div>

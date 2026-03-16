@@ -334,7 +334,7 @@ const HealthCard = () => {
 
   return (
     <div
-      className="flex flex-col h-[calc(100vh-170px)]"
+      className="flex flex-col min-w-0 h-[calc(100vh-170px)] min-h-[560px]"
       style={{ fontFamily: "Inter, sans-serif" }}
     >
       {/* Header */}
@@ -342,17 +342,17 @@ const HealthCard = () => {
         <h2 className="text-xl font-bold text-[#22333B]">
           Ayush Card Applications
         </h2>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 sm:gap-4 flex-wrap w-full sm:w-auto">
           <button
             onClick={handleExport}
-            className="px-4 py-1.5 border border-[#F68E5F] bg-[#FFFCFB] rounded-lg text-[15px] font-medium text-[#F68E5F] hover:bg-[#F68E5F] hover:text-[#FFFCFB] flex items-center gap-2 transition-colors"
+            className="flex-1 sm:flex-none px-4 py-1.5 border border-[#F68E5F] bg-[#FFFCFB] rounded-lg text-[15px] font-medium text-[#F68E5F] hover:bg-[#F68E5F] hover:text-[#FFFCFB] flex items-center justify-center gap-2 transition-colors"
           >
             Export <Download size={16} />
           </button>
           {/* Create Button (Tablet/Mobile Only) */}
           <button
             onClick={() => navigate("/admin/health-card/create")}
-            className="flex lg:hidden px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff7535] transition-colors items-center gap-2"
+            className="flex lg:hidden flex-1 sm:flex-none px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff7535] transition-colors items-center justify-center gap-2"
           >
             Create New Application <Plus size={16} />
           </button>
@@ -366,10 +366,10 @@ const HealthCard = () => {
       )}
 
       {/* Filters Bar */}
-      <div className="flex items-center justify-between xl:flex-row flex-col gap-4 mb-4 shrink-0">
-        <div className="flex items-center gap-4 flex-wrap flex-1 xl:flex-nowrap">
+      <div className="flex items-center justify-between lg:flex-row flex-col gap-3 mb-4 shrink-0">
+        <div className="flex items-stretch sm:items-center gap-3 sm:gap-4 flex-col sm:flex-row flex-wrap flex-1 lg:flex-nowrap w-full">
           {/* Search */}
-          <div className="relative w-full xl:w-70">
+          <div className="relative w-full lg:max-w-[360px]">
             <input
               type="text"
               placeholder="Search by name, id, phone"
@@ -378,7 +378,7 @@ const HealthCard = () => {
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full pl-4 pr-10 py-2.5 text-[16px] border border-[#E5E7EB] rounded-full text-sm placeholder:text-[#9CA3AF] focus:outline-none focus:ring-1 focus:ring-[#F68E5F] focus:border-[#F68E5F]"
+              className="w-full pl-4 pr-10 py-2.5 text-[16px] border border-[#E5E7EB] bg-white rounded-full text-sm placeholder:text-[#9CA3AF] shadow-sm focus:outline-none focus:ring-1 focus:ring-[#F68E5F] focus:border-[#F68E5F]"
             />
             <Search
               size={18}
@@ -388,7 +388,7 @@ const HealthCard = () => {
 
           {/* Status Tabs */}
           <div
-            className="flex p-1 bg-[#F7F7F7] rounded-xl shrink-0 overflow-x-auto w-full xl:w-auto"
+            className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1.5 bg-[#F7F7F7] rounded-xl w-full lg:w-auto"
             style={{ fontFamily: "ABeeZee, sans-serif" }}
           >
             {["All", "Verified", "Not Verified", "Expired"].map((filter) => (
@@ -398,7 +398,7 @@ const HealthCard = () => {
                   setActiveFilter(filter);
                   setCurrentPage(1);
                 }}
-                className={`px-4 py-1.5 whitespace-nowrap text-[15px] rounded-lg text-sm font-medium transition-colors ${activeFilter === filter
+                className={`px-3 sm:px-4 py-2 whitespace-nowrap text-[15px] rounded-lg text-sm font-medium transition-colors text-center ${activeFilter === filter
                   ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
                   : "text-[#6B7280] hover:text-[#22333B]"
                   }`}
@@ -427,7 +427,7 @@ const HealthCard = () => {
           </div>
         ) : paginatedData.length > 0 ? (
           <div className="overflow-y-auto overflow-x-auto flex-1">
-            <table className="w-full text-left border-collapse relative">
+              <table className="min-w-[980px] w-full text-left border-collapse relative">
               <thead className="sticky top-0 z-10 bg-[#FFFFFF]">
                 <tr>
                   <th className="py-3 px-4 w-12 text-center">
@@ -534,8 +534,8 @@ const HealthCard = () => {
                   );
                 })}
               </tbody>
-            </table>
-          </div>
+              </table>
+            </div>
         ) : (
           <div className="flex flex-col items-center justify-center flex-1 py-12 bg-white">
             <div className="w-24 h-24 bg-[#F8FAFC] rounded-full flex items-center justify-center mb-6">

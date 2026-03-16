@@ -39,10 +39,10 @@ const ContactInfo = () => {
   ];
 
   return (
-    <section style={{ backgroundColor: "#fdf8f2" }} className="px-6 py-16">
+    <section style={{ backgroundColor: "#fdf8f2" }} className="px-4 sm:px-6 py-12 md:py-16">
       <div className="max-w-3xl mx-auto">
 
-        <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 text-center mb-10">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 text-center mb-8 md:mb-10">
           Contact Information
         </h2>
 
@@ -52,7 +52,7 @@ const ContactInfo = () => {
             const Icon = item.icon;
             return (
               <div key={i}>
-                <div className="flex items-start gap-4 px-8 py-6">
+                <div className="flex items-start gap-4 px-4 sm:px-6 md:px-8 py-5 sm:py-6">
                   {/* Orange circle icon */}
                   <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Icon className="w-4 h-4 text-white" />
@@ -76,7 +76,7 @@ const ContactInfo = () => {
 
                 {/* Divider — not after last item */}
                 {i < contactItems.length - 1 && (
-                  <div className="border-t border-gray-100 mx-8" />
+                  <div className="border-t border-gray-100 mx-4 sm:mx-6 md:mx-8" />
                 )}
               </div>
             );

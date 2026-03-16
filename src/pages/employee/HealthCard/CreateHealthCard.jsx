@@ -1127,7 +1127,7 @@ const CreateHealthCard = () => {
         </div>
 
         <div className="flex-1 flex items-center justify-center relative min-h-[320px]">
-          <div className="transform scale-[0.75] sm:scale-[0.85] md:scale-[0.95] lg:scale-[1] origin-center mt-2">
+          <div className="w-full max-w-[580px] mt-2">
             <AyushCardPreview
               data={formData}
               side={cardSide}
@@ -1961,8 +1961,8 @@ const CreateHealthCard = () => {
     >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[1070px] h-full max-h-full flex flex-col relative overflow-hidden animate-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="flex justify-between items-center p-6 shrink-0 border-b border-gray-100">
-          <h2 className="text-[20px] font-bold text-[#22333B]">
+        <div className="flex justify-between items-center p-4 sm:p-6 shrink-0 border-b border-gray-100 gap-4">
+          <h2 className="text-base sm:text-[20px] font-bold text-[#22333B]">
             New Healthcard Application
           </h2>
           <button
@@ -1980,12 +1980,12 @@ const CreateHealthCard = () => {
         </div>
 
         {/* Modal Body */}
-        <div className="flex-1 overflow-hidden flex flex-col pt-6 pb-4 bg-gray-50/30">
+        <div className="flex-1 overflow-hidden flex flex-col pt-4 sm:pt-6 pb-4 bg-gray-50/30">
           {/* Stepper only visible steps 1-4 */}
           {renderStepper()}
 
           {/* Dynamic Step Content */}
-          <div className="flex-1 overflow-y-auto px-6 pb-6 flex flex-col">
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-4 sm:pb-6 flex flex-col">
             {currentStep === 1 && renderStep1FillDetails()}
             {currentStep === 2 && renderStep2Preview()}
             {currentStep === 3 && renderStep3Payment()}
@@ -1994,9 +1994,9 @@ const CreateHealthCard = () => {
         </div>
 
         {/* Footer Navigation */}
-        <div className="p-4 border-t border-gray-100 bg-white shrink-0 flex justify-end items-center px-6">
+        <div className="p-4 border-t border-gray-100 bg-white shrink-0 flex justify-end items-center px-4 sm:px-6">
           {currentStep < 4 ? (
-            <div className="flex justify-between items-center w-full">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center w-full gap-3 sm:gap-0">
               <button
                 onClick={handleBack}
                 disabled={currentStep === 1 || saveLoading || paymentCompleted}
@@ -2021,7 +2021,7 @@ const CreateHealthCard = () => {
                   saveLoading ||
                   (currentStep === 3 && !paymentMethod && !paymentCompleted)
                 }
-                className={`px-8 py-2 rounded-lg text-sm font-medium text-white transition-all flex items-center gap-2 ${
+                className={`w-full sm:w-auto px-8 py-2 rounded-lg text-sm font-medium text-white transition-all flex items-center justify-center gap-2 ${
                   saveLoading ||
                   (currentStep === 3 && !paymentMethod && !paymentCompleted)
                     ? "bg-gray-400 cursor-not-allowed"

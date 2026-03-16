@@ -352,8 +352,8 @@ const CreatePartner = () => {
       className="flex flex-col h-full overflow-y-auto pb-10"
       style={{ fontFamily: "Inter, sans-serif" }}
     >
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
           <button
             onClick={() => navigate('/admin/partners')}
             className="w-10 h-10 border border-gray-200 rounded-full flex items-center justify-center text-[#4B5563] bg-white hover:bg-gray-50 transition-colors shadow-sm"
@@ -362,17 +362,17 @@ const CreatePartner = () => {
           </button>
           <h2 className="text-xl font-bold text-[#22333B]">Add New Partner</h2>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 w-full sm:w-auto">
           <button
             onClick={() => navigate('/admin/partners')}
-            className="px-6 py-2 border border-gray-200 rounded-lg text-[15px] font-medium text-[#374151] hover:bg-gray-50 bg-white"
+            className="flex-1 sm:flex-none px-6 py-2 border border-gray-200 rounded-lg text-[15px] font-medium text-[#374151] hover:bg-gray-50 bg-white"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-6 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff702d] transition-colors disabled:opacity-60"
+            className="flex-1 sm:flex-none px-6 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff702d] transition-colors disabled:opacity-60"
           >
             {saving ? 'Saving...' : 'Save Partner'}
           </button>
@@ -579,24 +579,24 @@ const CreatePartner = () => {
 
       {/* Available Doctors (Full Width) */}
       <div className="bg-white border border-[#E5E7EB] rounded-2xl p-6 mb-6 shadow-[0_4px_20px_0px_#0000000D]">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-6 gap-4">
           <h3 className="text-lg font-bold text-[#22333B]">
             Available Doctors
           </h3>
-          <div className="flex gap-3">
-            <div className="relative">
+          <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+            <div className="relative w-full sm:w-auto">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]" />
               <input
                 type="text"
                 placeholder="Search doctor..."
                 value={doctorSearch}
                 onChange={(e) => setDoctorSearch(e.target.value)}
-                className="pl-9 pr-4 py-2 border border-[#E5E7EB] rounded-lg text-sm w-80 focus:outline-none focus:border-[#F68E5F]"
+                className="pl-9 pr-4 py-2 border border-[#E5E7EB] rounded-lg text-sm w-full sm:w-80 focus:outline-none focus:border-[#F68E5F]"
               />
             </div>
             <button
               onClick={() => setIsDoctorModalOpen(true)}
-              className="flex justify-center items-center gap-1.5 px-4 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff702d] transition-colors whitespace-nowrap"
+              className="flex w-full sm:w-auto justify-center items-center gap-1.5 px-4 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff702d] transition-colors whitespace-nowrap"
             >
               <Plus size={16} /> Add Doctor
             </button>

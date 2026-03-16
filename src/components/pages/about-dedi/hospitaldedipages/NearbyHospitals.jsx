@@ -39,14 +39,14 @@ const NearbyHospitals = () => {
   const navigate = useNavigate();
 
   return (
-    <section style={{ backgroundColor: "#fdf8f2" }} className="px-6 py-16">
+    <section style={{ backgroundColor: "#fdf8f2" }} className="px-4 sm:px-6 py-12 md:py-16">
       <div className="max-w-3xl mx-auto">
 
-        <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 text-center mb-10">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 text-center mb-8 md:mb-10">
           Nearby Hospitals
         </h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {nearbyHospitals.map((hospital) => (
             <div
               key={hospital.id}

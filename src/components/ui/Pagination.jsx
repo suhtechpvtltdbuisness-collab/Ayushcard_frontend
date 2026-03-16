@@ -78,16 +78,16 @@ const Pagination = ({
   };
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-4 border-t border-gray-100 bg-[#FFFFFF] shrink-0 gap-4">
+    <div className="flex flex-col md:flex-row items-center justify-between px-3 sm:px-4 md:px-6 py-3 md:py-4 border-t border-gray-100 bg-[#FFFFFF] shrink-0 gap-3 md:gap-4">
       {/* Items info & Rows per page */}
-      <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-8">
-        <span className="text-sm font-medium text-[#6B7280] order-2 sm:order-1">
+      <div className="flex flex-col md:flex-row items-center gap-3 md:gap-6 w-full md:w-auto">
+        <span className="hidden md:block text-sm font-medium text-[#6B7280] order-2 md:order-1">
           Showing <span className="text-[#22333B]">{totalItems > 0 ? startIndex + 1 : 0}</span> to{" "}
           <span className="text-[#22333B]">{Math.min(startIndex + itemsPerPage, totalItems)}</span> of{" "}
           <span className="text-[#22333B] font-bold">{totalItems}</span> results
         </span>
 
-        <div className="flex items-center gap-2 order-1 sm:order-2">
+        <div className="hidden sm:flex items-center gap-2 order-1 md:order-2">
           <label htmlFor="items-per-page" className="text-sm text-[#9CA3AF] font-medium">
             Rows per page:
           </label>
@@ -98,14 +98,14 @@ const Pagination = ({
             className="bg-[#F9FAFB] border border-[#E5E7EB] text-[#374151] text-sm rounded-lg focus:ring-[#F68E5F] focus:border-[#F68E5F] block px-2.5 py-1.5 outline-none cursor-pointer hover:bg-gray-50 transition-colors"
           >
             <option value={10}>10</option>
-            <option value={20}>20</option>
+            <option value={25}>25</option>
             <option value={50}>50</option>
           </select>
         </div>
       </div>
 
       {/* Navigation Controls */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center justify-between md:justify-end gap-1 w-full md:w-auto">
         <button
           onClick={() => handlePageChange(currentPage - 1)}
           disabled={currentPage <= 1}
@@ -117,10 +117,14 @@ const Pagination = ({
           title="Previous Page"
         >
           <ChevronLeft size={20} />
-          <span className="hidden lg:inline text-sm font-semibold pr-1">Previous</span>
+          <span className="hidden xl:inline text-sm font-semibold pr-1">Previous</span>
         </button>
 
-        <div className="flex items-center gap-1 mx-2">
+        <div className="sm:hidden text-sm font-semibold text-[#4B5563] px-2">
+          {currentPage} / {totalPages}
+        </div>
+
+        <div className="hidden sm:flex items-center gap-1 mx-2">
           {renderPaginationButtons()}
         </div>
 
@@ -134,10 +138,16 @@ const Pagination = ({
           }`}
           title="Next Page"
         >
-          <span className="hidden lg:inline text-sm font-semibold pl-1">Next</span>
+          <span className="hidden xl:inline text-sm font-semibold pl-1">Next</span>
           <ChevronRight size={20} />
         </button>
       </div>
+
+      <span className="md:hidden text-xs font-medium text-[#6B7280]">
+        Showing <span className="text-[#22333B]">{totalItems > 0 ? startIndex + 1 : 0}</span> to{" "}
+        <span className="text-[#22333B]">{Math.min(startIndex + itemsPerPage, totalItems)}</span> of{" "}
+        <span className="text-[#22333B] font-bold">{totalItems}</span>
+      </span>
     </div>
   );
 };
