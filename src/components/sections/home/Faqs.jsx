@@ -22,23 +22,26 @@ const faqsByCategory = {
     {
       id: 1,
       question: "Who is eligible for the Health Card?",
-      answer: "",
+      answer:
+        "The Health Card is available for individuals of all age groups, from infants to senior citizens..",
     },
     {
       id: 2,
       question: "How do I apply for the Health Card?",
       answer:
-        "You can apply online through our website, visit our office in person, or contact us via phone. The application process takes less than 10 minutes.",
+        "You can apply by simply navigating to the 'Apply Ayush Card' section on our website. Follow the step-by-step instructions to fill in your details, upload documents, and submit your application online.",
     },
     {
       id: 3,
       question: "What documents are required for application?",
-      answer: "",
+      answer:
+        "The primary documents required are a valid Aadhaar card and a recent passport-sized photograph. These help in ensuring accurate identification and a smooth verification process for your Health Card.",
     },
     {
       id: 4,
       question: "How long does it take to receive the card after applying?",
-      answer: "",
+      answer:
+        "After successful submission and verification of your details, it usually takes approximately 15 days to process and issue your Health Card.",
     },
   ],
   2: [
