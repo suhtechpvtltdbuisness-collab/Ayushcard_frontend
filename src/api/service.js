@@ -222,21 +222,21 @@ const apiService = {
     createHealthCard: async (cardData, file = null) => {
         // Ensure a unique transactionId in the payment object if payment method is provided
         if (cardData.paymentMethod && !cardData.payment) {
-             cardData.payment = {
-                 transactionId: `TXN${Date.now()}${Math.floor(Math.random() * 1000)}`,
-                 method: cardData.paymentMethod,
-                 totalAmount: cardData.totalAmount || 0,
-                 date: new Date().toISOString()
-             };
+            cardData.payment = {
+                transactionId: `TXN${Date.now()}${Math.floor(Math.random() * 1000)}`,
+                method: cardData.paymentMethod,
+                totalAmount: cardData.totalAmount || 0,
+                date: new Date().toISOString()
+            };
         } else if (cardData.payment && !cardData.payment.transactionId) {
-             cardData.payment.transactionId = `TXN${Date.now()}${Math.floor(Math.random() * 1000)}`;
+            cardData.payment.transactionId = `TXN${Date.now()}${Math.floor(Math.random() * 1000)}`;
         }
 
         if (file) {
             const formData = new FormData();
             formData.append('data', JSON.stringify(cardData));
             formData.append('document', file);
-            
+
             const response = await api.post('/api/cards', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
@@ -244,7 +244,7 @@ const apiService = {
         }
 
         const response = await api.post('/api/cards', cardData, {
-             headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json' },
         });
         return response.data;
     },
@@ -281,7 +281,7 @@ const apiService = {
         }
 
         const response = await api.put(`/api/cards/${id}`, cardData, {
-             headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json' },
         });
         return response.data;
     },
@@ -356,6 +356,12 @@ const apiService = {
         return response.data;
     },
 
+    // GET /api/organizations/dashboard/stats
+    getDashboardStats: async () => {
+        const response = await api.get('/api/organizations/dashboard/stats');
+        return response.data;
+    },
+
     // ─── DOCTORS ──────────────────────────────────────────────────────────
 
     // POST /api/doctors
@@ -402,8 +408,23 @@ const apiService = {
         return response.data;
     },
 
+    // Check if phone number is already registered
+    checkPhoneRegistration: async (phone) => {
+        // Try to lookup by contact via public API if available
+        // Usually, these are registered via card-users or cards
+        // We'll use a generic check endpoint if it exists, or fallback to a query
+        try {
+            const response = await publicApi.get(`/api/cards/card-users/check/${phone}`);
+            return response.data;
+        } catch (err) {
+            // If check-phone doesn't exist, we might try a search-like lookup
+            // For now, assume a dedicated check endpoint or a predictable failure
+            throw err;
+        }
+    },
+
     // ─── PUBLIC DONATION (home page) ──────────────────────────────
-    
+
     // POST /api/donations (no auth required — public endpoint)
     submitDonation: async (payload) => {
         const response = await publicApi.post('/api/donations', payload);
