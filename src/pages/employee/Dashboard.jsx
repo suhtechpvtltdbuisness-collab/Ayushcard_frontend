@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import apiService from "../../api/service";
 import {
   CreditCard,
   Stethoscope,
@@ -9,10 +10,37 @@ import {
   Building,
   Heart,
   Download,
+  Loader2,
 } from "lucide-react";
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await apiService.getDashboardStats();
+        if (response?.success) {
+          setStats(response.data?.stats);
+        }
+      } catch (err) {
+        console.error("Dashboard stats fetch failed:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStats();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex h-[80vh] items-center justify-center">
+        <Loader2 className="w-10 h-10 text-[#fa8112] animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -39,7 +67,7 @@ const Dashboard = () => {
           </div>
           <div className="flex gap-12 mt-auto">
             <div>
-              <p className="text-2xl font-bold text-[#22333B]">1,988</p>
+              <p className="text-2xl font-bold text-[#22333B]">{stats?.totalCards || 0}</p>
               <p className="text-[10px] font-medium text-[#9CA3AF] tracking-wider">
                 TOTAL APPLICATIONS
               </p>
@@ -69,14 +97,14 @@ const Dashboard = () => {
           <div className="flex items-end gap-x-1 mt-auto">
             <div>
               <p className="text-4xl font-bold text-[#22333B] leading-none">
-                29
+                {stats?.totalOrganizations || 0}
               </p>
               <p className="text-[10px] font-medium text-[#9CA3AF] tracking-wider mt-1">
                 TOTAL PARTNERS
               </p>
             </div>
             <div className="ml-auto text-right mb-0">
-              <p className="text-xl font-bold text-gray-300 leading-none">29</p>
+              <p className="text-xl font-bold text-gray-300 leading-none">{stats?.totalOrganizations || 0}</p>
               <p className="text-[10px] font-medium text-[#9CA3AF] tracking-wider mt-1">
                 ACTIVE
               </p>
@@ -101,24 +129,22 @@ const Dashboard = () => {
             </h3>
           </div>
           <div className="flex -space-x-2 mt-auto">
-            <img
-              src="https://i.pravatar.cc/100?img=11"
-              alt="avatar"
-              className="w-8 h-8 rounded-full border-2 border-white object-cover"
-            />
-            <img
-              src="https://i.pravatar.cc/100?img=33"
-              alt="avatar"
-              className="w-8 h-8 rounded-full border-2 border-white object-cover"
-            />
-            <img
-              src="https://i.pravatar.cc/100?img=47"
-              alt="avatar"
-              className="w-8 h-8 rounded-full border-2 border-white object-cover"
-            />
-            <div className="w-8 h-8 rounded-full bg-gray-200 border-2 border-white flex items-center justify-center text-[10px] text-gray-600 font-bold">
-              +8
-            </div>
+            {[...Array(Math.min(stats?.totalEmployees || 0, 3))].map((_, i) => (
+              <img
+                key={i}
+                src={`https://i.pravatar.cc/100?img=${i + 15}`}
+                alt="avatar"
+                className="w-8 h-8 rounded-full border-2 border-white object-cover"
+              />
+            ))}
+            {(stats?.totalEmployees || 0) > 3 && (
+              <div className="w-8 h-8 rounded-full bg-gray-200 border-2 border-white flex items-center justify-center text-[10px] text-gray-600 font-bold">
+                +{stats.totalEmployees - 3}
+              </div>
+            )}
+            {(!stats?.totalEmployees || stats.totalEmployees === 0) && (
+              <div className="text-[10px] text-[#9CA3AF] font-bold">0 Active Staff</div>
+            )}
           </div>
         </div>
       </div>

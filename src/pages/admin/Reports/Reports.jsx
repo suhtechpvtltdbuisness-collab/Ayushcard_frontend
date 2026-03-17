@@ -809,11 +809,10 @@ const Reports = () => {
                 <button
                   key={period}
                   onClick={() => setTimeFilter(period)}
-                  className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${
-                    period === timeFilter
+                  className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${period === timeFilter
                       ? "bg-[#F97316] text-white shadow-sm"
                       : "text-gray-500 hover:text-gray-900"
-                  }`}
+                    }`}
                 >
                   {period}
                 </button>
@@ -1238,15 +1237,14 @@ const Reports = () => {
 
                   {/* Avatar/Rank Icon */}
                   <div
-                    className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center font-bold text-sm ${
-                      idx === 0
+                    className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center font-bold text-sm ${idx === 0
                         ? "bg-[#F59E0B33] text-[#D97706]"
                         : idx === 1
                           ? "bg-[#94A3B833] text-[#64748B]"
                           : idx === 2
                             ? "bg-[#FB923C33] text-[#C2410C]"
                             : "bg-[#E2E8F0] text-[#64748B]"
-                    }`}
+                      }`}
                   >
                     {idx === 0 ? (
                       <img
