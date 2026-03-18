@@ -89,7 +89,7 @@ const ServicesSection = () => {
 
             {/* Heading */}
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 leading-tight mb-6">
-              Health Card Creation Made Simple
+              Ayush Card Creation Made Simple
             </h2>
 
             {/* Description */}

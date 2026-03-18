@@ -598,7 +598,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                 Apply for Ayush Card
               </h3>
               <h2 className="text-[16px] font-medium text-[#757575] tracking-wide mt-0.5">
-                Health Card for You & Your Family — INR 100 to INR 500 per
+                Ayush Card for You & Your Family — INR 100 to INR 500 per
                 family
               </h2>
             </div>
@@ -1871,7 +1871,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                         </h4>
                       </div>
                       <p className="text-[12px] text-gray-500">
-                        Health card fees : 120 for Family Head and 10/- for each
+                        Ayush card fees : 120 for Family Head and 10/- for each
                         other family member added
                       </p>
                     </div>

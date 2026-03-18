@@ -10,10 +10,10 @@ const AyushCardAbout = () => {
           <h2 className="text-3xl sm:text-4xl md:text-6xl font-bold text-[#111111] leading-tight mb-6">
             What Is Ayush
             <br />
-            Health Card?
+            Ayush Card?
           </h2>
           <p className="text-[#777777] text-base leading-relaxed">
-            Ayush Health Card is a comprehensive healthcare initiative designed
+            Ayush Card is a comprehensive healthcare initiative designed
             to make quality medical services accessible and affordable for
             everyone. We partner with leading hospitals, clinics, and healthcare
             providers to offer discounted rates and premium care.

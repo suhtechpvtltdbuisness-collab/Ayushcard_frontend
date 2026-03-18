@@ -37,7 +37,7 @@ const AyushCardHowToApply = () => {
             How to Apply
           </h2>
           <p className="text-[#666666] text-lg leading-relaxed">
-            A simple 4-step process to get your Ayush Health Card and start
+            A simple 4-step process to get your Ayush Card and start
             enjoying healthcare benefits
           </p>
         </div>

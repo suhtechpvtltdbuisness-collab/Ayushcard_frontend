@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 const faqCategories = [
-  { id: 1, label: "Health Card", icon: CreditCard },
+  { id: 1, label: "Ayush Card", icon: CreditCard },
   { id: 2, label: "Pricing & Payment", icon: DollarSign },
   { id: 3, label: "Card Usage & Benefits", icon: ShieldCheck },
   { id: 4, label: "Validity & Renewal", icon: RefreshCw },
@@ -21,44 +21,84 @@ const faqsByCategory = {
   1: [
     {
       id: 1,
-      question: "Who is eligible for the Health Card?",
+      question: "Who is eligible for the Ayush Card?",
       answer:
-        "The Health Card is available for individuals of all age groups, from infants to senior citizens..",
+        "The Ayush Ayush Card is available for individuals of all age groups.",
     },
     {
       id: 2,
-      question: "How do I apply for the Health Card?",
+      question: "How do I apply for the Ayush Card?",
       answer:
-        "You can apply by simply navigating to the 'Apply Ayush Card' section on our website. Follow the step-by-step instructions to fill in your details, upload documents, and submit your application online.",
+        "To apply for your card, simply navigate to the 'Apply Ayush Card' section on our portal and follow the easy step-by-step registration process.",
     },
     {
       id: 3,
       question: "What documents are required for application?",
       answer:
-        "The primary documents required are a valid Aadhaar card and a recent passport-sized photograph. These help in ensuring accurate identification and a smooth verification process for your Health Card.",
+        "The required documents for the application include a valid Aadhaar card, a recent photograph, and other identity proofs such as a Passport or PAN card.",
     },
     {
       id: 4,
       question: "How long does it take to receive the card after applying?",
       answer:
-        "After successful submission and verification of your details, it usually takes approximately 15 days to process and issue your Health Card.",
+        "Once you have successfully submitted your application, it typically takes between 20 to 25 days for your Ayush Card to be processed and issued.",
     },
   ],
   2: [
-    { id: 1, question: "What are the pricing plans?", answer: "" },
-    { id: 2, question: "What payment methods are accepted?", answer: "" },
+    {
+      id: 1,
+      question: "What are the pricing plans?",
+      answer:
+        "The  Ayush Card is priced at ₹160 per card for up to 4 family members, with an additional charge of ₹40 for each extra person (up to 7 members total).",
+    },
+    {
+      id: 2,
+      question: "What payment methods are accepted?",
+      answer:
+        "We support multiple payment methods for your convenience, including UPI, Credit Cards, and direct Cash payments.",
+    },
   ],
   3: [
-    { id: 1, question: "Where can I use the Health Card?", answer: "" },
-    { id: 2, question: "What benefits does the card provide?", answer: "" },
+    {
+      id: 1,
+      question: "Where can I use the Ayush Card?",
+      answer:
+        "You can use your Ayush Card at any of our associated hospitals, diagnostic centres, and pathology labs to avail special rates and benefits.",
+    },
+    {
+      id: 2,
+      question: "What benefits does the card provide?",
+      answer:
+        "The card offers 40-50% off at outside hospitals, 20% off on OPD and tests, and 10% on medicines. In-patient admission discounts range from 20% to 50% depending on the hospital.",
+    },
   ],
   4: [
-    { id: 1, question: "When does the Health Card expire?", answer: "" },
-    { id: 2, question: "How do I renew my card?", answer: "" },
+    {
+      id: 1,
+      question: "When does the Ayush Card expire?",
+      answer:
+        "Your Ayush Card is valid for a period of one year from the date of issuance, after which it requires renewal to continue benefits.",
+    },
+    {
+      id: 2,
+      question: "How do I renew my card?",
+      answer:
+        "You can renew your card by visiting our office or by contacting us through our website or our official contact number at 8303902030.",
+    },
   ],
   5: [
-    { id: 1, question: "How can I donate?", answer: "" },
-    { id: 2, question: "Is my donation tax deductible?", answer: "" },
+    {
+      id: 1,
+      question: "How can I donate?",
+      answer:
+        "You can contribute to our cause by clicking and navigating to the 'Donate' button located on our website's header or support section.",
+    },
+    {
+      id: 2,
+      question: "Is my donation tax deductible?",
+      answer:
+        "Currently, donations made to our platform are not tax deductible. We appreciate your selfless support in helping us reach more people.",
+    },
   ],
 };
 
