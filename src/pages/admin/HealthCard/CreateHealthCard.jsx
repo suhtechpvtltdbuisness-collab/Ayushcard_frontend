@@ -387,10 +387,6 @@ const CreateHealthCard = () => {
 
   const handleNext = async () => {
     if (currentStep === 1) {
-       if (!formData.documentFront) {
-         toastWarn("Please upload or scan the identity document first.");
-         return;
-       }
        if (!formData.applicantFirstName || !formData.phone || !formData.pincode) {
          toastWarn("Head of Family details are incomplete.");
          return;

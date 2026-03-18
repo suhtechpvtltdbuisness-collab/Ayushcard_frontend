@@ -391,10 +391,6 @@ const CreateHealthCard = () => {
 
   const handleNext = async () => {
     if (currentStep === 1) {
-      if (!formData.documentFront || !formData.documentBack) {
-        toastWarn("Please upload both front and back sides of the document.");
-        return;
-      }
       if (!formData.applicantFirstName?.trim() || !formData.phone?.trim()) {
         toastWarn("First name and Phone number are required.");
         return;
