@@ -437,6 +437,62 @@ const apiService = {
         return response.data;
     },
 
+    // ─── REPORTS ──────────────────────────────────────────────────────────
+
+    // GET /api/reports/summary
+    getReportsSummary: async () => {
+        const response = await api.get('/api/reports/summary');
+        return response.data;
+    },
+
+    // GET /api/reports/monthly-trend
+    getReportsMonthlyTrend: async () => {
+        const response = await api.get('/api/reports/monthly-trend');
+        return response.data;
+    },
+
+    // GET /api/reports/cards/status
+    getReportsCardsStatus: async () => {
+        const response = await api.get('/api/reports/cards/status');
+        return response.data;
+    },
+
+    // GET /api/reports/cards/age-groups
+    getReportsCardsAgeGroups: async () => {
+        const response = await api.get('/api/reports/cards/age-groups');
+        return response.data;
+    },
+
+    // GET /api/reports/cards/location
+    getReportsCardsLocation: async () => {
+        const response = await api.get('/api/reports/cards/location');
+        return response.data;
+    },
+
+    // GET /api/reports/employee-performance
+    getReportsEmployeePerformance: async () => {
+        const response = await api.get('/api/reports/employee-performance');
+        return response.data;
+    },
+
+    // GET /api/reports/daily
+    getReportsDaily: async (params = {}) => {
+        const response = await api.get('/api/reports/daily', { params });
+        return response.data;
+    },
+
+    // GET /api/reports/monthly
+    getReportsMonthly: async (params = {}) => {
+        const response = await api.get('/api/reports/monthly', { params });
+        return response.data;
+    },
+
+    // GET /api/reports/yearly
+    getReportsYearly: async (params = {}) => {
+        const response = await api.get('/api/reports/yearly', { params });
+        return response.data;
+    },
+
     // ─── UTILITY ──────────────────────────────────────────────────────────
 
 
