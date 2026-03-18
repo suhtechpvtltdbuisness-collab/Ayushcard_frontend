@@ -15,10 +15,12 @@ import {
   ScanLine,
   Printer,
   Loader2,
+  Camera,
+  RefreshCw,
 } from "lucide-react";
 import { useToast } from "../../ui/Toast";
 import apiService from "../../../api/service";
-import { Scanner } from '@yudiel/react-qr-scanner';
+import { performOCR } from "../../../utils/ocr";
 import { load } from "@cashfreepayments/cashfree-js";
 
 const ApplyAyushCardModal = ({ isOpen, onClose }) => {
@@ -45,6 +47,12 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
   const [orderId, setOrderId] = useState(null);
   const [txnId, setTxnId] = useState("");
   const [saveError, setSaveError] = useState("");
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState(0);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const [cameraActive, setCameraActive] = useState(false);
 
   // Step 2 State (Family Head)
   const [headImage, setHeadImage] = useState(null);
@@ -101,6 +109,101 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen || currentStep !== 1 || activeTab !== "scan") {
+      stopCamera();
+    }
+  }, [isOpen, currentStep, activeTab]);
+
+  useEffect(() => {
+    if (cameraActive && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [cameraActive]);
+
+  const startCamera = async () => {
+    try {
+      setOcrLoading(true);
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } 
+      });
+      streamRef.current = stream;
+      setCameraActive(true);
+    } catch (err) {
+      console.error("Camera error:", err);
+      toastWarn("Could not access camera. Please use Gallery Upload.");
+    } finally {
+      setOcrLoading(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setCameraActive(false);
+  };
+
+  const capturePhoto = async () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    
+    setOcrLoading(true);
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    const base64 = canvas.toDataURL("image/jpeg", 0.8);
+    stopCamera();
+    
+    try {
+      const results = await performOCR(base64, (p) => setOcrProgress(p));
+      if (results) {
+        setFamilyHead(prev => ({
+          ...prev,
+          fullName: results.name || results.fullName || prev.fullName || "",
+          gender: results.gender || prev.gender || "",
+          dob: results.dob || prev.dob || "",
+          pincode: results.pincode || prev.pincode || "",
+          address: results.address || prev.address || "",
+          aadhaarNumber: (results.type === 'aadhaar' ? results.docNumber : prev.aadhaarNumber) || prev.aadhaarNumber || ""
+        }));
+        setDocFront({ 
+          name: "captured_id.jpg", 
+          size: "Live Capture", 
+          url: base64,
+          base64: base64
+        });
+        toastWarn("Details extracted successfully!");
+      }
+    } catch (err) {
+      console.error("Capture OCR Error:", err);
+      toastWarn("Could not extract details. Please enter manually.");
+      setDocFront({ 
+        name: "captured_id.jpg", 
+        size: "Live Capture", 
+        url: base64,
+        base64: base64
+      });
+    } finally {
+      setOcrLoading(false);
+      setOcrProgress(0);
+    }
+  };
+
   const parseAadhaarQR = (text) => {
     try {
       const isXML = text.includes("<?xml") || text.includes("PrintLetterBarcodeData");
@@ -131,39 +234,55 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
     return null;
   };
 
-  const handleScan = (result) => {
-    if (result && result.length > 0) {
-      const raw = result[0].rawValue;
-      const parsed = parseAadhaarQR(raw);
-      if (parsed) {
-        setFamilyHead(prev => ({
-          ...prev,
-          fullName: parsed.name || prev.fullName,
-          aadhaarNumber: parsed.uid || prev.aadhaarNumber,
-          gender: parsed.gender || prev.gender,
-          dob: parsed.dob || prev.dob
-        }));
-        
-        // Use a generic Aadhaar placeholder if actual image isn't available from QR
-        const placeholderUrl = "https://placehold.co/600x400/f8f9fa/6c757d?text=Aadhaar+Scanned"; 
-        
-        setDocFront({ 
-          name: "Scanned Aadhaar Front.jpg", 
-          size: "QR Scanned", 
-          url: placeholderUrl 
-        });
-        setDocBack({ 
-          name: "Scanned Aadhaar Back.jpg", 
-          size: "QR Scanned", 
-          url: placeholderUrl 
-        });
-        
-        toastWarn("Aadhaar details scanned and autofilled!");
-        setActiveTab("upload"); // Shift to upload so user sees the checkmarks
-      } else {
-        toastError("Unsupported QR or Not Aadhaar. Please input manually.");
-        setActiveTab("upload");
+  const handleScanImage = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toastWarn("Image size should be less than 5MB");
+        return;
       }
+      
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result;
+        setOcrLoading(true);
+        setOcrProgress(0);
+        toastWarn("Processing image... please wait.");
+        
+        try {
+          const results = await performOCR(base64, (p) => setOcrProgress(p));
+          if (results) {
+            setFamilyHead(prev => ({
+              ...prev,
+              fullName: results.name || results.fullName || prev.fullName || "",
+              aadhaarNumber: (results.type === 'aadhaar' ? results.docNumber : prev.aadhaarNumber) || prev.aadhaarNumber || "",
+              gender: results.gender || prev.gender || "",
+              dob: results.dob || prev.dob || "",
+              pincode: results.pincode || prev.pincode || "",
+              address: results.address || prev.address || ""
+            }));
+            
+            setDocFront({ 
+              name: file.name, 
+              size: (file.size / (1024 * 1024)).toFixed(2) + " MB", 
+              url: URL.createObjectURL(file),
+              base64: base64
+            });
+            
+            toastWarn("Details extracted and autofilled!");
+            setActiveTab("upload"); 
+          } else {
+            toastError("Could not extract details. Please enter manually.");
+          }
+        } catch (err) {
+          console.error("OCR failed", err);
+          toastError("Scanning failed. Please try again or enter manually.");
+        } finally {
+          setOcrLoading(false);
+          setOcrProgress(0);
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -175,6 +294,20 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
     if (name === "contactNumber") value = value.replace(/\D/g, "").slice(0, 10);
     if (name === "aadhaarNumber") value = value.replace(/\D/g, "").slice(0, 12);
     if (name === "pincode") value = value.replace(/\D/g, "").slice(0, 6);
+
+    if (name === "dob") {
+      const selectedDate = new Date(value);
+      const today = new Date();
+      let age = today.getFullYear() - selectedDate.getFullYear();
+      const m = today.getMonth() - selectedDate.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < selectedDate.getDate())) {
+        age--;
+      }
+      if (age < 18) {
+        toastWarn("Family head must be at least 18 years old.");
+        return;
+      }
+    }
 
     setFamilyHead((prev) => ({ ...prev, [name]: value }));
   };
@@ -306,6 +439,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
       dob: familyHead.dob,
       address: familyHead.address,
       pincode: familyHead.pincode,
+      aadhaarNumber: familyHead.aadhaarNumber,
       cardIssueDate: today,
       cardExpiredDate: cardExpiryDate,
       verificationDate: today,
@@ -530,6 +664,8 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
         return;
       }
 
+
+
       // Logic to auto redirect to Member 1 on Step 3 if we add a member
       if (members.length > 0) {
         setActiveMemberTab(1);
@@ -723,25 +859,79 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
 
                   <div className="flex flex-col gap-4 mb-6 relative w-full items-center justify-center">
                     {activeTab === "scan" ? (
-                      <div className="w-full flex flex-col items-center justify-center p-6 rounded-xl border border-[#fa8112] bg-[#faf3e1]">
-                        <h4 className="font-semibold text-[16px] text-[#222222] mb-4 text-center">
-                          Scan Aadhaar QR Code
-                        </h4>
-                        <div className="w-full max-w-sm rounded-[14px] overflow-hidden border-4 border-white shadow-sm bg-black mb-4 aspect-square flex items-center justify-center relative">
-                          <Scanner 
-                             onScan={handleScan}
-                             formats={['qr_code']}
-                          />
-                        </div>
-                        <p className="text-[12px] text-gray-500 text-center mb-4">
-                          Point your camera at the QR code on the back of your Aadhaar card.
-                        </p>
-                        <button
-                          onClick={() => setActiveTab(null)}
-                          className="px-6 py-2 border border-[#FA8112] text-[#FA8112] font-semibold rounded-lg bg-white hover:bg-orange-50 transition-colors"
-                        >
-                          Cancel Scanning
-                        </button>
+                      <div className="w-full flex flex-col items-center justify-center p-4 sm:p-6 rounded-xl border border-[#fa8112]/30 bg-[#faf3e1] min-h-[400px]">
+                        {cameraActive ? (
+                          <div className="w-full max-w-sm space-y-4 animate-in fade-in zoom-in-95">
+                            <div className="relative aspect-[4/3] bg-black rounded-xl overflow-hidden shadow-xl border-2 border-white">
+                              <video 
+                                ref={videoRef} 
+                                autoPlay 
+                                playsInline 
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 border-2 border-white/50 border-dashed aspect-[1.6/1] rounded-lg"></div>
+                              {ocrLoading && (
+                                <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center p-6 transition-all animate-in fade-in">
+                                  <div className="w-full max-w-[160px] h-1.5 bg-white/20 rounded-full overflow-hidden mb-3 relative">
+                                    <div className="h-full bg-[#fa8112] transition-all duration-300" style={{ width: `${ocrProgress}%` }}></div>
+                                  </div>
+                                  <p className="text-white text-[12px] font-bold animate-pulse">Scanning... {ocrProgress}%</p>
+                                  <div className="absolute left-0 right-0 h-0.5 bg-[#fa8112] shadow-[0_0_10px_#fa8112] blur-[1px] animate-[scan_2s_infinite]"></div>
+                                </div>
+                              )}
+                            </div>
+                            <style>{`
+                              @keyframes scan {
+                                0% { top: 20%; }
+                                50% { top: 80%; }
+                                100% { top: 20%; }
+                              }
+                            `}</style>
+                            <div className="flex gap-3">
+                              <button 
+                                onClick={stopCamera}
+                                className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 rounded-lg font-bold transition-all"
+                              >
+                                Cancel
+                              </button>
+                              <button 
+                                onClick={capturePhoto}
+                                disabled={ocrLoading}
+                                className="flex-[2] py-3 bg-[#fa8112] text-white rounded-lg font-bold shadow-md flex items-center justify-center gap-2 active:scale-95"
+                              >
+                                {ocrLoading ? <Loader2 className="animate-spin" size={18} /> : <Camera size={18} />}
+                                {ocrLoading ? "Scanning..." : "Capture & Scan"}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center group">
+                            <div 
+                              className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center shadow-lg mb-6 cursor-pointer hover:scale-105 transition-all border border-orange-100 group-hover:border-[#fa8112]"
+                              onClick={startCamera}
+                            >
+                              {ocrLoading ? <Loader2 className="animate-spin text-[#fa8112]" size={32} /> : <Camera size={32} className="text-[#fa8112]" />}
+                            </div>
+                            <h4 className="font-bold text-[#22333B] text-[16px] mb-2">Live ID Scanner</h4>
+                            <p className="text-[13px] text-gray-500 max-w-[240px] text-center mb-6">Open your camera to instantly extract details from Aadhaar or PAN cards.</p>
+                            <div className="flex gap-3 w-full">
+                              <button 
+                                onClick={startCamera}
+                                className="px-6 py-2.5 bg-[#fa8112] text-white rounded-lg font-bold flex items-center justify-center gap-2 shadow-md hover:bg-[#e47510] transition-all"
+                              >
+                                <Camera size={16} /> Open Camera
+                              </button>
+                              <button 
+                                onClick={() => document.getElementById('ocr-input').click()}
+                                className="px-6 py-2.5 bg-white border border-[#fa8112] text-[#fa8112] rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-orange-50 transition-all"
+                              >
+                                <UploadCloud size={16} /> From Gallery
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        <canvas ref={canvasRef} className="hidden" />
+                        <input id="ocr-input" type="file" accept="image/*" capture="environment" className="hidden" onChange={handleScanImage} />
                       </div>
                     ) : activeTab === "upload" ? (
                       <div className="w-full border-2 border-[#fa8112] bg-[#faf3e1] p-6 rounded-xl">
@@ -963,44 +1153,8 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                       />
                     </div>
 
-                    <div>
-                      <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
-                        Relation
-                      </label>
-                      <select
-                        name="relation"
-                        value={familyHead.relation}
-                        onChange={handleHeadChange}
-                        style={{ fontFamily: "'Inter', sans-serif" }}
-                        className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] appearance-none bg-white"
-                      >
-                        <option value="">Select Relation</option>
-                        <option value="Self">Self</option>
-                        <option value="Spouse">Spouse</option>
-                        <option value="Child">Child</option>
-                        <option value="Parent">Parent</option>
-                        <option value="S/O">S/O (Son of)</option>
-                        <option value="D/O">D/O (Daughter of)</option>
-                        <option value="W/O">W/O (Wife of)</option>
-                        <option value="C/O">C/O (Care of)</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
-                        Father/Husband Name
-                      </label>
-                      <input
-                        type="text"
-                        name="relatedPerson"
-                        value={familyHead.relatedPerson}
-                        onChange={handleHeadChange}
-                        placeholder="Enter Father/Husband Name"
-                        style={{ fontFamily: "'Inter', sans-serif" }}
-                        className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
-                      />
-                    </div>
-
+                    {/* Relation and Father/Husband Name removed */}
+                    
                     <div>
                       <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
                         Pincode
@@ -1201,43 +1355,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                         />
                       </div>
 
-                      <div>
-                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
-                          Relation
-                        </label>
-                        <select
-                          name="relation"
-                          value={familyHead.relation}
-                          onChange={handleHeadChange}
-                          style={{ fontFamily: "'Inter', sans-serif" }}
-                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] appearance-none bg-white"
-                        >
-                          <option value="">Select Relation</option>
-                          <option value="Self">Self</option>
-                          <option value="Spouse">Spouse</option>
-                          <option value="Child">Child</option>
-                          <option value="Parent">Parent</option>
-                          <option value="S/O">S/O (Son of)</option>
-                          <option value="D/O">D/O (Daughter of)</option>
-                          <option value="W/O">W/O (Wife of)</option>
-                          <option value="C/O">C/O (Care of)</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
-                          Father/Husband Name
-                        </label>
-                        <input
-                          type="text"
-                          name="relatedPerson"
-                          value={familyHead.relatedPerson}
-                          onChange={handleHeadChange}
-                          placeholder="Enter Father/Husband Name"
-                          style={{ fontFamily: "'Inter', sans-serif" }}
-                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
-                        />
-                      </div>
+                      {/* Relation and Related Person fields removed for family head */}
 
                       <div>
                         <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
@@ -1666,51 +1784,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                             </p>
                           )}
                         </div>
-                        <div>
-                          <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
-                            Relation
-                          </p>
-                          {isEditingReview ? (
-                            <select
-                              name="relation"
-                              value={familyHead.relation}
-                              onChange={handleHeadChange}
-                              className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222] bg-white"
-                            >
-                              <option value="">Select Relation</option>
-                              <option value="Self">Self</option>
-                              <option value="Spouse">Spouse</option>
-                              <option value="Child">Child</option>
-                              <option value="Parent">Parent</option>
-                              <option value="S/O">S/O (Son of)</option>
-                              <option value="D/O">D/O (Daughter of)</option>
-                              <option value="W/O">W/O (Wife of)</option>
-                              <option value="C/O">C/O (Care of)</option>
-                            </select>
-                          ) : (
-                            <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
-                              {familyHead.relation || "Not provided"}
-                            </p>
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
-                            Father/Husband Name
-                          </p>
-                          {isEditingReview ? (
-                            <input
-                              type="text"
-                              name="relatedPerson"
-                              value={familyHead.relatedPerson}
-                              onChange={handleHeadChange}
-                              className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
-                            />
-                          ) : (
-                            <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
-                              {familyHead.relatedPerson || "Not provided"}
-                            </p>
-                          )}
-                        </div>
+                        {/* Relation and Father/Husband Name review removed for family head */}
                         <div>
                           <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
                             Pincode
@@ -1921,7 +1995,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                       
                       <div className="text-gray-400 text-[10px] font-bold uppercase tracking-[0.2em] mb-2 font-inter">Total Payable Amount</div>
                       <h2 className="text-5xl font-extrabold text-[#222222] mb-8 font-inter">
-                        <span className="text-2xl font-semibold mr-1">₹</span>{estimatedFee}.00
+                        <span className="text-2xl font-semibold mr-1">₹</span>{Number(estimatedFee).toFixed(2)}
                       </h2>
 
                       {saveError && (

@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { X, ChevronDown, Plus, Loader2, Check } from "lucide-react";
+import { X, ChevronDown, Plus, Loader2, Check, User, UploadCloud, ScanLine, FileText, CheckCircle2, Camera, RefreshCw, CreditCard, Banknote, Download } from "lucide-react";
 import AyushCardPreview from "../../../components/admin/AyushCardPreview";
 import apiService from "../../../api/service";
 import { useToast } from "../../../components/ui/Toast";
+import { performOCR } from "../../../utils/ocr";
 import { load } from "@cashfreepayments/cashfree-js";
 
 const generateId = () => `AC-${Math.floor(1000000 + Math.random() * 9000000)}`;
@@ -24,10 +25,17 @@ const CreateHealthCard = () => {
   const [txnId, setTxnId] = useState(""); // final transaction id after verify
   const [onlinePaymentLoading, setOnlinePaymentLoading] = useState(false);
   const [verifyLoading, setVerifyLoading] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState(0);
+  const [activeTab, setActiveTab] = useState("upload"); // 'scan' | 'upload'
 
   // Standard form refs
   const fileInputFrontRef = useRef(null);
   const fileInputBackRef = useRef(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const [cameraActive, setCameraActive] = useState(false);
 
   // Store actual File objects for API upload
   const documentFrontFileRef = useRef(null);
@@ -87,6 +95,105 @@ const CreateHealthCard = () => {
       },
     }));
   }, [formData.members]);
+
+  // Camera cleanup on unmount or step change
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (currentStep !== 1 || activeTab !== "scan") {
+      stopCamera();
+    }
+  }, [currentStep, activeTab]);
+
+  useEffect(() => {
+    if (cameraActive && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [cameraActive]);
+
+  const startCamera = async () => {
+    try {
+      setOcrLoading(true);
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } 
+      });
+      streamRef.current = stream;
+      setCameraActive(true);
+    } catch (err) {
+      console.error("Camera error:", err);
+      toastError("Could not access camera. Please use Gallery Upload.");
+    } finally {
+      setOcrLoading(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setCameraActive(false);
+  };
+
+  const capturePhoto = async () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    
+    setOcrLoading(true);
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    const base64 = canvas.toDataURL("image/jpeg", 0.8);
+    stopCamera();
+    
+    try {
+      const details = await performOCR(base64, (p) => setOcrProgress(p));
+      if (details) {
+        let fName = "";
+        let lName = "";
+        if (details.name) {
+          const parts = details.name.trim().split(/\s+/);
+          if (parts.length > 1) {
+            fName = parts[0];
+            lName = parts.slice(1).join(" ");
+          } else {
+            fName = parts[0];
+          }
+        }
+
+        setFormData(prev => ({
+          ...prev,
+          applicantFirstName: fName || prev.applicantFirstName || "",
+          applicantLastName: lName || prev.applicantLastName || "",
+          aadhaarNumber: (details.type === 'aadhaar' ? details.docNumber : prev.aadhaarNumber) || prev.aadhaarNumber || "",
+          dob: details.dob ? details.dob.split('-').reverse().join('-') : (prev.dob || ""),
+          pincode: details.pincode || prev.pincode || "",
+          address: details.address || prev.address || "",
+          gender: details.gender || prev.gender || "",
+          documentFront: base64
+        }));
+        toastSuccess("Details extracted successfully!");
+      }
+    } catch (err) {
+      console.error("Capture OCR Error:", err);
+      toastWarn("Could not extract details. Please enter manually.");
+      setFormData(prev => ({ ...prev, documentFront: base64 }));
+    } finally {
+      setOcrLoading(false);
+      setOcrProgress(0);
+    }
+  };
 
   const handleChange = (e, field) => {
     let value = e.target.value;
@@ -160,6 +267,20 @@ const CreateHealthCard = () => {
       }
     }
 
+    if (field === "dob" && val) {
+      const selectedDate = new Date(val);
+      const today = new Date();
+      let age = today.getFullYear() - selectedDate.getFullYear();
+      const m = today.getMonth() - selectedDate.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < selectedDate.getDate())) {
+        age--;
+      }
+      if (age < 18) {
+        toastWarn("Head of Family must be at least 18 years old.");
+        return;
+      }
+    }
+
     setFormData((prev) => ({
       ...prev,
       [field]: formattedDate,
@@ -192,6 +313,64 @@ const CreateHealthCard = () => {
     }
   };
 
+  const handleScanImage = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toastWarn("Image size should be less than 5MB");
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result;
+        setOcrLoading(true);
+        setOcrProgress(0);
+        toastWarn("Processing document... please wait.");
+        
+        try {
+          const details = await performOCR(base64, (p) => setOcrProgress(p));
+          if (details) {
+            let fName = "";
+            let lName = "";
+            if (details.name) {
+              const parts = details.name.trim().split(/\s+/);
+              if (parts.length > 1) {
+                fName = parts[0];
+                lName = parts.slice(1).join(" ");
+              } else {
+                fName = parts[0];
+              }
+            }
+
+            setFormData(prev => ({
+              ...prev,
+              applicantFirstName: fName || prev.applicantFirstName || "",
+              applicantLastName: lName || prev.applicantLastName || "",
+              aadhaarNumber: (details.type === 'aadhaar' ? details.docNumber : prev.aadhaarNumber) || prev.aadhaarNumber || "",
+              dob: details.dob ? details.dob.split('-').reverse().join('-') : (prev.dob || ""),
+              pincode: details.pincode || prev.pincode || "",
+              address: details.address || prev.address || "",
+              gender: details.gender || prev.gender || "",
+              documentFront: base64
+            }));
+            toastSuccess("Details extracted and autofilled!");
+          } else {
+            setFormData(prev => ({ ...prev, documentFront: base64 }));
+            toastError("Could not extract details. Please enter manually.");
+          }
+        } catch (err) {
+          console.error("OCR failed", err);
+          toastError("Scanning failed. Please enter manually.");
+        } finally {
+          setOcrLoading(false);
+          setOcrProgress(0);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleRemoveImage = (side) => {
     if (side === "front") {
       documentFrontFileRef.current = null;
@@ -212,20 +391,31 @@ const CreateHealthCard = () => {
 
   const handleNext = async () => {
     if (currentStep === 1) {
-      // Validate step 1 minimums
       if (!formData.applicantFirstName?.trim() || !formData.phone?.trim()) {
-        toastWarn("First name and Phone number are required to proceed.");
+        toastWarn("First name and Phone number are required.");
         return;
       }
       if (!formData.pincode?.trim() || formData.pincode.length < 6) {
-        toastWarn("A valid 6-digit Pincode is required to proceed.");
+        toastWarn("A valid 6-digit Pincode is required.");
         return;
       }
+
+
+
       setCurrentStep(2);
     } else if (currentStep === 2) {
+      // Validate members if any?
+      for (const m of (formData.members || [])) {
+        if (!m.name || !m.relation || !m.age) {
+          toastWarn("Please fill all details for the added members.");
+          return;
+        }
+      }
       setCurrentStep(3);
     } else if (currentStep === 3) {
-      if (!paymentCompleted) {
+      setCurrentStep(4);
+    } else if (currentStep === 4) {
+        if (!paymentCompleted) {
         if (!paymentMethod) {
           toastWarn("Please select a payment method.");
           return;
@@ -233,12 +423,10 @@ const CreateHealthCard = () => {
         if (paymentMethod === "cash") {
           await performSave("cash", null);
         }
-        // online: handled by initiate/verify in step 3
       } else {
-        setCurrentStep(4);
+        setCurrentStep(5);
       }
-    } else if (currentStep === 4) {
-      // Done
+    } else if (currentStep === 5) {
       navigate("/employee/health-card");
     }
   };
@@ -420,6 +608,7 @@ const CreateHealthCard = () => {
         relatedPerson: formData.relatedPerson || "",
         address: formData.address || "",
         pincode: formData.pincode || "",
+        aadhaarNumber: formData.aadhaarNumber || "",
         cardNo: formData.cardNumber || "",
         cardIssueDate: formData.issueDate || "",
         cardExpiredDate: formData.expiryDate || "",
@@ -497,1131 +686,681 @@ const CreateHealthCard = () => {
 
   const renderStepper = () => {
     const steps = [
-      { num: "01", label: "Fill the Details" },
-      { num: "02", label: "Card Preview" },
-      { num: "03", label: "Payment" },
-      { num: "04", label: "Receipt" },
+      { num: 1, label: "Add Family Head" },
+      { num: 2, label: "Add Members" },
+      { num: 3, label: "Review" },
+      { num: 4, label: "Payment" },
+      { num: 5, label: "Receipt" },
     ];
 
     return (
-      <div className="flex items-center justify-center w-full max-w-2xl mx-auto mb-8 px-4">
-        {steps.map((step, index) => {
-          const stepNumber = index + 1;
-          const isActive = currentStep >= stepNumber;
-          return (
-            <React.Fragment key={step.num}>
-              <div className="flex flex-col items-center">
-                <div
-                  className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold transition-colors duration-300 ${
-                    isActive
-                      ? "border-2 border-[#8396B2] text-[#22333B] bg-white shadow-xs"
-                      : "border-2 border-gray-200 text-gray-400 bg-gray-50 bg-opacity-50"
-                  }`}
-                >
-                  {step.num}
-                </div>
-                <span
-                  className={`text-xs mt-2 font-medium tracking-wide whitespace-nowrap transition-colors duration-300 ${
-                    isActive ? "text-[#22333B]" : "text-gray-400"
-                  }`}
-                >
-                  {step.label}
-                </span>
+      <div className="px-8 py-3 flex justify-center bg-white shrink-0 mb-6">
+        <div className="flex items-center max-w-2xl w-full justify-between relative py-2">
+          {/* Step lines background */}
+          <div className="absolute top-[35%] left-[10%] w-[80%] h-[2px] bg-[#f7e5bc] -z-10"></div>
+          <div
+            className="absolute top-[35%] left-[10%] h-[2px] bg-[#fa8112] -z-10 transition-all duration-500"
+            style={{ width: `${(currentStep - 1) * 25}%` }}
+          ></div>
+
+          {steps.map((step) => (
+            <div
+              key={step.num}
+              className="flex flex-col items-center bg-white relative z-10 w-[100px]"
+            >
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center text-[15px] font-bold mb-2 transition-colors ${
+                  currentStep === step.num
+                    ? "bg-[#fa8112] text-white"
+                    : currentStep > step.num
+                      ? "bg-[#fa8112] text-white"
+                      : "border-2 border-[#f7e5bc] text-[#222222] bg-white"
+                }`}
+              >
+                {currentStep > step.num ? (
+                  <Check size={20} strokeWidth={3} />
+                ) : (
+                  `0${step.num}`
+                )}
               </div>
-              {index < steps.length - 1 && (
-                <div className="flex-1 px-2 mb-6">
-                  <div
-                    className={`h-px w-full transition-colors duration-300 ${
-                      isActive ? "bg-[#8396B2]" : "bg-gray-200"
-                    }`}
-                  ></div>
-                </div>
-              )}
-            </React.Fragment>
-          );
-        })}
+              <span
+                className={`text-[12px] text-center max-w-[90px] leading-tight mt-1 ${
+                  currentStep === step.num
+                    ? "font-bold text-[#222222]"
+                    : "font-semibold text-[#666666]"
+                }`}
+              >
+                {step.label}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     );
   };
 
   const renderStep1FillDetails = () => (
-    <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-      <div className="space-y-6">
-        {/* Application Details */}
-        <div className="rounded-xl bg-white">
-          <h3 className="font-bold text-[16px] text-[#22333B] mb-4">
-            Application Details
-          </h3>
+    <div className="animate-in fade-in slide-in-from-right-4 duration-300 max-w-4xl mx-auto">
+      <div className="bg-[#FAF3E1] rounded-lg p-3 px-4 flex items-center gap-3 border-l-4 border-[#FA8112] mb-5">
+        <User size={20} className="text-[#222222]" />
+        <h3 className="font-bold text-[16px] text-[#222222]">
+          Family Head Details
+        </h3>
+      </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-4">
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Application ID
-              </label>
-              <input
-                type="text"
-                value={formData.id}
-                onChange={(e) => handleChange(e, "id")}
-                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none focus:border-[#F68E5F] bg-white transition-colors"
-                placeholder="Auto-generated"
-              />
-            </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Application Date
-              </label>
-              <input
-                type="date"
-                value={formatDateForInput(formData.dateApplied)}
-                onChange={(e) => handleDateChange(e, "dateApplied")}
-                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none focus:border-[#F68E5F] bg-white transition-colors"
-              />
-            </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Status
-              </label>
-              <div className="relative">
-                <select
-                  value={formData.status}
-                  onChange={(e) => handleChange(e, "status")}
-                  className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none focus:border-[#F68E5F] appearance-none bg-white transition-colors"
-                >
-                  <option>Pending verification</option>
-                  <option>Not verified</option>
-                  <option>Verified</option>
-                  <option>Expired</option>
-                </select>
-                <ChevronDown
-                  size={16}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-                />
-              </div>
-            </div>
-          </div>
+      <div className="mb-4">
+        <h3 className="text-[16px] font-bold text-[#222222] mb-1">
+          Upload Identity Document
+        </h3>
+        <p className="text-[#666666] text-[15px]">
+          Please upload or scan an identity document of the family head (Aadhaar, PAN, etc.)
+        </p>
+      </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-4">
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Applicant's first name <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.applicantFirstName}
-                onChange={(e) => handleChange(e, "applicantFirstName")}
-                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none focus:border-[#F68E5F] bg-white transition-colors"
-              />
-            </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Middle name
-              </label>
-              <input
-                type="text"
-                value={formData.applicantMiddleName}
-                onChange={(e) => handleChange(e, "applicantMiddleName")}
-                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none focus:border-[#F68E5F] bg-white transition-colors"
-              />
-            </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Last name
-              </label>
-              <input
-                type="text"
-                value={formData.applicantLastName}
-                onChange={(e) => handleChange(e, "applicantLastName")}
-                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none focus:border-[#F68E5F] bg-white transition-colors"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-4">
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Gender
-              </label>
-              <div className="relative">
-                <select
-                  value={formData.gender}
-                  onChange={(e) => handleChange(e, "gender")}
-                  className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none focus:border-[#F68E5F] appearance-none bg-white transition-colors"
-                >
-                  <option value="">Select Gender</option>
-                  <option>Male</option>
-                  <option>Female</option>
-                </select>
-                <ChevronDown
-                  size={16}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Date of birth
-              </label>
-              <input
-                type="date"
-                value={formatDateForInput(formData.dob)}
-                onChange={(e) => handleDateChange(e, "dob")}
-                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none focus:border-[#F68E5F] bg-white transition-colors"
-              />
-            </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Relation
-              </label>
-              <div className="relative">
-                <select
-                  value={formData.relation}
-                  onChange={(e) => handleChange(e, "relation")}
-                  className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none focus:border-[#F68E5F] appearance-none bg-white transition-colors"
-                >
-                  <option value="">Select Relation</option>
-                  <option>Self</option>
-                  <option>Spouse</option>
-                  <option>Child</option>
-                  <option>Parent</option>
-                </select>
-                <ChevronDown
-                  size={16}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-4">
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Related person
-              </label>
-              <input
-                type="text"
-                value={formData.relatedPerson}
-                onChange={(e) => handleChange(e, "relatedPerson")}
-                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none focus:border-[#F68E5F] bg-white transition-colors"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-4">
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Phone Number <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.phone}
-                onChange={(e) => handleChange(e, "phone")}
-                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none focus:border-[#F68E5F] bg-white transition-colors"
-              />
-            </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Alternate Number
-              </label>
-              <input
-                type="text"
-                value={formData.altPhone}
-                onChange={(e) => handleChange(e, "altPhone")}
-                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none focus:border-[#F68E5F] bg-white transition-colors"
-              />
-            </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Email
-              </label>
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => handleChange(e, "email")}
-                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none focus:border-[#F68E5F] bg-white transition-colors"
-              />
-            </div>
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-              Address
-            </label>
-            <textarea
-              rows={2}
-              value={formData.address}
-              onChange={(e) => handleChange(e, "address")}
-              className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none focus:border-[#F68E5F] resize-none bg-white transition-colors"
-            ></textarea>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-4">
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Pincode
-              </label>
-              <input
-                type="text"
-                value={formData.pincode}
-                onChange={(e) => handleChange(e, "pincode")}
-                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none focus:border-[#F68E5F] bg-white transition-colors"
-                placeholder="6-digit pincode"
-                maxLength={6}
-              />
-            </div>
-          </div>
-
-          {/* Read Only Calculation Info */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-6 mb-4">
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Card number
-              </label>
-              <input
-                type="text"
-                value={formData.cardNumber}
-                onChange={(e) => handleChange(e, "cardNumber")}
-                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none focus:border-[#F68E5F] bg-white transition-colors"
-              />
-            </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Card Issue Date
-              </label>
-              <input
-                type="date"
-                value={formatDateForInput(formData.issueDate)}
-                onChange={(e) => handleDateChange(e, "issueDate")}
-                readOnly
-                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none bg-white cursor-not-allowed transition-colors"
-              />
-            </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Card Expiry Date
-              </label>
-              <input
-                type="date"
-                value={formatDateForInput(formData.expiryDate)}
-                readOnly
-                onChange={(e) => handleDateChange(e, "expiryDate")}
-                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none bg-white cursor-not-allowed transition-colors"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-4">
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Verification Date
-              </label>
-              <input
-                type="date"
-                value={formatDateForInput(formData.verificationDate)}
-                onChange={(e) => handleDateChange(e, "verificationDate")}
-                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none focus:border-[#F68E5F] bg-white transition-colors"
-              />
-            </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Total Members
-              </label>
-              <input
-                type="text"
-                value={(formData.members?.length || 0) + 1}
-                readOnly
-                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none bg-gray-50 cursor-not-allowed"
-              />
-            </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Total Amount Paid
-              </label>
-              <input
-                type="text"
-                value={formData.payment?.totalPaid || "120.00"}
-                readOnly
-                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none bg-gray-50 cursor-not-allowed"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Media & Members Row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6">
-          {/* Image Upload */}
-          <div className="border border-[#E2E8F0] rounded-xl p-6 bg-white flex flex-col shadow-xs h-full">
-            <h3 className="font-bold text-[15px] text-[#22333B] mb-1">
-              Image Upload
-            </h3>
-            <p className="text-[12px] text-[#6D6D6D] mb-5">
-              Add your documents here.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
-              {/* Front */}
-              <div
-                className="border border-dashed border-[#1849D6]/40 rounded-xl flex flex-col items-center justify-center p-4 bg-white hover:bg-gray-50 transition-colors relative h-40 cursor-pointer"
-                onClick={() =>
-                  !formData.documentFront && fileInputFrontRef.current?.click()
-                }
-              >
-                {formData.documentFront ? (
-                  <div className="w-full h-full relative group rounded-lg overflow-hidden">
-                    <img
-                      src={formData.documentFront}
-                      className="w-full h-full object-cover"
-                      alt="Front"
-                    />
-                    <div className="absolute inset-0 bg-black/40 hidden group-hover:flex items-center justify-center gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          fileInputFrontRef.current?.click();
-                        }}
-                        className="px-3 py-1 bg-white rounded text-xs text-[#1E293B] font-medium"
-                      >
-                        Change
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveImage("front");
-                        }}
-                        className="px-3 py-1 bg-red-500 text-white rounded text-xs font-medium"
-                      >
-                        Remove
-                      </button>
+      <div className="flex flex-col gap-4 mb-8 relative w-full items-center justify-center">
+        {activeTab === "scan" ? (
+          <div className="w-full border-2 border-[#fa8112]/30 bg-orange-50/20 p-4 sm:p-8 rounded-3xl flex flex-col items-center justify-center transition-all overflow-hidden min-h-[400px]">
+            {cameraActive ? (
+              <div className="w-full max-w-md space-y-4 animate-in fade-in zoom-in-95">
+                <div className="relative aspect-[4/3] bg-black rounded-2xl overflow-hidden shadow-2xl border-4 border-white">
+                  <video 
+                    ref={videoRef} 
+                    autoPlay 
+                    playsInline 
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 border-2 border-white/50 border-dashed aspect-[1.6/1] rounded-lg"></div>
+                  {ocrLoading && (
+                    <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center p-6 transition-all animate-in fade-in">
+                      <div className="w-full max-w-[160px] h-1.5 bg-white/20 rounded-full overflow-hidden mb-3 relative">
+                        <div className="h-full bg-[#fa8112] transition-all duration-300" style={{ width: `${ocrProgress}%` }}></div>
+                      </div>
+                      <p className="text-white text-[12px] font-bold animate-pulse">Scanning Code... {ocrProgress}%</p>
+                      <div className="absolute left-0 right-0 h-0.5 bg-[#fa8112] shadow-[0_0_10px_#fa8112] blur-[1px] animate-[scan_2s_infinite]"></div>
                     </div>
+                  )}
+                  <style>{`
+                    @keyframes scan {
+                      0% { top: 20%; }
+                      50% { top: 80%; }
+                      100% { top: 20%; }
+                    }
+                  `}</style>
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                     <div className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-20">Align Card Within Frame</div>
                   </div>
-                ) : (
-                  <>
-                    <Plus size={24} className="text-[#1E293B] mb-2" />
-                    <p className="text-[12px] text-[#1E293B] font-medium">
-                      Document Front Side
-                    </p>
-                  </>
-                )}
-                <input
-                  type="file"
-                  ref={fileInputFrontRef}
-                  className="hidden"
-                  accept="image/*"
-                  onChange={(e) => handleImageUpload(e, "front")}
-                />
+                </div>
+                <div className="flex gap-4">
+                  <button 
+                    onClick={stopCamera}
+                    className="flex-1 py-4 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-2xl font-bold transition-all flex items-center justify-center gap-2"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={capturePhoto}
+                    disabled={ocrLoading}
+                    className="flex-[2] py-4 bg-[#fa8112] hover:bg-[#e47510] text-white rounded-2xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 active:scale-95"
+                  >
+                    {ocrLoading ? <Loader2 className="animate-spin" /> : <Camera size={20} />}
+                    {ocrLoading ? "Scanning..." : "Capture & Scan"}
+                  </button>
+                </div>
               </div>
-              {/* Back */}
-              <div
-                className="border border-dashed border-[#1849D6]/40 rounded-xl flex flex-col items-center justify-center p-4 bg-white hover:bg-gray-50 transition-colors relative h-40 cursor-pointer"
-                onClick={() =>
-                  !formData.documentBack && fileInputBackRef.current?.click()
-                }
-              >
-                {formData.documentBack ? (
-                  <div className="w-full h-full relative group rounded-lg overflow-hidden">
-                    <img
-                      src={formData.documentBack}
-                      className="w-full h-full object-cover"
-                      alt="Back"
-                    />
-                    <div className="absolute inset-0 bg-black/40 hidden group-hover:flex items-center justify-center gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          fileInputBackRef.current?.click();
-                        }}
-                        className="px-3 py-1 bg-white rounded text-xs text-[#1E293B] font-medium"
-                      >
-                        Change
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveImage("back");
-                        }}
-                        className="px-3 py-1 bg-red-500 text-white rounded text-xs font-medium"
-                      >
-                        Remove
-                      </button>
-                    </div>
+            ) : (
+              <div className="flex flex-col items-center group">
+                <div 
+                  className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center shadow-xl mb-6 cursor-pointer hover:scale-105 transition-all border border-orange-100 group-hover:border-[#fa8112]/50"
+                  onClick={startCamera}
+                >
+                  {ocrLoading ? <Loader2 className="animate-spin text-[#fa8112]" size={36} /> : <Camera size={36} className="text-[#fa8112]" />}
+                </div>
+                <h4 className="font-bold text-[#22333B] text-lg mb-2">Live OCR Scanner</h4>
+                <p className="text-[13px] text-gray-500 max-w-[280px] text-center mb-6">Open your camera to instantly extract details from Aadhaar or PAN cards.</p>
+                  <div className="flex flex-col sm:flex-row gap-3 w-full">
+                    <button 
+                      onClick={startCamera}
+                      className="px-8 py-3.5 bg-[#fa8112] text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-orange-200 transition-all"
+                    >
+                      <Camera size={18} /> Open Camera
+                    </button>
+                    <button 
+                      onClick={() => document.getElementById('ocr-input-create').click()}
+                      className="px-6 py-3.5 bg-white border-2 border-orange-100 text-[#fa8112] rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-orange-50 transition-all"
+                    >
+                      <UploadCloud size={18} /> From Gallery
+                    </button>
                   </div>
-                ) : (
-                  <>
-                    <Plus size={24} className="text-[#1E293B] mb-2" />
-                    <p className="text-[12px] text-[#1E293B] font-medium">
-                      Document Back Side
-                    </p>
-                  </>
-                )}
-                <input
-                  type="file"
-                  ref={fileInputBackRef}
-                  className="hidden"
-                  accept="image/*"
-                  onChange={(e) => handleImageUpload(e, "back")}
-                />
-              </div>
+                </div>
+              )}
+              <canvas ref={canvasRef} className="hidden" />
+              <input id="ocr-input-create" type="file" accept="image/*" capture="environment" className="hidden" onChange={handleScanImage} />
             </div>
-            <p className="text-[12px] text-gray-400 mt-6 pt-2">
-              Only supports .jpg, .png files
-            </p>
-          </div>
+        ) : (
+          <div className="w-full border-2 border-[#fa8112]/30 bg-orange-50/20 p-6 rounded-[32px]">
+             <div className="flex flex-col sm:flex-row gap-4">
+                <button
+                  onClick={() => fileInputFrontRef.current?.click()}
+                  className={`flex-1 flex flex-col items-center justify-center py-8 px-4 rounded-3xl transition-all shadow-sm ${
+                    formData.documentFront
+                      ? "bg-white border-2 border-green-500"
+                      : "bg-white border-2 border-transparent hover:border-[#fa8112]"
+                  }`}
+                >
+                  <div className={`w-12 h-12 ${formData.documentFront ? "bg-green-500" : "bg-orange-50 text-[#fa8112]"} rounded-2xl flex items-center justify-center text-white mb-3 shadow-inner`}>
+                    {formData.documentFront ? <Check size={24} /> : <UploadCloud size={24} className="text-[#fa8112]" />}
+                  </div>
+                  <span className="text-[15px] font-bold text-[#222222]">Front Side</span>
+                  <input type="file" ref={fileInputFrontRef} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, "front")} />
+                </button>
 
-          {/* QR Code */}
-          <div className="border border-[#E2E8F0] rounded-xl p-6 bg-white flex flex-col shadow-xs h-full">
-            <h3 className="font-bold text-[15px] text-[#22333B] mb-1">
-              QR Code
-            </h3>
-            <p className="text-[12px] text-[#6D6D6D] mb-5">
-              A Unique Qr code of Health Card will appear here
-            </p>
-            <div className="flex-1 flex items-center justify-center border-t border-gray-100 border-dashed pt-4">
-              <div className="p-3 border border-[#E2E8F0] rounded-xl bg-white shadow-xs inline-flex items-center justify-center w-[140px] h-[140px]">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`${window.location.origin}/verify/${formData.id}`)}`}
-                  alt="QR"
-                  className="w-35 h-30 object-contain border-4 border-black rounded-lg p-1"
-                />
-              </div>
-            </div>
+                <button
+                  onClick={() => fileInputBackRef.current?.click()}
+                  className={`flex-1 flex flex-col items-center justify-center py-8 px-4 rounded-3xl transition-all shadow-sm ${
+                    formData.documentBack
+                      ? "bg-white border-2 border-green-500"
+                      : "bg-white border-2 border-transparent hover:border-[#fa8112]"
+                  }`}
+                >
+                  <div className={`w-12 h-12 ${formData.documentBack ? "bg-green-500" : "bg-orange-50 text-[#fa8112]"} rounded-2xl flex items-center justify-center text-white mb-3 shadow-inner`}>
+                    {formData.documentBack ? <Check size={24} /> : <UploadCloud size={24} className="text-[#fa8112]" />}
+                  </div>
+                  <span className="text-[15px] font-bold text-[#222222]">Back Side</span>
+                  <input type="file" ref={fileInputBackRef} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, "back")} />
+                </button>
+                
+                <button
+                  onClick={() => setActiveTab("scan")}
+                  className="flex-1 flex flex-col items-center justify-center py-8 px-4 rounded-3xl border-2 border-dashed border-[#fa8112]/30 bg-white hover:bg-orange-50 transition-all shadow-sm"
+                >
+                  <div className="w-12 h-12 bg-[#fa8112] rounded-2xl flex items-center justify-center text-white mb-3 shadow-lg">
+                    <ScanLine size={24} />
+                  </div>
+                  <span className="text-[15px] font-bold text-[#222222]">Live Scanner</span>
+                </button>
+             </div>
           </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+        <div>
+          <label className="block text-[14px] font-bold text-[#222222] mb-1.5">
+            Application ID
+          </label>
+          <input
+            type="text"
+            value={formData.id}
+            onChange={(e) => handleChange(e, "id")}
+            className="w-full border-2 border-[#E2E8F0] rounded-xl px-4 py-3 text-[14px] focus:outline-none focus:border-[#fa8112] bg-white transition-all font-medium"
+          />
         </div>
-
-        {/* Members Table */}
-        <div className="border border-[#E2E8F0] rounded-xl bg-white flex flex-col shadow-xs overflow-hidden min-h-[180px] mb-4">
-          <div className="p-4 border-b border-[#E2E8F0] bg-gray-50">
-            <h3 className="font-bold text-[15px] text-[#22333B]">
-              Included Members ({formData.members?.length || 0})
-            </h3>
-          </div>
-          <div className="overflow-y-auto flex-1">
-            <table className="w-full text-left">
-              <thead className="sticky top-0 bg-gray-50 z-10">
-                <tr>
-                  <th className="py-2.5 px-4 text-[10px] font-bold text-[#64748B] uppercase tracking-wider">
-                    Sr. No
-                  </th>
-                  <th className="py-2.5 px-4 text-[10px] font-bold text-[#64748B] uppercase tracking-wider">
-                    Member Name
-                  </th>
-                  <th className="py-2.5 px-4 text-[10px] font-bold text-[#64748B] uppercase tracking-wider">
-                    Relation
-                  </th>
-                  <th className="py-2.5 px-4 text-[10px] font-bold text-[#64748B] uppercase tracking-wider w-26">
-                    Age
-                  </th>
-                  <th className="py-2.5 px-4"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#F1F5F9]">
-                {formData.members?.map((m, i) => (
-                  <tr key={i} className="hover:bg-gray-50/30">
-                    <td className="py-2 px-4 text-[13px] text-gray-500">
-                      {i + 1}
-                    </td>
-                    <td className="py-2 px-4">
-                      <input
-                        type="text"
-                        value={m.name}
-                        onChange={(e) => {
-                          const newMembers = [...formData.members];
-                          newMembers[i].name = e.target.value.replace(
-                            /[^a-zA-Z\s]/g,
-                            "",
-                          );
-                          setFormData({ ...formData, members: newMembers });
-                        }}
-                        className="w-full rounded px-2 py-1.5 text-[13px] focus:border-[#F68E5F] focus:outline-none"
-                        placeholder="Name"
-                      />
-                    </td>
-                    <td className="py-2 px-4">
-                      <input
-                        type="text"
-                        value={m.relation}
-                        onChange={(e) => {
-                          const newMembers = [...formData.members];
-                          newMembers[i].relation = e.target.value.replace(
-                            /[^a-zA-Z\s]/g,
-                            "",
-                          );
-                          setFormData({ ...formData, members: newMembers });
-                        }}
-                        className="w-full rounded px-2 py-1.5 text-[13px] focus:border-[#F68E5F] focus:outline-none"
-                        placeholder="Relation"
-                      />
-                    </td>
-                    <td className="py-2 px-4">
-                      <input
-                        type="text"
-                        value={m.age}
-                        onChange={(e) => {
-                          const newMembers = [...formData.members];
-                          newMembers[i].age = e.target.value.replace(/\D/g, "");
-                          setFormData({ ...formData, members: newMembers });
-                        }}
-                        className="w-full rounded px-2 py-1.5 text-[13px] focus:border-[#F68E5F] focus:outline-none"
-                        placeholder="Age"
-                      />
-                    </td>
-                    <td className="py-2 px-4 text-center">
-                      <button
-                        onClick={() => {
-                          const newMembers = formData.members.filter(
-                            (_, idx) => idx !== i,
-                          );
-                          setFormData({ ...formData, members: newMembers });
-                        }}
-                        className="text-red-400 hover:text-red-600 text-[18px] leading-none mb-1"
-                      >
-                        &times;
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {(formData.members?.length || 0) < 7 && (
-            <div className="p-3 border-t border-[#E2E8F0] bg-white">
-              <button
-                onClick={() => {
-                  setFormData((prev) => ({
-                    ...prev,
-                    members: [
-                      ...(prev.members || []),
-                      { name: "", relation: "", age: "" },
-                    ],
-                  }));
-                }}
-                className="text-[#F68E5F] font-medium text-[13px] flex items-center gap-1.5 hover:text-[#e57745]"
-              >
-                Add Member <span className="text-lg leading-none">+</span>
-              </button>
-            </div>
-          )}
+        <div>
+          <label className="block text-[14px] font-bold text-[#222222] mb-1.5">
+            Application Date
+          </label>
+          <input
+            type="date"
+            value={formatDateForInput(formData.dateApplied)}
+            onChange={(e) => handleDateChange(e, "dateApplied")}
+            className="w-full border-2 border-[#E2E8F0] rounded-xl px-4 py-3 text-[14px] focus:outline-none focus:border-[#fa8112] bg-white transition-all font-medium"
+          />
         </div>
       </div>
-    </div>
-  );
 
-  const renderStep2Preview = () => (
-    <div className="flex-1 flex flex-col items-center justify-center p-2">
-      <div className="w-full max-w-4xl bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-xs h-full flex flex-col">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="font-bold text-[18px] text-[#22333B]">Card Preview</h3>
-          <div className="flex items-center bg-gray-100 rounded-lg p-1">
-            <button
-              onClick={() => setCardSide("front")}
-              className={`px-5 py-1.5 rounded-md text-sm font-medium transition-all ${cardSide === "front" ? "bg-white text-black shadow-xs" : "text-gray-500 hover:text-black"}`}
-            >
-              Front
-            </button>
-            <button
-              onClick={() => setCardSide("back")}
-              className={`px-5 py-1.5 rounded-md text-sm font-medium transition-all ${cardSide === "back" ? "bg-white text-black shadow-xs" : "text-gray-500 hover:text-black"}`}
-            >
-              Back
-            </button>
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+        <div>
+          <label className="block text-[14px] font-bold text-[#222222] mb-1.5">
+            First Name <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={formData.applicantFirstName}
+            onChange={(e) => handleChange(e, "applicantFirstName")}
+            className="w-full border-2 border-[#E2E8F0] rounded-xl px-4 py-3 text-[14px] focus:outline-none focus:border-[#fa8112] bg-white transition-all font-medium"
+            placeholder="Enter first name"
+          />
         </div>
+        <div>
+          <label className="block text-[14px] font-bold text-[#222222] mb-1.5">
+            Middle Name
+          </label>
+          <input
+            type="text"
+            value={formData.applicantMiddleName}
+            onChange={(e) => handleChange(e, "applicantMiddleName")}
+            className="w-full border-2 border-[#E2E8F0] rounded-xl px-4 py-3 text-[14px] focus:outline-none focus:border-[#fa8112] bg-white transition-all font-medium"
+            placeholder="Enter middle name"
+          />
+        </div>
+        <div>
+          <label className="block text-[14px] font-bold text-[#222222] mb-1.5">
+            Last Name
+          </label>
+          <input
+            type="text"
+            value={formData.applicantLastName}
+            onChange={(e) => handleChange(e, "applicantLastName")}
+            className="w-full border-2 border-[#E2E8F0] rounded-xl px-4 py-3 text-[14px] focus:outline-none focus:border-[#fa8112] bg-white transition-all font-medium"
+            placeholder="Enter last name"
+          />
+        </div>
+      </div>
 
-        <div className="flex-1 flex items-center justify-center relative min-h-[320px]">
-          <div className="w-full max-w-[580px] mt-2">
-            <AyushCardPreview
-              data={formData}
-              side={cardSide}
-              onFlip={(side) => setCardSide(side)}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+        <div>
+          <label className="block text-[14px] font-bold text-[#222222] mb-1.5">
+            Date of Birth <span className="text-red-500">*</span>
+          </label>
+          <div className="relative">
+            <input
+              type="date"
+              value={formatDateForInput(formData.dob)}
+              onChange={(e) => handleDateChange(e, "dob")}
+              className="w-full border-2 border-[#E2E8F0] rounded-xl px-4 py-3 text-[14px] focus:outline-none focus:border-[#fa8112] bg-white transition-all font-medium"
             />
           </div>
         </div>
-
-        <p className="text-center text-[13px] text-gray-500 flex items-center justify-center gap-2 mt-2">
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        <div>
+          <label className="block text-[14px] font-bold text-[#222222] mb-1.5">
+            Gender <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={formData.gender}
+            onChange={(e) => handleChange(e, "gender")}
+            className="w-full border-2 border-[#E2E8F0] rounded-xl px-4 py-3 text-[14px] focus:outline-none focus:border-[#fa8112] bg-white appearance-none transition-all font-medium"
           >
-            <path d="M21 2v6h-6"></path>
-            <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
-            <path d="M3 22v-6h6"></path>
-            <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
-          </svg>
-          Click the card or use the buttons to flip • Preview reflects saved
-          application data
-        </p>
+            <option value="">Select Gender</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+        <div>
+          <label className="block text-[14px] font-bold text-[#222222] mb-1.5">
+            Contact Number <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={formData.phone}
+            onChange={(e) => handleChange(e, "phone")}
+            className="w-full border-2 border-[#E2E8F0] rounded-xl px-4 py-3 text-[14px] focus:outline-none focus:border-[#fa8112] bg-white transition-all font-medium"
+            placeholder="10-digit mobile number"
+            maxLength={10}
+          />
+        </div>
+        <div>
+          <label className="block text-[14px] font-bold text-[#222222] mb-1.5">
+            Email Address
+          </label>
+          <input
+            type="email"
+            value={formData.email}
+            onChange={(e) => handleChange(e, "email")}
+            className="w-full border-2 border-[#E2E8F0] rounded-xl px-4 py-3 text-[14px] focus:outline-none focus:border-[#fa8112] bg-white transition-all font-medium"
+            placeholder="email@example.com"
+          />
+        </div>
+      </div>
+      
+      <div className="mb-4">
+        <label className="block text-[14px] font-bold text-[#222222] mb-1.5">
+          Aadhaar Number <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          value={formData.aadhaarNumber || ""}
+          onChange={(e) => setFormData({ ...formData, aadhaarNumber: e.target.value.replace(/\D/g, "").slice(0, 12) })}
+          placeholder="Enter 12-digit Aadhaar number"
+          className="w-full border-2 border-[#E2E8F0] rounded-xl px-4 py-3 text-[14px] focus:outline-none focus:border-[#fa8112] bg-white transition-all font-medium"
+        />
+      </div>
+
+      {/* Relation and Father/Husband Name removed */}
+
+      <div className="mb-4">
+        <label className="block text-[14px] font-bold text-[#222222] mb-1.5">
+          Full Address <span className="text-red-500">*</span>
+        </label>
+        <textarea
+          rows={3}
+          value={formData.address}
+          onChange={(e) => handleChange(e, "address")}
+          className="w-full border-2 border-[#E2E8F0] rounded-xl px-4 py-3 text-[14px] focus:outline-none focus:border-[#fa8112] bg-white resize-none transition-all font-medium"
+          placeholder="Complete residential address"
+        ></textarea>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div>
+          <label className="block text-[14px] font-bold text-[#222222] mb-1.5">
+            Pincode <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={formData.pincode}
+            onChange={(e) => handleChange(e, "pincode")}
+            className="w-full border-2 border-[#E2E8F0] rounded-xl px-4 py-3 text-[14px] focus:outline-none focus:border-[#fa8112] bg-white transition-all font-medium"
+            placeholder="6-digit pincode"
+            maxLength={6}
+          />
+        </div>
       </div>
     </div>
   );
 
-  const renderStep3Payment = () => {
+  const renderStep2Members = () => (
+    <div className="animate-in fade-in slide-in-from-right-4 duration-300 max-w-4xl mx-auto">
+      <div className="bg-[#FAF3E1] rounded-lg p-3 px-4 flex items-center justify-between border-l-4 border-[#FA8112] mb-5">
+        <div className="flex items-center gap-3">
+          <FileText size={20} className="text-[#222222]" />
+          <h3 className="font-bold text-[16px] text-[#222222]">
+            Add Family Members
+          </h3>
+        </div>
+        <span className="bg-white px-3 py-1 rounded-full text-[12px] font-bold text-[#fa8112] border border-[#fa8112]">
+          {(formData.members || []).length} Members Added
+        </span>
+      </div>
+
+      <div className="mb-6">
+        <p className="text-[#666666] text-[15px] mb-4">
+          You can add up to 7 family members to your Ayush Card application.
+        </p>
+        
+        <div className="space-y-4">
+          {(formData.members || []).map((member, index) => (
+             <div key={index} className="bg-white border-2 border-[#E2E8F0] rounded-xl p-5 relative">
+                <button 
+                  onClick={() => {
+                    const newMembers = formData.members.filter((_, idx) => idx !== index);
+                    setFormData({ ...formData, members: newMembers });
+                  }}
+                  className="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition-colors"
+                >
+                  <X size={20} />
+                </button>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-[13px] font-bold text-[#222222] mb-1">Name</label>
+                    <input 
+                      type="text"
+                      value={member.name}
+                      onChange={(e) => {
+                        const newMembers = [...formData.members];
+                        newMembers[index].name = e.target.value.replace(/[0-9]/g, "");
+                        setFormData({ ...formData, members: newMembers });
+                      }}
+                      className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] focus:outline-none focus:border-[#fa8112]"
+                      placeholder="Member Name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-bold text-[#222222] mb-1">Relation</label>
+                    <input 
+                      type="text"
+                      value={member.relation}
+                      onChange={(e) => {
+                        const newMembers = [...formData.members];
+                        newMembers[index].relation = e.target.value;
+                        setFormData({ ...formData, members: newMembers });
+                      }}
+                      className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] focus:outline-none focus:border-[#fa8112]"
+                      placeholder="e.g. Son, Daughter"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-bold text-[#222222] mb-1">Age</label>
+                    <input 
+                      type="text"
+                      value={member.age}
+                      onChange={(e) => {
+                        const newMembers = [...formData.members];
+                        newMembers[index].age = e.target.value.replace(/\D/g, "");
+                        setFormData({ ...formData, members: newMembers });
+                      }}
+                      className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] focus:outline-none focus:border-[#fa8112]"
+                      placeholder="Age"
+                      maxLength={3}
+                    />
+                  </div>
+                </div>
+             </div>
+          ))}
+        </div>
+
+        {(formData.members || []).length < 7 && (
+          <button 
+            onClick={() => {
+              setFormData({
+                ...formData,
+                members: [...(formData.members || []), { name: "", relation: "", age: "" }]
+              });
+            }}
+            className="w-full mt-4 py-4 border-2 border-dashed border-[#fa8112] rounded-xl flex items-center justify-center gap-2 text-[#fa8112] font-bold hover:bg-orange-50 transition-all"
+          >
+            <Plus size={20} />
+            Add Another Family Member
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderStep3Review = () => (
+    <div className="animate-in fade-in slide-in-from-right-4 duration-300 max-w-4xl mx-auto">
+      <div className="bg-[#FAF3E1] rounded-lg p-3 px-4 flex items-center gap-3 border-l-4 border-[#FA8112] mb-5">
+        <CheckCircle2 size={20} className="text-[#222222]" />
+        <h3 className="font-bold text-[16px] text-[#222222]">
+          Review Your Application
+        </h3>
+      </div>
+
+      <div className="bg-white border-2 border-[#E2E8F0] rounded-xl overflow-hidden mb-6">
+        <div className="flex justify-between items-center p-4 bg-gray-50 border-b-2 border-[#E2E8F0]">
+            <h4 className="font-bold text-[#222222]">Card Preview</h4>
+            <div className="flex bg-white rounded-lg p-1 border border-gray-200">
+              <button 
+                onClick={() => setCardSide("front")}
+                className={`px-4 py-1.5 rounded-md text-[13px] font-bold transition-all ${cardSide === "front" ? "bg-[#fa8112] text-white shadow-md" : "text-gray-500"}`}
+              >Front Side</button>
+              <button 
+                onClick={() => setCardSide("back")}
+                className={`px-4 py-1.5 rounded-md text-[13px] font-bold transition-all ${cardSide === "back" ? "bg-[#fa8112] text-white shadow-md" : "text-gray-500"}`}
+              >Back Side</button>
+            </div>
+        </div>
+        <div className="p-8 flex items-center justify-center bg-[#fcfcfc]">
+           <div className="w-full max-w-[500px]">
+             <AyushCardPreview data={formData} side={cardSide} />
+           </div>
+        </div>
+        <div className="p-5 border-t border-gray-100 grid grid-cols-2 md:grid-cols-5 gap-4 bg-white">
+           <div>
+             <p className="text-[11px] font-bold text-gray-400 uppercase">Head Name</p>
+             <p className="text-[14px] font-bold text-[#222222] truncate">{formData.applicantFirstName} {formData.applicantLastName}</p>
+           </div>
+           <div>
+             <p className="text-[11px] font-bold text-gray-400 uppercase">Aadhaar No</p>
+             <p className="text-[14px] font-bold text-[#222222] truncate">{formData.aadhaarNumber || "—"}</p>
+           </div>
+           <div>
+             <p className="text-[11px] font-bold text-gray-400 uppercase">Contact</p>
+             <p className="text-[14px] font-bold text-[#222222]">{formData.phone}</p>
+           </div>
+           <div>
+             <p className="text-[11px] font-bold text-gray-400 uppercase">Members</p>
+             <p className="text-[14px] font-bold text-[#222222]">{(formData.members?.length || 0) + 1}</p>
+           </div>
+           <div className="text-right">
+             <p className="text-[11px] font-bold text-gray-400 uppercase">Amount</p>
+             <p className="text-[14px] font-bold text-[#fa8112]">₹{formData.payment.totalPaid}</p>
+           </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderStep4Payment = () => {
     return (
-      <div className="flex-1 w-full max-w-4xl mx-auto pb-6">
+      <div className="animate-in fade-in slide-in-from-right-4 duration-300 max-w-4xl mx-auto py-2 flex flex-col items-center">
         {!paymentMethod ? (
-          <div className="w-full mt-4">
-            <h3 className="font-bold text-[18px] text-[#22333B] mb-6">
-              Select Payment Method
+          <div className="w-full">
+            <h3 className="font-bold text-[18px] text-[#222222] mb-6 text-center">
+              Select Your Payment Method
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+              {/* Online Payment */}
               <div
                 onClick={() => setPaymentMethod("online")}
-                className="border-2 rounded-2xl p-6 cursor-pointer transition-all hover:shadow-xs border-gray-200 bg-white"
+                className="border-2 rounded-2xl p-6 cursor-pointer transition-all hover:shadow-lg border-[#E2E8F0] bg-white group hover:border-[#fa8112]"
               >
-                <div className="w-12 h-12 bg-[#E0E7FF] rounded-lg flex items-center justify-center mb-4">
-                  <svg
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#334155"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect
-                      x="5"
-                      y="2"
-                      width="14"
-                      height="20"
-                      rx="2"
-                      ry="2"
-                    ></rect>
-                    <line x1="12" y1="18" x2="12.01" y2="18"></line>
-                  </svg>
+                <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-[#fa8112] transition-colors">
+                   <UploadCloud size={28} className="text-[#fa8112] group-hover:text-white" />
                 </div>
-                <h4 className="font-bold text-[#1E293B] text-[16px] mb-2">
-                  Online Payment
-                </h4>
-                <p className="text-sm text-gray-500 mb-6 line-clamp-2">
-                  Pay via UPI, Cards, or Netbanking — secure gateway
+                <h4 className="font-bold text-[#222222] text-[18px] mb-2">Online Payment</h4>
+                <p className="text-sm text-gray-500 mb-6">
+                  Secure checkout via UPI, Cards, or Netbanking. Fast and instant confirmation.
                 </p>
                 <div className="flex gap-2">
-                  <span className="px-3 py-0.5 bg-[#ECFDF5] text-[#10B981] text-[10px] font-bold rounded-md">
-                    CARDS
-                  </span>
-                  <span className="px-3 py-0.5 bg-[#ECFDF5] text-[#10B981] text-[10px] font-bold rounded-md">
-                    UPI
-                  </span>
-                  <span className="px-3 py-0.5 bg-[#ECFDF5] text-[#10B981] text-[10px] font-bold rounded-md">
-                    BANKING
-                  </span>
+                  <span className="px-3 py-1 bg-green-50 text-green-700 text-[10px] font-bold rounded-md border border-green-100 uppercase">FAST</span>
+                  <span className="px-3 py-1 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-md border border-blue-100 uppercase">SECURE</span>
                 </div>
               </div>
 
+              {/* Cash Payment */}
               <div
                 onClick={() => setPaymentMethod("cash")}
-                className="border-2 rounded-2xl p-6 cursor-pointer transition-all hover:shadow-xs border-gray-200 bg-white"
+                className="border-2 rounded-2xl p-6 cursor-pointer transition-all hover:shadow-lg border-[#E2E8F0] bg-white group hover:border-[#fa8112]"
               >
-                <div className="w-12 h-12 bg-[#F1F5F9] rounded-lg flex items-center justify-center mb-4">
-                  <svg
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#22C55E"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect x="2" y="6" width="20" height="12" rx="2"></rect>
-                    <circle cx="12" cy="12" r="2"></circle>
-                    <path d="M6 12h.01M18 12h.01"></path>
-                  </svg>
+                 <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-[#fa8112] transition-colors">
+                   <FileText size={28} className="text-[#fa8112] group-hover:text-white" />
                 </div>
-                <h4 className="font-bold text-[#1E293B] text-[16px] mb-2">
-                  Cash Payment
-                </h4>
-                <p className="text-sm text-gray-500 mb-6 line-clamp-2">
-                  Pay in person at the counter — receipt issued by agent
+                <h4 className="font-bold text-[#222222] text-[18px] mb-2">Cash Payment</h4>
+                <p className="text-sm text-gray-500 mb-6">
+                  Hand over cash to the agent. Receipt will be generated after agent confirmation.
                 </p>
-                <div className="flex gap-2 mt-6">
-                  <span className="px-3 py-0.5 bg-[#FFFBEB] text-[#D97706] text-[10px] font-bold border border-[#FDE68A] rounded-md uppercase tracking-wide">
-                    COUNTER
-                  </span>
+                <div className="flex gap-2">
+                  <span className="px-3 py-1 bg-gray-50 text-gray-700 text-[10px] font-bold rounded-md border border-gray-100 uppercase">AGENT</span>
+                  <span className="px-3 py-1 bg-orange-50 text-[#fa8112] text-[10px] font-bold rounded-md border border-orange-100 uppercase">OFFLINE</span>
                 </div>
               </div>
             </div>
           </div>
         ) : (
-          <div className="w-full animate-in slide-in-from-right-4 duration-300">
-            <div className="flex flex-col gap-2 mb-6 mt-2">
+          <div className="w-full">
+            <div className="flex flex-col gap-2 mb-6">
               <button
                 onClick={() => setPaymentMethod(null)}
-                className="flex items-center gap-1 text-sm text-gray-500 hover:text-black self-start mb-2"
+                className="flex items-center gap-2 text-sm text-[#fa8112] font-bold hover:underline self-start mb-2"
               >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M19 12H5"></path>
                   <path d="M12 19l-7-7 7-7"></path>
                 </svg>
-                Back to methods
+                Change Payment Method
               </button>
-              <h3 className="font-bold text-[18px] text-[#22333B]">
-                {paymentMethod === "online"
-                  ? "Online payment details"
-                  : "Cash payment details"}
+              <h3 className="font-bold text-[22px] text-[#222222]">
+                {paymentMethod === "online" ? "Complete Online Payment" : "Cash Collection"}
               </h3>
             </div>
 
-            <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 mb-6 shadow-xs flex flex-wrap justify-between items-center gap-4 relative">
-              <div className="w-full">
-                <h4 className="font-bold text-[#1E293B] text-[15px] mb-4">
-                  Application Details
-                </h4>
-              </div>
-              <div className="w-full grid grid-cols-2 md:grid-cols-6 gap-4">
-                <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">
-                    Application ID
-                  </p>
-                  <p className="font-medium text-[#1E293B] text-[13px]">
-                    {formData.id}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">
-                    Date
-                  </p>
-                  <p className="font-medium text-[#1E293B] text-[13px]">
-                    {formData.dateApplied}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">
-                    Status
-                  </p>
-                  <p className="font-medium text-[#F68E5F] text-[13px]">
-                    Pending
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">
-                    Name
-                  </p>
-                  <p className="font-medium text-[#1E293B] text-[13px]">
-                    {formData.applicantFirstName || ""}
-                    {formData.applicantMiddleName
-                      ? ` ${formData.applicantMiddleName} `
-                      : " "}
-                    {formData.applicantLastName || ""}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">
-                    Phone
-                  </p>
-                  <p className="font-medium text-[#1E293B] text-[13px]">
-                    +91 {formData.phone || ""}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">
-                    Members
-                  </p>
-                  <p className="font-medium text-[#1E293B] text-[13px]">
-                    {(formData.members?.length || 0) + 1} Members
-                  </p>
-                </div>
-              </div>
-              <div className="absolute top-5 right-5">
-                <span className="px-3 py-1 bg-[#FFF4ED] text-[#F68E5F] text-[10px] font-bold rounded-full uppercase tracking-wider">
-                  PENDING PAYMENT
-                </span>
-              </div>
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+               <div className="bg-white border-2 border-[#E2E8F0] rounded-2xl p-6 shadow-sm h-fit">
+                  <h4 className="font-bold text-[#222222] mb-4 text-[16px]">Summary</h4>
+                  <div className="space-y-3">
+                     <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                        <span className="text-gray-500 text-[14px]">Application Fee</span>
+                        <span className="font-bold text-[#222222]">₹{Number(formData.payment.applicationFee || 120).toFixed(2)}</span>
+                     </div>
+                     <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                        <span className="text-gray-500 text-[14px]">Member Add-ons ({(formData.members || []).length})</span>
+                        <span className="font-bold text-[#222222]">₹{Number(formData.payment.memberAddOns || 0).toFixed(2)}</span>
+                     </div>
+                     <div className="flex justify-between items-center py-4">
+                        <span className="font-bold text-[#222222] text-[16px]">Total Payable</span>
+                        <span className="font-bold text-[#fa8112] text-[24px]">₹{Number(formData.payment.totalPaid || 120).toFixed(2)}</span>
+                     </div>
+                  </div>
+               </div>
 
-            {paymentMethod === "online" ? (
-              <div className="grid grid-cols-1 md:grid-cols-[1fr_1.5fr] gap-6 max-w-4xl mx-auto">
-                <div className="border border-gray-200 rounded-xl overflow-hidden shadow-xs bg-white flex flex-col items-center justify-center p-8 bg-linear-to-b from-white to-gray-50">
-                  <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mb-6">
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="2" y="5" width="20" height="14" rx="2"></rect>
-                      <line x1="2" y1="10" x2="22" y2="10"></line>
-                    </svg>
-                  </div>
-                  <h4 className="font-bold text-gray-800 text-lg mb-2">Secure Checkout</h4>
-                  <p className="text-center text-sm text-gray-500 max-w-[240px]">
-                    Click below to open the secure payment gateway and complete your transaction.
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-4">
-                  <div className="bg-[#10B981] rounded-xl p-5 text-white shadow-xs">
-                    <p className="text-[11px] font-medium uppercase opacity-90 mb-1 tracking-wider">
-                      AMOUNT TO PAY
-                    </p>
-                    <p className="text-[36px] font-bold leading-tight flex items-baseline gap-1">
-                      <span className="text-[24px] font-medium">₹</span>{" "}
-                      {formData.payment.totalPaid}
-                    </p>
-                  </div>
-                  <div className="border border-gray-200 rounded-xl bg-white shadow-xs overflow-hidden text-[13px]">
-                    <div className="flex justify-between p-4 border-b border-gray-100 italic text-gray-400">
-                      <span>Gateway Mode</span>
-                      <span>Cashfree Secure Checkout</span>
-                    </div>
-                    <div className="flex justify-between p-4 border-b border-gray-100">
-                      <span className="text-gray-500 font-medium">
-                        Payee Name
-                      </span>
-                      <span className="font-bold text-[#1E293B]">
-                        {[formData.applicantFirstName, formData.applicantMiddleName, formData.applicantLastName].filter(Boolean).join(" ") || "Customer"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between p-4">
-                      <span className="text-gray-500 font-medium">
-                        Card No.
-                      </span>
-                      <span className="font-bold text-[#1E293B]">
-                        {formData.cardNumber || ""}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex bg-blue-50 rounded-lg p-3 gap-3 items-start border border-blue-100 mt-1">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#3B82F6"
-                      strokeWidth="2"
-                      className="mt-0.5 shrink-0"
-                    >
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                    </svg>
-                    <p className="text-[10px] text-blue-600 leading-snug">
-                      Payment is processed securely via Cashfree. You can use
-                      UPI, Cards, or Netbanking. Do not close the modal while
-                      payment is processing.
-                    </p>
-                  </div>
-                  {/* Error banner */}
-                  {saveError && (
-                    <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-2">
-                      {saveError}
-                    </div>
-                  )}
-
-                  {/* Case 3: Payment Success but Save Error */}
-                  {txnId ? (
-                    <div className="bg-green-50 border border-green-200 rounded-xl p-5 flex flex-col gap-3 mt-2">
-                       <div className="flex items-center gap-2 text-green-700 font-bold text-sm">
-                          <Check className="w-5 h-5" />
-                          Payment Successful
+               <div className="flex flex-col gap-4">
+                  {paymentMethod === "online" ? (
+                    <div className="bg-[#fa8112]/5 border-2 border-[#fa8112] rounded-2xl p-6 flex flex-col items-center text-center">
+                       <div className="w-16 h-16 bg-[#fa8112] rounded-full flex items-center justify-center text-white mb-4 shadow-lg">
+                          <UploadCloud size={32} />
                        </div>
-                       <p className="text-xs text-green-600">
-                          Transaction ID: <span className="font-mono font-bold uppercase">{txnId}</span>
-                       </p>
-                       <button
-                         onClick={() => performSave("online", txnId)}
-                         disabled={saveLoading}
-                         className="w-full py-3 bg-[#10B981] hover:bg-[#059669] rounded-xl text-white font-bold text-[13px] flex items-center justify-center gap-2 shadow-sm transition-colors disabled:opacity-60"
-                       >
-                         {saveLoading ? <Loader2 size={16} className="animate-spin" /> : "Complete Application"}
-                       </button>
+                       <h5 className="font-bold text-[18px] text-[#222222] mb-2">Instant Activation</h5>
+                       <p className="text-sm text-gray-500 mb-6">Payment is processed securely via Cashfree. Your Ayush Card will be activated instantly upon success.</p>
+                       
+                       {txnId ? (
+                         <div className="w-full bg-green-50 border border-green-200 rounded-xl p-4 flex flex-col gap-3">
+                           <div className="flex items-center justify-center gap-2 text-green-700 font-bold">
+                             <CheckCircle2 size={20} /> Payment Success
+                           </div>
+                           <button onClick={() => performSave("online", txnId)} disabled={saveLoading} className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2">
+                             {saveLoading ? <Loader2 className="animate-spin" size={18} /> : "Record & Proceed"}
+                           </button>
+                         </div>
+                       ) : (
+                         <>
+                           {!orderId ? (
+                             <button onClick={handleInitiateOnlinePayment} disabled={onlinePaymentLoading} className="w-full py-4 bg-[#fa8112] hover:bg-[#e47510] text-white rounded-xl font-bold transition-all shadow-md flex items-center justify-center gap-2 text-[16px]">
+                               {onlinePaymentLoading ? <Loader2 className="animate-spin" size={20} /> : "Pay ₹"+formData.payment.totalPaid}
+                             </button>
+                           ) : (
+                             <div className="w-full space-y-3">
+                                <div className="p-3 bg-blue-50 text-blue-700 rounded-xl text-[12px] font-medium border border-blue-100">
+                                  Waiting for payment... Click verify after completing.
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <button onClick={() => setOrderId(null)} className="py-3 border-2 border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-50 transition-all">Retry</button>
+                                  <button onClick={() => handleConfirmOnlinePayment()} disabled={verifyLoading} className="py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 flex items-center justify-center gap-2 transition-all">
+                                    {verifyLoading ? <Loader2 size={16} className="animate-spin" /> : "Verify Payment"}
+                                  </button>
+                                </div>
+                             </div>
+                           )}
+                         </>
+                       )}
                     </div>
                   ) : (
-                    <>
-                      {/* Case 1: Not initiated yet */}
-                      {!orderId ? (
-                        <button
-                          onClick={handleInitiateOnlinePayment}
-                          disabled={onlinePaymentLoading}
-                          className="w-full py-4 bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors rounded-xl text-white font-bold text-[15px] flex items-center justify-center gap-2 shadow-md mt-2 disabled:opacity-60"
+                    <div className="bg-[#FAF3E1] border-2 border-[#fa8112] rounded-2xl p-6 flex flex-col gap-4">
+                       <h5 className="font-bold text-[18px] text-[#222222]">Agent Checklist</h5>
+                       <div className="space-y-4">
+                          <label className="flex items-start gap-3 cursor-pointer group">
+                             <div className="mt-0.5 w-5 h-5 rounded border-2 border-[#fa8112] flex items-center justify-center group-hover:bg-orange-50">
+                               <Check size={14} className="text-[#fa8112]" />
+                             </div>
+                             <span className="text-[13px] font-medium text-gray-700">Collect exactly ₹{formData.payment.totalPaid}.00 from patient</span>
+                          </label>
+                          <label className="flex items-start gap-3 cursor-pointer group">
+                             <div className="mt-0.5 w-5 h-5 rounded border-2 border-[#fa8112] flex items-center justify-center group-hover:bg-orange-50">
+                               <Check size={14} className="text-[#fa8112]" />
+                             </div>
+                             <span className="text-[13px] font-medium text-gray-700">Verify original Aadhaar/PAN Card document</span>
+                          </label>
+                          <label className="flex items-start gap-3 cursor-pointer group">
+                             <div className="mt-0.5 w-5 h-5 rounded border-2 border-[#fa8112] flex items-center justify-center group-hover:bg-orange-50">
+                               <Check size={14} className="text-[#fa8112]" />
+                             </div>
+                             <span className="text-[13px] font-medium text-gray-700">Ensure all family members are accurately listed</span>
+                          </label>
+                       </div>
+                       <button 
+                         onClick={() => performSave("cash", null)} 
+                         disabled={saveLoading}
+                         className="w-full mt-2 py-4 bg-[#fa8112] hover:bg-[#e47510] text-white rounded-xl font-bold transition-all shadow-md flex items-center justify-center gap-2"
                         >
-                          {onlinePaymentLoading ? (
-                            <Loader2 size={20} className="animate-spin" />
-                          ) : (
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M5 12h14"></path>
-                              <path d="m12 5 7 7-7 7"></path>
-                            </svg>
-                          )}
-                          {onlinePaymentLoading ? "Preparing Gateway…" : "Pay with Cashfree"}
-                        </button>
-                      ) : (
-                        !paymentCompleted && (
-                          <>
-                            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-col gap-2 mt-2">
-                               <div className="flex items-center gap-2 text-blue-700 font-bold text-sm">
-                                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                                  Waiting for Payment
-                               </div>
-                               <p className="text-xs text-blue-600">
-                                  If the user completed the payment, please click verify. Order ID: <span className="font-mono">{orderId}</span>
-                               </p>
-                            </div>
-                            
-                            <div className="grid grid-cols-2 gap-3 mt-4">
-                              <button
-                                onClick={() => setOrderId(null)}
-                                className="py-3 px-4 border border-gray-200 hover:bg-gray-50 rounded-xl text-gray-600 font-bold text-[13px] transition-colors"
-                              >
-                                Retry Payment
-                              </button>
-                              <button
-                                onClick={() => handleConfirmOnlinePayment()}
-                                disabled={verifyLoading || saveLoading}
-                                className="py-3 px-4 bg-[#10B981] hover:bg-[#059669] rounded-xl text-white font-bold text-[13px] flex items-center justify-center gap-2 shadow-sm transition-colors disabled:opacity-60"
-                              >
-                                {verifyLoading ? (
-                                  <Loader2 size={16} className="animate-spin" />
-                                ) : (
-                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                    <polyline points="20 6 9 17 4 12"></polyline>
-                                  </svg>
-                                )}
-                                {verifyLoading ? "Verifying…" : "Verify Payment"}
-                              </button>
-                            </div>
-                          </>
-                        )
-                      )}
-                    </>
+                          {saveLoading ? <Loader2 className="animate-spin" size={20} /> : "Confirm & Save (Cash Received)"}
+                       </button>
+                    </div>
                   )}
-                </div>
-              </div>
-            ) : (
-              <div className="max-w-xl mx-auto flex flex-col gap-4">
-                <div className="bg-[#10B981] rounded-xl p-5 text-white shadow-xs">
-                  <p className="text-[11px] font-medium uppercase opacity-90 mb-1 tracking-wider">
-                    AMOUNT TO PAY
-                  </p>
-                  <p className="text-[32px] font-bold leading-tight flex items-baseline gap-1">
-                    <span className="text-[24px] font-medium">₹</span>{" "}
-                    {formData.payment.totalPaid}
-                  </p>
-                </div>
-                <div className="border border-gray-200 rounded-xl bg-white shadow-xs overflow-hidden text-[13px]">
-                  <div className="flex justify-between p-4 border-b border-gray-100">
-                    <span className="text-gray-500 font-medium">
-                      Payee Name
-                    </span>
-                    <span className="font-bold text-[#1E293B]">
-                      {[formData.applicantFirstName, formData.applicantMiddleName, formData.applicantLastName].filter(Boolean).join(" ") || "Customer"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between p-4">
-                    <span className="text-gray-500 font-medium">
-                      Application Number
-                    </span>
-                    <span className="font-bold text-[#1E293B]">
-                      {formData.id}
-                    </span>
-                  </div>
-                </div>
-                <div className="border border-gray-200 rounded-xl bg-white shadow-xs overflow-hidden mt-1">
-                  <div className="flex items-center gap-2 p-4 border-b border-gray-100 bg-gray-50/50">
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#10B981"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16c0 1.1.9 2 2 2h12a2 2 0 0 0 2-2V8l-6-6z"></path>
-                      <path d="M14 3v5h5M16 13H8M16 17H8M10 9H8"></path>
-                    </svg>
-                    <h4 className="font-bold text-[14px] text-[#1E293B]">
-                      Agent Checklist
-                    </h4>
-                  </div>
-                  <div className="p-4 flex flex-col gap-3">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="#10B981"
-                          strokeWidth="3"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <polyline points="20 6 9 17 4 12"></polyline>
-                        </svg>
-                      </div>
-                      <span className="text-[13px] text-gray-700 font-medium">
-                        Collect ₹{formData.payment.totalPaid}
-                      </span>
-                    </label>
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="#10B981"
-                          strokeWidth="3"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <polyline points="20 6 9 17 4 12"></polyline>
-                        </svg>
-                      </div>
-                      <span className="text-[13px] text-gray-700 font-medium">
-                        Verify applicant identity (Aadhar/Voter ID)
-                      </span>
-                    </label>
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="#10B981"
-                          strokeWidth="3"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <polyline points="20 6 9 17 4 12"></polyline>
-                        </svg>
-                      </div>
-                      <span className="text-[13px] text-gray-700 font-medium">
-                        Confirm member details with applicant
-                      </span>
-                    </label>
-                  </div>
-                </div>
-                <button
-                  onClick={handleNext}
-                  className="w-full py-3.5 bg-[#10B981] hover:bg-[#0EA5E9] transition-colors rounded-xl text-white font-bold text-[14px] flex items-center justify-center gap-2 shadow-xs mt-3"
-                >
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                  Confirm Cash Received
-                </button>
-              </div>
-            )}
+               </div>
+            </div>
           </div>
         )}
       </div>
@@ -1666,9 +1405,9 @@ const CreateHealthCard = () => {
           <span>Card Generation Fee</span>
           <span className="font-bold">₹{formData.payment.applicationFee}</span>
         </div>
-        {formData.members?.length > 0 && (
+        {(formData.members || []).length > 0 && (
           <div className="flex justify-between text-[12px] mb-1">
-            <span>Members Add-on ({formData.members.length})</span>
+            <span>Members Add-on ({(formData.members || []).length})</span>
             <span className="font-bold">₹{formData.payment.memberAddOns}</span>
           </div>
         )}
@@ -1703,7 +1442,7 @@ const CreateHealthCard = () => {
     navigate("/employee/health-card");
   };
 
-  const renderStep4Receipt = () => (
+  const renderStep5Receipt = () => (
     <div className="w-full flex justify-center items-start pt-2 pb-12 animate-in fade-in zoom-in-95 duration-500">
       <style>{`
         @media print {
@@ -1726,321 +1465,133 @@ const CreateHealthCard = () => {
             padding: 12px !important;
             display: block !important;
           }
-          nav, footer, .sidebar, button, .no-print {
-            display: none !important;
-          }
         }
       `}</style>
       
       {/* Hidden Thermal Receipt for Printing */}
       {renderThermalReceipt()}
 
-      <div className="w-full max-w-[440px] bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-[#E2E8F0] overflow-hidden flex flex-col mb-4 shrink-0 no-print">
-        {/* Top Green Section */}
-        <div className="bg-[#0D9488] p-8 flex flex-col items-center relative overflow-hidden">
-          <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center mb-3">
-            <div className="w-10 h-10 bg-[#0D9488] rounded-full border-2 border-white flex items-center justify-center">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="white"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
-            </div>
+      <div className="w-full max-w-[440px] bg-white rounded-3xl shadow-xl border-2 border-[#E2E8F0] overflow-hidden flex flex-col mb-4 no-print">
+        {/* Top Header Card */}
+        <div className="bg-[#fa8112] p-8 flex flex-col items-center relative overflow-hidden">
+          <div className="absolute top-[-20px] right-[-20px] w-32 h-32 bg-white/10 rounded-full"></div>
+          <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-3">
+             <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-[#fa8112]">
+                <Check size={28} strokeWidth={3} />
+             </div>
           </div>
-          <h2 className="text-white text-[20px] font-bold mb-1 w-full text-center">
-            Payment Successful
-          </h2>
-          <div className="text-white text-[32px] font-bold mb-4 flex items-baseline gap-1">
-            <span className="text-[24px]">₹</span>
-            {formData.payment.totalPaid}
-          </div>
-          <div className="bg-[#59B5AB] bg-opacity-40 text-white px-4 py-1.5 rounded-full text-[11px] font-semibold tracking-wide flex items-center gap-1.5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)]">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-              <rect x="7" y="7" width="3" height="3"></rect>
-              <rect x="14" y="7" width="3" height="3"></rect>
-              <rect x="7" y="14" width="3" height="3"></rect>
-              <rect x="14" y="14" width="3" height="3"></rect>
-            </svg>
-            {paymentMethod === "online" ? "UPI / QR Payment" : "Cash"}
-          </div>
+          <h2 className="text-white text-[22px] font-bold mb-1">Application Submitted!</h2>
+          <div className="text-white/90 text-[14px] font-medium">Ayush Card Status: <span className="text-white font-bold">ACTIVE</span></div>
         </div>
 
-        {/* Content Section */}
-        <div className="p-6 bg-white flex flex-col gap-6" id="receipt-content">
-          {/* Transaction Details */}
-          <div>
-            <h4 className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider mb-4">
-              Transaction Details
-            </h4>
-            <div className="grid grid-cols-2 gap-y-5 gap-x-4">
+        {/* Receipt Details */}
+        <div className="p-6 space-y-6">
+           <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-[11px] text-gray-400 mb-1 font-medium">
-                  Receipt No.
-                </p>
-                <p className="text-[13px] font-bold text-[#1E293B]">
-                  BKBS-{new Date().getFullYear()}-
-                  {Math.floor(10000 + Math.random() * 90000)}
-                </p>
+                 <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Application ID</p>
+                 <p className="text-[14px] font-bold text-[#222222]">{formData.id}</p>
               </div>
               <div className="text-right">
-                <p className="text-[11px] text-gray-400 mb-1 font-medium">
-                  Transaction ID
-                </p>
-                <p className="text-[13px] font-bold text-[#1E293B] uppercase">
-                  {txnId || `TXN${Math.floor(100000000 + Math.random() * 900000000)}`}
-                </p>
+                 <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Date</p>
+                 <p className="text-[14px] font-bold text-[#222222]">{new Date().toLocaleDateString()}</p>
               </div>
-              <div>
-                <p className="text-[11px] text-gray-400 mb-1 font-medium">
-                  Date & Time
-                </p>
-                <p className="text-[13px] font-bold text-[#1E293B]">
-                  {new Date().toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}{" "}
-                  &bull;{" "}
-                  {new Date().toLocaleTimeString("en-US", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-[11px] text-gray-400 mb-1 font-medium">
-                  Payment Method
-                </p>
-                <p className="text-[13px] font-bold text-[#1E293B]">
-                  {paymentMethod === "online" ? "G-Pay (UPI)" : "Cash"}
-                </p>
-              </div>
-            </div>
-          </div>
+           </div>
 
-          <div className="border-t border-dashed border-gray-200"></div>
+           <div className="bg-[#F8FAFC] rounded-2xl p-4 border border-[#E2E8F0] space-y-3">
+              <div className="flex justify-between text-[13px]">
+                 <span className="text-gray-500">Applicant Name</span>
+                 <span className="font-bold text-[#222222] uppercase">{formData.applicantFirstName} {formData.applicantLastName}</span>
+              </div>
+              <div className="flex justify-between text-[13px]">
+                 <span className="text-gray-500">Total Amount</span>
+                 <span className="font-bold text-[#222222]">₹{formData.payment.totalPaid}.00</span>
+              </div>
+              <div className="flex justify-between text-[13px]">
+                 <span className="text-gray-500">Payment Mode</span>
+                 <span className="font-bold text-[#fa8112] uppercase tracking-wide">{paymentMethod}</span>
+              </div>
+           </div>
 
-          {/* Card Details */}
-          <div>
-            <h4 className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider mb-4">
-              Card Details
-            </h4>
-            <div className="bg-[#F8FAFC] rounded-xl p-4 flex flex-col gap-3">
-              <div className="flex justify-between items-center">
-                <span className="text-[12px] text-gray-500 font-medium">
-                  Applicant
-                </span>
-                <span className="text-[12px] font-bold text-[#1E293B] text-right">
-                  {formData.applicantFirstName || ""}
-                  {formData.applicantMiddleName
-                    ? ` ${formData.applicantMiddleName} `
-                    : " "}
-                  {formData.applicantLastName || ""}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-[12px] text-gray-500 font-medium">
-                  Application ID
-                </span>
-                <span className="text-[12px] font-bold text-[#1E293B] uppercase text-right">
-                  {formData.id}
-                </span>
-              </div>
-              {formData.cardNumber && (
-                <div className="flex justify-between items-center">
-                  <span className="text-[12px] text-gray-500 font-medium">
-                    Card Number
-                  </span>
-                  <span className="text-[12px] font-bold text-[#1E293B] text-right">
-                    **** **** **** {formData.cardNumber.slice(-4)}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between items-center">
-                <span className="text-[12px] text-gray-500 font-medium">
-                  Members Covered
-                </span>
-                <span className="text-[12px] font-bold text-[#1E293B] text-right">
-                  {(formData.members?.length || 0) + 1} Members
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-[12px] text-gray-500 font-medium">
-                  Valid Until
-                </span>
-                <span className="text-[12px] font-bold text-[#1E293B] text-right">
-                  {formData.expiryDate}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Amount Paid Box */}
-          <div className="bg-[#F0FDFA] rounded-xl px-4 py-4 flex justify-between items-center border border-[#CCFBF1]">
-            <span className="text-[11px] font-bold text-[#0F766E] uppercase tracking-wider flex items-center">
-              Amount Paid
-            </span>
-            <span className="text-[18px] font-bold text-[#0F766E]">
-              ₹{formData.payment.totalPaid}
-            </span>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex flex-col gap-3 mt-2">
-            <button
-              onClick={handleDownloadReceipt}
-              className="w-full py-3.5 bg-[#EC5B13] hover:bg-[#EA580C] transition-colors rounded-xl text-white font-bold text-[14px] flex items-center justify-center gap-2 shadow-sm"
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+           <div className="flex flex-col gap-3">
+              <button 
+                onClick={handleDownloadReceipt}
+                className="w-full py-4 bg-[#222222] hover:bg-black text-white rounded-xl font-bold transition-all shadow-md flex items-center justify-center gap-2"
               >
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7 10 12 15 17 10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
-              </svg>
-              Download Receipt
-            </button>
-            <button
-              onClick={handleFinalSave}
-              className="w-full py-3.5 bg-[#F1F5F9] hover:bg-[#E2E8F0] transition-colors rounded-xl text-[#334155] font-bold text-[14px] flex items-center justify-center shadow-sm"
-            >
-              Close
-            </button>
-          </div>
-
-          <div className="text-center mt-2 flex items-center justify-center gap-1.5 text-gray-400">
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-            </svg>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-[#94A3B8]">
-              BKBS Trust Digital Receipt
-            </span>
-          </div>
+                <UploadCloud size={20} />
+                Download Print Receipt
+              </button>
+              <button 
+                onClick={() => navigate("/employee/health-card")}
+                className="w-full py-4 bg-white border-2 border-[#E2E8F0] text-gray-600 rounded-xl font-bold hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
+              >
+                Go to Healthcard List
+              </button>
+           </div>
         </div>
       </div>
     </div>
   );
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 sm:p-6 lg:p-10 transition-opacity"
-      style={{ fontFamily: "Inter, sans-serif" }}
-    >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[1070px] h-full max-h-full flex flex-col relative overflow-hidden animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 transition-all">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-[1000px] h-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
         {/* Header */}
-        <div className="flex justify-between items-center p-4 sm:p-6 shrink-0 border-b border-gray-100 gap-4">
-          <h2 className="text-base sm:text-[20px] font-bold text-[#22333B]">
-            New Healthcard Application
-          </h2>
+        <div className="px-8 py-5 border-b border-gray-100 flex justify-between items-center shrink-0">
+          <div>
+            <h2 className="text-[22px] font-bold text-[#222222]">Ayush Card Application</h2>
+            <p className="text-[12px] text-gray-500 font-medium">BKBS Human Welfare & Social Trust</p>
+          </div>
           <button
-            onClick={() => {
-              if (currentStep === 4) {
-                handleFinalSave();
-              } else {
-                navigate("/employee/health-card");
-              }
-            }}
-            className="text-gray-500 hover:text-gray-700 transition-colors"
+            onClick={() => navigate("/employee/health-card")}
+            className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 hover:bg-red-50 hover:text-red-500 transition-all"
           >
             <X size={24} />
           </button>
         </div>
 
-        {/* Modal Body */}
-        <div className="flex-1 overflow-hidden flex flex-col pt-4 sm:pt-6 pb-4 bg-gray-50/30">
-          {/* Stepper only visible steps 1-4 */}
-          {renderStepper()}
+        {/* Stepper */}
+        {renderStepper()}
 
-          {/* Dynamic Step Content */}
-          <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-4 sm:pb-6 flex flex-col">
-            {currentStep === 1 && renderStep1FillDetails()}
-            {currentStep === 2 && renderStep2Preview()}
-            {currentStep === 3 && renderStep3Payment()}
-            {currentStep === 4 && renderStep4Receipt()}
-          </div>
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-8 pb-8 custom-scrollbar">
+          {currentStep === 1 && renderStep1FillDetails()}
+          {currentStep === 2 && renderStep2Members()}
+          {currentStep === 3 && renderStep3Review()}
+          {currentStep === 4 && renderStep4Payment()}
+          {currentStep === 5 && renderStep5Receipt()}
         </div>
 
-        {/* Footer Navigation */}
-        <div className="p-4 border-t border-gray-100 bg-white shrink-0 flex justify-end items-center px-4 sm:px-6">
-          {currentStep < 4 ? (
-            <div className="flex flex-col sm:flex-row justify-between sm:items-center w-full gap-3 sm:gap-0">
-              <button
-                onClick={handleBack}
-                disabled={currentStep === 1 || saveLoading || paymentCompleted}
-                className={`px-6 py-2 border rounded-lg text-sm font-medium transition-colors ${
-                  currentStep === 1 || paymentCompleted
-                    ? "border-gray-200 text-gray-300 bg-gray-50 cursor-not-allowed"
-                    : "border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
-                }`}
-              >
-                Previous
-              </button>
-
-              {saveError && (
-                <span className="text-red-500 text-sm font-medium animate-pulse">
-                  {saveError}
-                </span>
-              )}
-
-              <button
-                onClick={handleNext}
-                disabled={
-                  saveLoading ||
-                  (currentStep === 3 && !paymentMethod && !paymentCompleted)
-                }
-                className={`w-full sm:w-auto px-8 py-2 rounded-lg text-sm font-medium text-white transition-all flex items-center justify-center gap-2 ${
-                  saveLoading ||
-                  (currentStep === 3 && !paymentMethod && !paymentCompleted)
-                    ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-[#2A3342] hover:bg-[#1E2530]"
-                }`}
-              >
-                {saveLoading && <Loader2 size={16} className="animate-spin" />}
-                {saveLoading ? "Processing..." : "Next"}
-              </button>
-            </div>
-          ) : (
+        {/* Footer */}
+        {currentStep < 5 && (
+          <div className="px-8 py-5 border-t border-gray-100 flex justify-between items-center shrink-0 bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
             <button
-              onClick={handleFinalSave}
-              className="px-6 py-2.5 bg-[#2A3342] hover:bg-[#1E2530] text-white rounded-lg text-sm font-medium transition-colors shadow-xs"
+              onClick={handleBack}
+              disabled={currentStep === 1 || saveLoading}
+              className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-[14px] transition-all ${
+                currentStep === 1 || saveLoading
+                  ? "text-gray-300 cursor-not-allowed"
+                  : "text-gray-500 hover:text-[#fa8112] hover:bg-orange-50"
+              }`}
             >
-              Back to Healthcard List
+              Back
             </button>
-          )}
-        </div>
+
+            <div className="flex items-center gap-4">
+               {saveError && <p className="text-red-500 text-sm font-bold animate-shake">{saveError}</p>}
+               <button
+                  onClick={handleNext}
+                  disabled={saveLoading || (currentStep === 4 && !paymentMethod && !paymentCompleted)}
+                  className={`flex items-center gap-2 px-10 py-3 bg-[#fa8112] hover:bg-[#e47510] text-white rounded-xl font-bold text-[15px] transition-all shadow-md disabled:bg-gray-300 disabled:shadow-none min-w-[140px] justify-center`}
+                >
+                  {saveLoading ? (
+                    <Loader2 size={20} className="animate-spin" />
+                  ) : (
+                    currentStep === 4 ? (paymentCompleted ? "Finish" : "Next") : "Continue"
+                  )}
+                </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
