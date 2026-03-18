@@ -77,8 +77,8 @@ const ContactUs = () => {
   };
 
   const helpItems = [
-    "Need help with Health Card application?",
-    "Want to renew your existing Health Card?",
+    "Need help with Ayush Card application?",
+    "Want to renew your existing Ayush Card?",
     "Looking for partner hospital information?",
     "Interested in making a donation?",
     "Have questions about our services?",
@@ -188,7 +188,7 @@ const ContactUs = () => {
                     className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-orange-400 transition-colors bg-white font-medium"
                   >
                     <option>General Inquiry</option>
-                    <option>Health Card Application</option>
+                    <option>Ayush Card Application</option>
                     <option>Card Renewal</option>
                     <option>Donation</option>
                     <option>Partnership</option>

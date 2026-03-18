@@ -14,7 +14,7 @@ const AyushCardHero = () => {
           <div className="relative w-full max-w-[500px] aspect-square">
             <img
               src="/Aboutimage.svg"
-              alt="Ayush Health Card"
+              alt="Ayush Card"
               className="w-full h-full object-contain"
             />
           </div>
@@ -23,14 +23,14 @@ const AyushCardHero = () => {
         {/* Right Side: Content */}
         <div className="w-full md:w-1/2 flex flex-col items-start text-left">
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-[#111111] leading-tight mb-6">
-            Ayush Health Card
+            Ayush Card
           </h1>
           <p className="text-[#666666] text-base sm:text-lg font-medium mb-4">
             Affordable Healthcare for Everyone
           </p>
           <p className="text-[#666666] text-base leading-relaxed mb-10 max-w-lg">
             We believe that quality healthcare should be a basic right—not a
-            privilege. With this vision, we have launched the Health Card
+            privilege. With this vision, we have launched the Ayush Card
             Project to support economically weaker families in accessing
             affordable medical care.
           </p>

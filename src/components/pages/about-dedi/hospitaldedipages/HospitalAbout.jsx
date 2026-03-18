@@ -43,7 +43,7 @@ const HospitalAbout = () => {
           </p>
           <p className="text-gray-500 text-sm leading-relaxed">
             As a proud partner of Baijnaath Kesar Bai Sewa Trust, we offer special benefits and
-            discounted services to Health Card holders, making quality healthcare accessible to
+            discounted services to Ayush Card holders, making quality healthcare accessible to
             economically weaker families.
           </p>
         </div>
@@ -51,7 +51,7 @@ const HospitalAbout = () => {
         {/* Health Card Benefits */}
         <div>
           <h2 className="text-xl sm:text-2xl font-extrabold text-gray-900 mb-6">
-            Health Card Benefits at {name}
+            Ayush Card Benefits at {name}
           </h2>
 
           <div className="flex flex-col gap-4">
@@ -59,7 +59,7 @@ const HospitalAbout = () => {
               const Icon = benefit.icon;
               return (
                 <div key={i} className="flex items-center gap-4">
-                  <div className="w-9 h-9 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
                     <Icon className="w-4 h-4 text-orange-500" />
                   </div>
                   <p className="text-gray-700 text-sm">{benefit.text}</p>

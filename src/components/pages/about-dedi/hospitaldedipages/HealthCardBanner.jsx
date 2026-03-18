@@ -31,14 +31,14 @@ const HealthCardBanner = () => {
           {/* Content */}
           <div className="relative z-10 max-w-xs">
             <h2 className="text-white font-extrabold text-3xl md:text-4xl leading-tight mb-4">
-              Don't Have a Health Card?
+              Don't Have a Ayush Card?
             </h2>
             <p className="text-gray-400 text-sm leading-relaxed mb-8">
-              Get your Health Card today and avail exclusive benefits at this hospital
+              Get your Ayush Card today and avail exclusive benefits at this hospital
             </p>
 
             <button className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 active:scale-95 text-white text-sm font-semibold pl-5 pr-1 py-1 rounded-full transition-all duration-200 shadow-md">
-              Apply for Health Card
+              Apply for Ayush Card
               <span className="flex items-center justify-center bg-white rounded-full w-8 h-8">
                 <ArrowRight className="w-4 h-4 text-orange-500" />
               </span>

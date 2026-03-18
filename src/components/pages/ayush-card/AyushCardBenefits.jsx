@@ -39,7 +39,7 @@ const AyushCardBenefits = () => {
             Key Benefits
           </h2>
           <p className="text-[#666666] text-base sm:text-xl md:text-3xl max-w-6xl leading-relaxed">
-            Explore the comprehensive benefits that make Ayush Health Card the
+            Explore the comprehensive benefits that make Ayush Card the
             perfect choice for your family's healthcare needs
           </p>
         </div>
