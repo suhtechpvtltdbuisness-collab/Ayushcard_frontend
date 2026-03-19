@@ -29,7 +29,6 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
   const [submitting, setSubmitting] = useState(false);
   const [applicationId, setApplicationId] = useState(null);
   // Step 1 State
-  const [activeTab, setActiveTab] = useState(null); // 'scan' | 'upload'
   const [docFront, setDocFront] = useState(null);
   const [docBack, setDocBack] = useState(null);
   const docFrontInputRef = useRef(null);
@@ -41,7 +40,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
   const [isEditingReview, setIsEditingReview] = useState(false);
   
   // Payment States
-  const [paymentMethod, setPaymentMethod] = useState("online"); // 'online' | 'manual'
+  const [paymentMethod, setPaymentMethod] = useState("online"); // kept for state but UI only allows online now
   const [onlinePaymentLoading, setOnlinePaymentLoading] = useState(false);
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [orderId, setOrderId] = useState(null);
@@ -53,6 +52,36 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const [cameraActive, setCameraActive] = useState(false);
+
+  // Helper: compress a base64 image to reasonable dimensions/quality
+  const compressBase64Image = (base64Src, maxWidth = 1000, maxHeight = 1000, quality = 0.7) => {
+    return new Promise((resolve, reject) => {
+      try {
+        const img = new Image();
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+
+          const ratio = Math.min(maxWidth / width, maxHeight / height, 1);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+
+          const outputBase64 = canvas.toDataURL("image/jpeg", quality);
+          resolve(outputBase64);
+        };
+        img.onerror = (e) => reject(e);
+        img.src = base64Src;
+      } catch (e) {
+        reject(e);
+      }
+    });
+  };
 
   // Step 2 State (Family Head)
   const [headImage, setHeadImage] = useState(null);
@@ -75,7 +104,6 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
   const resetForm = () => {
     setCurrentStep(1);
     setApplicationId(null);
-    setActiveTab(null);
     setDocFront(null);
     setDocBack(null);
     setHeadImage(null);
@@ -118,10 +146,10 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
   }, []);
 
   useEffect(() => {
-    if (!isOpen || currentStep !== 1 || activeTab !== "scan") {
+    if (!isOpen || currentStep !== 1) {
       stopCamera();
     }
-  }, [isOpen, currentStep, activeTab]);
+  }, [isOpen, currentStep]);
 
   useEffect(() => {
     if (cameraActive && videoRef.current && streamRef.current) {
@@ -261,16 +289,22 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
               pincode: results.pincode || prev.pincode || "",
               address: results.address || prev.address || ""
             }));
-            
+            // Compress scanned image before sending to backend
+            let compressedBase64 = base64;
+            try {
+              compressedBase64 = await compressBase64Image(base64);
+            } catch (err) {
+              console.warn("Compression failed, using original base64 for scanned image", err);
+            }
+
             setDocFront({ 
               name: file.name, 
               size: (file.size / (1024 * 1024)).toFixed(2) + " MB", 
               url: URL.createObjectURL(file),
-              base64: base64
+              base64: compressedBase64
             });
             
             toastWarn("Details extracted and autofilled!");
-            setActiveTab("upload"); 
           } else {
             toastError("Could not extract details. Please enter manually.");
           }
@@ -333,15 +367,21 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
         return;
       }
       const reader = new FileReader();
-      reader.onloadend = () => {
-        const fileData = {
-          name: file.name,
-          size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
-          url: URL.createObjectURL(file), // Still keep for instant preview
-          base64: reader.result, // Add base64 for backend
-        };
-        if (side === "front") setDocFront(fileData);
-        else setDocBack(fileData);
+      reader.onloadend = async () => {
+        try {
+          const compressedBase64 = await compressBase64Image(reader.result);
+          const fileData = {
+            name: file.name,
+            size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
+            url: URL.createObjectURL(file), // Still keep for instant preview
+            base64: compressedBase64, // Smaller base64 for backend
+          };
+          if (side === "front") setDocFront(fileData);
+          else setDocBack(fileData);
+        } catch (err) {
+          console.error("Document compression failed", err);
+          toastWarn("Could not process image. Please try another file.");
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -355,8 +395,14 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
         return;
       }
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setHeadImage(reader.result); // Use base64 directly
+      reader.onloadend = async () => {
+        try {
+          const compressedBase64 = await compressBase64Image(reader.result, 800, 800, 0.7);
+          setHeadImage(compressedBase64);
+        } catch (err) {
+          console.error("Head image compression failed", err);
+          toastWarn("Could not process photo. Please try another file.");
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -370,13 +416,19 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
         return;
       }
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setPaymentScreenshot({
-          name: file.name,
-          size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
-          url: URL.createObjectURL(file),
-          base64: reader.result,
-        });
+      reader.onloadend = async () => {
+        try {
+          const compressedBase64 = await compressBase64Image(reader.result, 800, 800, 0.7);
+          setPaymentScreenshot({
+            name: file.name,
+            size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
+            url: URL.createObjectURL(file),
+            base64: compressedBase64,
+          });
+        } catch (err) {
+          console.error("Payment screenshot compression failed", err);
+          toastWarn("Could not process screenshot. Please try another file.");
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -623,10 +675,11 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
   };
 
   const handleNext = async () => {
-    // Step 1 validation: Must have uploaded a document AND filled basic details
+    // Step 1 validation: Must have uploaded an identity document AND filled basic details
     if (currentStep === 1) {
-      if (!docFront || !docBack) {
-        toastWarn("Please upload both front and back sides of the identity document.");
+      // Require at least one identity document (from upload or scanner)
+      if (!docFront) {
+        toastWarn("Please upload an identity document or scan Aadhaar.");
         return;
       }
       if (!headImage) {
@@ -640,9 +693,6 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
       if (!fg.gender) missingFields.push("Gender");
       if (!fg.contactNumber) missingFields.push("Contact Number");
       if (!fg.aadhaarNumber) missingFields.push("Aadhaar Number");
-      if (!fg.emailAddress) missingFields.push("Email Address");
-      if (!fg.relation) missingFields.push("Relation");
-      if (!fg.relatedPerson) missingFields.push("Father/Husband Name");
       if (!fg.address) missingFields.push("Full Address");
       if (!fg.pincode) missingFields.push("Pincode");
 
@@ -857,9 +907,9 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                     </p>
                   </div>
 
-                  <div className="flex flex-col gap-4 mb-6 relative w-full items-center justify-center">
-                    {activeTab === "scan" ? (
-                      <div className="w-full flex flex-col items-center justify-center p-4 sm:p-6 rounded-xl border border-[#fa8112]/30 bg-[#faf3e1] min-h-[400px]">
+                  <div className="flex flex-col gap-6 mb-6 relative w-full items-center justify-center">
+                    {/* Scanner Section */}
+                    <div className="w-full flex flex-col items-center justify-center p-4 sm:p-6 rounded-xl border border-[#fa8112]/30 bg-[#faf3e1] min-h-[320px]">
                         {cameraActive ? (
                           <div className="w-full max-w-sm space-y-4 animate-in fade-in zoom-in-95">
                             <div className="relative aspect-[4/3] bg-black rounded-xl overflow-hidden shadow-xl border-2 border-white">
@@ -933,93 +983,39 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                         <canvas ref={canvasRef} className="hidden" />
                         <input id="ocr-input" type="file" accept="image/*" capture="environment" className="hidden" onChange={handleScanImage} />
                       </div>
-                    ) : activeTab === "upload" ? (
-                      <div className="w-full border-2 border-[#fa8112] bg-[#faf3e1] p-6 rounded-xl">
-                        <h4 className="font-semibold text-[16px] text-[#222222] mb-4 text-center">
-                           Upload Document (JPG/PNG)
-                        </h4>
-                        <div className="flex flex-col sm:flex-row gap-4">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              docFrontInputRef.current?.click();
-                            }}
-                            className={`flex-1 flex flex-col items-center justify-center py-6 px-4 rounded-xl transition-all shadow-sm ${
-                              docFront
-                                ? "bg-white border-2 border-green-500"
-                                : "bg-white border hover:border-[#fa8112]"
-                            }`}
-                          >
-                            <div className={`w-10 h-10 ${docFront ? "bg-green-500" : "bg-[#fa8112]"} rounded-full flex items-center justify-center text-white mb-3`}>
-                              {docFront ? <Check size={20} className="text-white" /> : <UploadCloud size={20} />}
-                            </div>
-                            <span className="text-[14px] font-semibold text-[#222222]">Front Side</span>
-                            <span className="text-[12px] text-gray-500 truncate w-full px-1 text-center max-w-[150px] mt-1">
-                              {docFront ? docFront.name : "Choose File"}
-                            </span>
-                          </button>
 
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              docBackInputRef.current?.click();
-                            }}
-                            className={`flex-1 flex flex-col items-center justify-center py-6 px-4 rounded-xl transition-all shadow-sm ${
-                              docBack
-                                ? "bg-white border-2 border-green-500"
-                                : "bg-white border hover:border-[#fa8112]"
-                            }`}
-                          >
-                            <div className={`w-10 h-10 ${docBack ? "bg-green-500" : "bg-[#fa8112]"} rounded-full flex items-center justify-center text-white mb-3`}>
-                              {docBack ? <Check size={20} className="text-white" /> : <UploadCloud size={20} />}
-                            </div>
-                            <span className="text-[14px] font-semibold text-[#222222]">Back Side</span>
-                            <span className="text-[12px] text-gray-500 truncate w-full px-1 text-center max-w-[150px] mt-1">
-                              {docBack ? docBack.name : "Choose File"}
-                            </span>
-                          </button>
-                        </div>
-                        <div className="flex justify-center mt-6">
-                           <button onClick={() => setActiveTab(null)} className="text-sm text-gray-500 hover:text-black font-semibold underline">Go Back</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col sm:flex-row w-full gap-4 relative justify-center items-stretch">
+                    {/* Upload Section */}
+                    <div className="w-full border-2 border-[#fa8112] bg-[#faf3e1] p-6 rounded-xl">
+                      <h4 className="font-semibold text-[16px] text-[#222222] mb-2 text-center">
+                        Upload Identity Document (JPG/PNG)
+                      </h4>
+                      <p className="text-[12px] text-gray-600 text-center mb-4">
+                        Step 1: Scan to auto-fill details (optional). Step 2: Upload a clear photo of the same document.
+                      </p>
+                      <div className="flex justify-center">
                         <button
-                          onClick={() => setActiveTab("scan")}
-                          className="flex-1 flex flex-col items-center justify-center py-8 px-6 rounded-xl border-gray-200 border bg-white hover:border-[#fa8112] hover:bg-orange-50 cursor-pointer shadow-sm transition-all"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            docFrontInputRef.current?.click();
+                          }}
+                          className={`w-full sm:w-auto flex flex-col items-center justify-center py-6 px-6 rounded-xl transition-all shadow-sm ${
+                            docFront
+                              ? "bg-white border-2 border-green-500"
+                              : "bg-white border hover:border-[#fa8112]"
+                          }`}
                         >
-                          <div className="w-[50px] h-[50px] bg-[#fa8112] rounded-[16px] flex items-center justify-center text-white mb-4 shadow text-center">
-                            <ScanLine size={24} strokeWidth={2.5} />
+                          <div className={`w-10 h-10 ${docFront ? "bg-green-500" : "bg-[#fa8112]"} rounded-full flex items-center justify-center text-white mb-3`}>
+                            {docFront ? <Check size={20} className="text-white" /> : <UploadCloud size={20} />}
                           </div>
-                          <h4 className="font-bold text-[16px] text-[#222222] mb-1">
-                            Scan Aadhaar QR
-                          </h4>
-                          <p className="text-[13px] text-gray-500 text-center">
-                            Scan using camera to auto-fill details <br/>(Replaces manual upload)
-                          </p>
-                        </button>
-
-                        <div className="flex items-center justify-center font-bold text-gray-400 text-sm py-2 sm:py-0">
-                          OR
-                        </div>
-
-                        <button
-                          onClick={() => setActiveTab("upload")}
-                          className="flex-1 flex flex-col items-center justify-center py-8 px-6 rounded-xl border-gray-200 border bg-white hover:border-[#fa8112] hover:bg-orange-50 cursor-pointer shadow-sm transition-all"
-                        >
-                          <div className="w-[50px] h-[50px] bg-[#fa8112] rounded-[16px] flex items-center justify-center text-white mb-4 shadow text-center">
-                            <UploadCloud size={24} strokeWidth={2.5} />
-                          </div>
-                          <h4 className="font-bold text-[16px] text-[#222222] mb-1">
-                            Upload Manually
-                          </h4>
-                          <p className="text-[13px] text-gray-500 text-center">
-                            Upload PNG/JPG of Identity Proof
-                          </p>
+                          <span className="text-[14px] font-semibold text-[#222222]">
+                            {docFront ? "Document Selected" : "Upload Document"}
+                          </span>
+                          <span className="text-[12px] text-gray-500 truncate w-full px-1 text-center max-w-[200px] mt-1">
+                            {docFront ? docFront.name : "Choose File"}
+                          </span>
                         </button>
                       </div>
-                    )}
+                    </div>
                   </div>
 
                   <div className="flex flex-col items-center justify-center mt-6 mb-8 w-full max-w-md mx-auto">
@@ -1498,7 +1494,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                                     <img
                                       src={docFront.url}
                                       className="w-full h-full object-cover"
-                                      alt="Front"
+                                      alt="Document"
                                     />
                                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                                       <button 
@@ -1539,80 +1535,17 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                               >
                                 <UploadCloud size={24} className="mb-2" />
                                 <span className="text-xs">
-                                  Upload Front Side
+                                  Upload Document
                                 </span>
                               </button>
                             )}
                           </div>
                           <div>
                             <p className="text-[14px] font-semibold text-[#222222]">
-                              Document
+                              Identity Document
                             </p>
                             <p className="text-[12px] text-gray-500">
-                              Aadhar Card Front side
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="shrink-0 flex flex-col gap-2">
-                          <div className="w-full md:w-[240px] h-[150px] bg-gray-200 rounded-lg flex items-center justify-center relative overflow-hidden group">
-                            {docBack ? (
-                              <>
-                                {docBack.url ? (
-                                  <div className="relative w-full h-full group">
-                                    <img
-                                      src={docBack.url}
-                                      className="w-full h-full object-cover"
-                                      alt="Back"
-                                    />
-                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                      <button 
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          window.open(docBack.url, '_blank');
-                                        }}
-                                        className="bg-white/90 hover:bg-white text-[#222222] p-1.5 rounded-full shadow-lg transition-all"
-                                        title="View Document"
-                                      >
-                                        <ScanLine size={16} />
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="text-gray-500 flex flex-col items-center">
-                                    <FileText size={32} className="mb-2" />
-                                    <span className="text-xs truncate w-[140px] text-center">
-                                      {docBack.name}
-                                    </span>
-                                  </div>
-                                )}
-                                {isEditingReview && (
-                                  <button
-                                    onClick={() => setDocBack(null)}
-                                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors"
-                                  >
-                                    <CloseIcon size={14} />
-                                  </button>
-                                )}
-                              </>
-                            ) : (
-                              <button
-                                onClick={() => docBackInputRef.current?.click()}
-                                className="w-full h-full flex flex-col items-center justify-center text-gray-400 hover:bg-gray-50 transition-colors"
-                              >
-                                <UploadCloud size={24} className="mb-2" />
-                                <span className="text-xs">
-                                  Upload Back Side
-                                </span>
-                              </button>
-                            )}
-                          </div>
-                          <div>
-                            <p className="text-[14px] font-semibold text-[#222222]">
-                              Document
-                            </p>
-                            <p className="text-[12px] text-gray-500">
-                              Aadhar Card Back side
+                              Aadhaar / PAN / Other ID
                             </p>
                           </div>
                         </div>
@@ -1963,32 +1896,6 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                   </div>
                   
                   <div className="flex flex-col items-center justify-center py-2">
-                    {/* Payment Mode Tabs */}
-                    {!txnId && !paymentScreenshot && (
-                      <div className="flex bg-gray-100 p-1 rounded-xl mb-6 w-full max-w-md">
-                        <button
-                          onClick={() => setPaymentMethod("online")}
-                          className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${
-                            paymentMethod === "online"
-                              ? "bg-white text-[#fa8112] shadow-sm"
-                              : "text-gray-500 hover:text-gray-700"
-                          }`}
-                        >
-                          Credit Card / UPI
-                        </button>
-                        <button
-                          onClick={() => setPaymentMethod("manual")}
-                          className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${
-                            paymentMethod === "manual"
-                              ? "bg-white text-[#fa8112] shadow-sm"
-                              : "text-gray-500 hover:text-gray-700"
-                          }`}
-                        >
-                          Manual / QR
-                        </button>
-                      </div>
-                    )}
-
                     <div className="bg-white border-2 border-[#fa8112] rounded-3xl p-8 flex flex-col items-center shadow-xl w-full max-w-md relative overflow-hidden">
                       {/* Decorative background for amount */}
                       <div className="absolute top-0 left-0 w-full h-1 bg-[#fa8112]"></div>
@@ -2108,29 +2015,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                                 </div>
                               </div>
                             </div>
-                          ) : (
-                            <div className="w-full flex flex-col items-center">
-                               <div className="w-full aspect-square max-w-[160px] bg-white border border-gray-100 rounded-2xl shadow-sm p-3 mb-4 flex items-center justify-center relative">
-                                  {/* Replace with actual static QR if available */}
-                                  <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=BKBS-TRUST-PAYMENT" alt="Static QR" className="w-full h-full opacity-80" />
-                                  <div className="absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-xs flex-col p-2 text-center rounded-2xl">
-                                     <ScanLine size={32} className="text-[#fa8112] mb-1" />
-                                     <span className="text-[10px] font-bold text-gray-600">Scan & Pay via any UPI App</span>
-                                  </div>
-                               </div>
-                               
-                               <button 
-                                onClick={() => paymentInputRef.current?.click()}
-                                className="w-full flex flex-col items-center justify-center py-6 px-4 rounded-2xl border-2 border-dashed border-[#fa8112] bg-orange-50/50 hover:bg-orange-50 transition-all group"
-                              >
-                                <div className="w-10 h-10 bg-[#fa8112] rounded-full flex items-center justify-center text-white mb-2 shadow-sm group-hover:scale-110 transition-transform">
-                                  <UploadCloud size={20} />
-                                </div>
-                                <span className="text-sm font-bold text-[#222222]">Upload Payment Screenshot</span>
-                                <span className="text-[11px] text-gray-500 mt-1">PNG, JPG up to 5MB</span>
-                              </button>
-                            </div>
-                          )}
+                          ) : null}
                         </>
                       )}
                     </div>
