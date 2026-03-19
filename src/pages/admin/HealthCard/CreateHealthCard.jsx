@@ -408,6 +408,29 @@ const CreateHealthCard = () => {
         return;
       }
 
+      if (!formData.dob) {
+        toastWarn("Date of Birth is required.");
+        return;
+      }
+      const normalizedDob = formData.dob.replace(/\//g, "-");
+      const dobParts = normalizedDob.split("-");
+      if (dobParts.length === 3) {
+        const [day, month, year] = dobParts;
+        const dobDate = new Date(`${year}-${month}-${day}`);
+        if (!isNaN(dobDate.getTime())) {
+          const today = new Date();
+          let age = today.getFullYear() - dobDate.getFullYear();
+          const m = today.getMonth() - dobDate.getMonth();
+          if (m < 0 || (m === 0 && today.getDate() < dobDate.getDate())) {
+            age--;
+          }
+          if (age < 18) {
+            toastWarn("Head of Family must be at least 18 years old.");
+            return;
+          }
+        }
+      }
+
       if (!formData.documentFront) {
         toastWarn("Please upload an identity document or scan Aadhaar.");
         return;
@@ -962,11 +985,8 @@ const CreateHealthCard = () => {
             <label className="text-[13px] font-bold text-gray-600 ml-1">Date of Birth <span className="text-red-500">*</span></label>
             <input
               type="date"
-              value={formData.dob ? formData.dob.split('-').reverse().join('-') : ""}
-              onChange={(e) => {
-                const parts = e.target.value.split("-");
-                if (parts.length === 3) setFormData({ ...formData, dob: `${parts[2]}-${parts[1]}-${parts[0]}` });
-              }}
+              value={formatDateForInput(formData.dob)}
+              onChange={(e) => handleDateChange(e, "dob")}
               className="w-full bg-white border-2 border-[#e2e8f0] rounded-xl px-4 py-3.5 text-[14px] focus:outline-none focus:border-[#fa8112] font-bold transition-all"
             />
           </div>

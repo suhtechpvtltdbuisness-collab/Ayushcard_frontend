@@ -472,6 +472,28 @@ const CreateHealthCard = () => {
         toastWarn("First name and Phone number are required.");
         return;
       }
+      if (!formData.dob) {
+        toastWarn("Date of Birth is required.");
+        return;
+      }
+      const normalizedDob = formData.dob.replace(/\//g, "-");
+      const dobParts = normalizedDob.split("-");
+      if (dobParts.length === 3) {
+        const [day, month, year] = dobParts;
+        const dobDate = new Date(`${year}-${month}-${day}`);
+        if (!isNaN(dobDate.getTime())) {
+          const today = new Date();
+          let age = today.getFullYear() - dobDate.getFullYear();
+          const m = today.getMonth() - dobDate.getMonth();
+          if (m < 0 || (m === 0 && today.getDate() < dobDate.getDate())) {
+            age--;
+          }
+          if (age < 18) {
+            toastWarn("Head of Family must be at least 18 years old.");
+            return;
+          }
+        }
+      }
       if (!formData.pincode?.trim() || formData.pincode.length < 6) {
         toastWarn("A valid 6-digit Pincode is required.");
         return;
@@ -954,6 +976,7 @@ const CreateHealthCard = () => {
               </p>
               <div className="flex justify-center">
                 <button
+                  type="button"
                   onClick={() => fileInputFrontRef.current?.click()}
                   className={`w-full sm:w-auto flex flex-col items-center justify-center py-6 px-6 rounded-3xl transition-all shadow-sm ${
                     formData.documentFront
@@ -961,9 +984,11 @@ const CreateHealthCard = () => {
                       : "bg-white border-2 border-transparent hover:border-[#fa8112]"
                   }`}
                 >
-                  <div className={`w-12 h-12 ${
-                    formData.documentFront ? "bg-green-500" : "bg-[#fa8112]"
-                  } rounded-2xl flex items-center justify-center text-white mb-3 shadow-inner`}>
+                  <div
+                    className={`w-12 h-12 ${
+                      formData.documentFront ? "bg-green-500" : "bg-[#fa8112]"
+                    } rounded-2xl flex items-center justify-center text-white mb-3 shadow-inner`}
+                  >
                     {formData.documentFront ? <Check size={24} /> : <UploadCloud size={24} />}
                   </div>
                   <span className="text-[15px] font-bold text-[#222222]">
@@ -971,6 +996,14 @@ const CreateHealthCard = () => {
                   </span>
                 </button>
               </div>
+              {/* Hidden file input to trigger on click */}
+              <input
+                type="file"
+                ref={fileInputFrontRef}
+                accept="image/*"
+                onChange={(e) => handleImageUpload(e, "front")}
+                className="hidden"
+              />
             </div>
 
           <div className="flex flex-col items-center justify-center mt-6 mb-8 w-full max-w-md mx-auto">
@@ -1308,7 +1341,14 @@ const CreateHealthCard = () => {
         </div>
         <div className="p-8 flex items-center justify-center bg-[#fcfcfc]">
            <div className="w-full max-w-[500px]">
-             <AyushCardPreview data={formData} side={cardSide} />
+             <AyushCardPreview
+               data={{
+                 ...formData,
+                 // Match admin section: show family head image on card
+                 profileImage: headImage || formData.documentFront || "",
+               }}
+               side={cardSide}
+             />
            </div>
         </div>
         <div className="p-5 border-t border-gray-100 grid grid-cols-2 md:grid-cols-5 gap-4 bg-white">

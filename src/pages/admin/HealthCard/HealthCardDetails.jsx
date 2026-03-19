@@ -39,7 +39,20 @@ const apiToForm = (card) => ({
   address: card.address || "",
   gender: card.gender || "",
   dob: card.dob || card.dateOfBirth || card.birthDate || "",
-  aadhaarNumber: card.aadhaarNumber || "",
+  relation: card.relation || "",
+  relatedPerson: card.relatedPerson || "",
+  aadhaarNumber: card.aadhaarNumber || card.aadhaarNo || card.aadharNumber || "",
+  // For this details page, always use documents[1] (second document)
+  // as the card photo, falling back to documents[0] if needed.
+  profileImage:
+    card.profileImage ||
+    (Array.isArray(card.documents) && card.documents.length > 1
+      ? card.documents[1].path || card.documents[1].url
+      : Array.isArray(card.documents) && card.documents.length > 0
+        ? card.documents[0].path || card.documents[0].url
+        : ""),
+  documentFront: card.documentFront || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentFront")?.path : "") || "",
+  documentBack: card.documentBack || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentBack")?.path : "") || "",
   documents: Array.isArray(card.documents) ? card.documents : [],
   // NGO details for preview
   ngoLocation: card.ngoLocation || "Mangla Vihar Kanpur - 208015",
@@ -66,7 +79,9 @@ const formToApi = (f) => ({
   address: f.address,
   gender: f.gender,
   dob: f.dob,
-  aadhaarNumber: f.aadhaarNumber,
+  relation: f.relation,
+  relatedPerson: f.relatedPerson,
+   aadhaarNumber: f.aadhaarNumber,
   documents: f.documents || [],
 });
 
@@ -153,9 +168,8 @@ const HealthCardDetails = () => {
     let value = e.target.value;
     if (["applicantFirstName", "applicantMiddleName", "applicantLastName", "applicant", "relatedPerson"].includes(field))
       value = value.replace(/[^a-zA-Z\s]/g, "");
-    else if (["phone", "altPhone", "payment.totalPaid", "cardNumber", "totalMembers", "aadhaarNumber"].includes(field))
+    else if (["phone", "altPhone", "payment.totalPaid", "cardNumber", "totalMembers"].includes(field))
       value = value.replace(/[^0-9.]/g, "");
-    if (field === "aadhaarNumber") value = value.slice(0, 12);
     if (field === "totalMembers" && Number(value) > 7) value = "7";
     if (field.startsWith("payment.")) {
       setFormData((prev) => ({ ...prev, payment: { ...prev.payment, [field.split(".")[1]]: value } }));
@@ -418,10 +432,26 @@ const HealthCardDetails = () => {
                 className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`} />
             </div>
             <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Aadhaar Number</label>
-              <input type="text" value={formData.aadhaarNumber || ""}
-                onChange={(e) => handleChange(e, "aadhaarNumber")} disabled={!isEditing}
-                placeholder="12-digit Aadhaar Number"
+              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Relation</label>
+              <div className="relative">
+                <select value={formData.relation || ""}
+                  onChange={(e) => handleChange(e, "relation")} disabled={!isEditing}
+                  className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none appearance-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}>
+                  <option value="">Select Relation</option>
+                  <option value="Self">Self</option>
+                  <option value="Spouse">Spouse</option>
+                  <option value="Child">Child</option>
+                </select>
+                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
+            <div>
+              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Related person</label>
+              <input type="text" value={formData.relatedPerson || ""}
+                onChange={(e) => handleChange(e, "relatedPerson")} disabled={!isEditing}
                 className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`} />
             </div>
           </div>
