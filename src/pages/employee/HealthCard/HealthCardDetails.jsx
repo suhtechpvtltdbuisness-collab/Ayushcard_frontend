@@ -52,6 +52,14 @@ const apiToForm = (card) => ({
   aadhaarNumber: card.aadhaarNumber || "",
   documentFront: card.documentFront || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentFront")?.path : "") || "",
   documentBack: card.documentBack || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentBack")?.path : "") || "",
+  // On employee details page, also use documents[1] as the card photo
+  profileImage:
+    card.profileImage ||
+    (Array.isArray(card.documents) && card.documents.length > 1
+      ? card.documents[1].path || card.documents[1].url
+      : Array.isArray(card.documents) && card.documents.length > 0
+        ? card.documents[0].path || card.documents[0].url
+        : ""),
   // NGO details for preview
   ngoLocation: card.ngoLocation || "Mangla Vihar Kanpur - 208015",
   ngoPhone: card.ngoPhone || "9927384859",

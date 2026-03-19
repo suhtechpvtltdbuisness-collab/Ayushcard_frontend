@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { X, ChevronDown, Plus, Loader2, Check, User, UploadCloud, ScanLine, FileText, CheckCircle2, CreditCard, Banknote, Download, Camera, RefreshCw } from "lucide-react";
+import { X, ChevronDown, Plus, Loader2, Check, User, UploadCloud, ScanLine, FileText, CheckCircle2, CreditCard, Banknote, Download, Camera, RefreshCw, Info } from "lucide-react";
 import AyushCardPreview from "../../../components/admin/AyushCardPreview";
 import apiService from "../../../api/service";
 import { useToast } from "../../../components/ui/Toast";
@@ -19,7 +19,7 @@ const CreateHealthCard = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState(null); // "online" | "cash"
   const [paymentCompleted, setPaymentCompleted] = useState(false);
-  const [activeTab, setActiveTab] = useState("upload"); // 'upload' | 'scan'
+  const [activeTab, setActiveTab] = useState("upload");
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
   const [cardSide, setCardSide] = useState("front"); // for preview
@@ -36,6 +36,11 @@ const CreateHealthCard = () => {
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const [cameraActive, setCameraActive] = useState(false);
+  const cashPaymentInputRef = useRef(null);
+
+  // Family head photo
+  const headImageInputRef = useRef(null);
+  const [headImage, setHeadImage] = useState("");
 
   // Store actual File objects for API upload
   const documentFrontFileRef = useRef(null);
@@ -44,6 +49,7 @@ const CreateHealthCard = () => {
   // Save/API state
   const [saveLoading, setSaveLoading] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [cashPaymentImage, setCashPaymentImage] = useState("");
 
   const [formData, setFormData] = useState({
     id: `AC-${Math.floor(1000000 + Math.random() * 9000000)}`,
@@ -104,12 +110,6 @@ const CreateHealthCard = () => {
       }
     };
   }, []);
-
-  useEffect(() => {
-    if (currentStep !== 1 || activeTab !== "scan") {
-      stopCamera();
-    }
-  }, [currentStep, activeTab]);
 
   const handleChange = (e, field) => {
     let value = e.target.value;
@@ -227,6 +227,22 @@ const CreateHealthCard = () => {
     } else {
       toastWarn("Please upload a valid file.");
     }
+  };
+
+  const handleHeadImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toastWarn("Image size should be less than 5MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setHeadImage(reader.result);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleRemoveImage = (side) => {
@@ -387,12 +403,45 @@ const CreateHealthCard = () => {
 
   const handleNext = async () => {
     if (currentStep === 1) {
-       if (!formData.applicantFirstName || !formData.phone || !formData.pincode) {
-         toastWarn("Head of Family details are incomplete.");
-         return;
-       }
+      if (!formData.applicantFirstName || !formData.phone || !formData.pincode) {
+        toastWarn("Head of Family details are incomplete.");
+        return;
+      }
 
-       setCurrentStep(2);
+      if (!formData.dob) {
+        toastWarn("Date of Birth is required.");
+        return;
+      }
+      const normalizedDob = formData.dob.replace(/\//g, "-");
+      const dobParts = normalizedDob.split("-");
+      if (dobParts.length === 3) {
+        const [day, month, year] = dobParts;
+        const dobDate = new Date(`${year}-${month}-${day}`);
+        if (!isNaN(dobDate.getTime())) {
+          const today = new Date();
+          let age = today.getFullYear() - dobDate.getFullYear();
+          const m = today.getMonth() - dobDate.getMonth();
+          if (m < 0 || (m === 0 && today.getDate() < dobDate.getDate())) {
+            age--;
+          }
+          if (age < 18) {
+            toastWarn("Head of Family must be at least 18 years old.");
+            return;
+          }
+        }
+      }
+
+      if (!formData.documentFront) {
+        toastWarn("Please upload an identity document or scan Aadhaar.");
+        return;
+      }
+
+      if (!headImage) {
+        toastWarn("Please upload the family head photo.");
+        return;
+      }
+
+      setCurrentStep(2);
     } else if (currentStep === 2) {
        // Validate members if any
        for (const m of (formData.members || [])) {
@@ -628,6 +677,24 @@ const CreateHealthCard = () => {
                 },
               ]
             : []),
+          ...(cashPaymentImage
+            ? [
+                {
+                  name: "cashPaymentReceipt",
+                  path: cashPaymentImage,
+                  type: "payment_screenshot",
+                },
+              ]
+            : []),
+          ...(headImage
+            ? [
+                {
+                  name: "family_head_photo.jpg",
+                  path: headImage,
+                  type: "profile_photo",
+                },
+              ]
+            : []),
         ],
         payment: {
           method: method || "cash",
@@ -741,19 +808,7 @@ const CreateHealthCard = () => {
         </div>
 
         <div className="flex flex-col gap-4">
-          <div className="flex p-1 bg-gray-50 rounded-xl w-fit border border-gray-100">
-            <button
-              onClick={() => setActiveTab("upload")}
-              className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === "upload" ? "bg-white text-[#fa8112] shadow-sm" : "text-gray-400 hover:text-gray-600"}`}
-            >Gallery Upload</button>
-            <button
-              onClick={() => setActiveTab("scan")}
-              className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === "scan" ? "bg-white text-[#fa8112] shadow-sm" : "text-gray-400 hover:text-gray-600"}`}
-            >OCR Scanner</button>
-          </div>
-
-          {activeTab === "scan" ? (
-            <div className="w-full border-2 border-[#fa8112]/30 bg-orange-50/20 p-4 sm:p-8 rounded-3xl flex flex-col items-center justify-center transition-all overflow-hidden min-h-[400px]">
+          <div className="w-full border-2 border-[#fa8112]/30 bg-orange-50/20 p-4 sm:p-8 rounded-3xl flex flex-col items-center justify-center transition-all overflow-hidden min-h-[400px]">
               {cameraActive ? (
                 <div className="w-full max-w-md space-y-4 animate-in fade-in zoom-in-95">
                   <div className="relative aspect-[4/3] bg-black rounded-2xl overflow-hidden shadow-2xl border-4 border-white">
@@ -831,32 +886,49 @@ const CreateHealthCard = () => {
               <canvas ref={canvasRef} className="hidden" />
               <input id="ocr-input-admin" type="file" accept="image/*" capture="environment" className="hidden" onChange={handleScanImage} />
             </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div 
-                onClick={() => fileInputFrontRef.current?.click()}
-                className={`border-2 border-dashed p-8 rounded-3xl flex flex-col items-center justify-center cursor-pointer transition-all ${formData.documentFront ? "border-green-400 bg-green-50/30" : "border-gray-200 hover:border-[#fa8112] bg-white shadow-xs hover:shadow-md"}`}
-              >
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-3 transition-colors ${formData.documentFront ? "bg-green-500 text-white shadow-green-200 shadow-lg" : "bg-orange-50 text-[#fa8112]"}`}>
-                  {formData.documentFront ? <Check size={28} /> : <UploadCloud size={28} />}
-                </div>
-                <span className="font-bold text-[15px] text-[#22333B]">Front Image</span>
-                <p className="text-[11px] text-gray-400 mt-1">Identity Card (Front)</p>
-                <input type="file" ref={fileInputFrontRef} className="hidden" onChange={(e) => handleImageUpload(e, "front")} />
+          <div className="mt-4">
+            <p className="text-xs font-medium text-gray-700 mb-2">
+              Upload Identity Document (JPG/PNG)
+            </p>
+            <button
+              type="button"
+              onClick={() => fileInputFrontRef.current?.click()}
+              className={`w-full border-2 border-dashed rounded-lg p-4 flex flex-col items-center justify-center gap-2 transition-all duration-150 min-h-[120px] ${
+                formData.documentFront
+                  ? "border-emerald-500 bg-emerald-50/40"
+                  : "border-gray-200 hover:border-emerald-400 hover:bg-emerald-50/40"
+              }`}
+            >
+              <div className="h-10 w-10 rounded-full bg-emerald-50 flex items-center justify-center mb-1">
+                <UploadCloud className="h-5 w-5 text-emerald-600" />
               </div>
-              <div 
-                onClick={() => fileInputBackRef.current?.click()}
-                className={`border-2 border-dashed p-8 rounded-3xl flex flex-col items-center justify-center cursor-pointer transition-all ${formData.documentBack ? "border-green-400 bg-green-50/30" : "border-gray-200 hover:border-[#fa8112] bg-white shadow-xs hover:shadow-md"}`}
-              >
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-3 transition-colors ${formData.documentBack ? "bg-green-500 text-white shadow-green-200 shadow-lg" : "bg-orange-50 text-[#fa8112]"}`}>
-                  {formData.documentBack ? <Check size={28} /> : <UploadCloud size={28} />}
-                </div>
-                <span className="font-bold text-[15px] text-[#22333B]">Back Image</span>
-                <p className="text-[11px] text-gray-400 mt-1">Identity Card (Back)</p>
-                <input type="file" ref={fileInputBackRef} className="hidden" onChange={(e) => handleImageUpload(e, "back")} />
-              </div>
-            </div>
-          )}
+              <span className="font-semibold text-gray-800">
+                {formData.documentFront ? "Document Selected" : "Upload Document"}
+              </span>
+              <span className="text-xs text-gray-500 text-center">
+                JPG, PNG up to 5MB
+              </span>
+              {formData.documentFront && (
+                <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Identity document attached
+                </span>
+              )}
+            </button>
+
+            <p className="mt-2 text-xs text-gray-500 flex items-center gap-1 bg-emerald-50/60 border border-emerald-100 px-3 py-2 rounded-lg">
+              <Info className="h-3 w-3 text-emerald-600" />
+              Accepted IDs: Aadhaar Card, PAN Card, Voter ID, Driving License
+            </p>
+
+            <input
+              type="file"
+              ref={fileInputFrontRef}
+              accept="image/*"
+              onChange={(e) => handleImageUpload(e, "front")}
+              className="hidden"
+            />
+          </div>
         </div>
       </div>
 
@@ -913,11 +985,8 @@ const CreateHealthCard = () => {
             <label className="text-[13px] font-bold text-gray-600 ml-1">Date of Birth <span className="text-red-500">*</span></label>
             <input
               type="date"
-              value={formData.dob ? formData.dob.split('-').reverse().join('-') : ""}
-              onChange={(e) => {
-                const parts = e.target.value.split("-");
-                if (parts.length === 3) setFormData({ ...formData, dob: `${parts[2]}-${parts[1]}-${parts[0]}` });
-              }}
+              value={formatDateForInput(formData.dob)}
+              onChange={(e) => handleDateChange(e, "dob")}
               className="w-full bg-white border-2 border-[#e2e8f0] rounded-xl px-4 py-3.5 text-[14px] focus:outline-none focus:border-[#fa8112] font-bold transition-all"
             />
           </div>
@@ -1004,17 +1073,71 @@ const CreateHealthCard = () => {
             </div>
             <div className="space-y-2">
               <label className="text-[13px] font-bold text-gray-600 ml-1">Application Status</label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full bg-orange-50/50 border-2 border-[#fa8112] rounded-xl px-4 py-3.5 text-[14px] focus:outline-none font-bold text-[#fa8112] transition-all"
-              >
-                <option value="Pending verification">Pending verification</option>
-                <option value="Verified">Verified</option>
-                <option value="Approved">Approved</option>
-                <option value="Rejected">Rejected</option>
-              </select>
+              <div className="w-full bg-orange-50/50 border-2 border-[#fa8112] rounded-xl px-4 py-3.5 text-[14px] font-bold text-[#fa8112] flex items-center justify-between">
+                <span>Pending verification</span>
+              </div>
             </div>
+          </div>
+
+          <div className="mt-6 border-t border-gray-100 pt-4">
+            <p className="text-xs font-semibold text-gray-700 mb-3">
+              Family Head Photo
+            </p>
+
+            {!headImage ? (
+              <button
+                type="button"
+                onClick={() => headImageInputRef.current?.click()}
+                className="w-full border-2 border-dashed border-gray-200 rounded-lg p-4 flex flex-col items-center justify-center gap-2 hover:border-emerald-500 hover:bg-emerald-50/40 transition-all min-h-[140px]"
+              >
+                <div className="h-12 w-12 rounded-full bg-emerald-50 flex items-center justify-center mb-1">
+                  <User className="h-6 w-6 text-emerald-600" />
+                </div>
+                <span className="font-semibold text-gray-800 text-sm">
+                  Upload Family Head Photo
+                </span>
+                <span className="text-xs text-gray-500 text-center">
+                  Clear front-facing photo of the family head (JPG/PNG up to 5MB)
+                </span>
+                <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">
+                  <Camera className="h-3 w-3" />
+                  Recommended: Use camera for best clarity
+                </span>
+              </button>
+            ) : (
+              <div className="flex items-center gap-4 bg-emerald-50/60 border border-emerald-100 rounded-lg p-3">
+                <div className="h-14 w-14 rounded-full overflow-hidden border border-emerald-200 flex-shrink-0">
+                  <img
+                    src={headImage}
+                    alt="Family Head"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-gray-800 mb-1">
+                    Family head photo attached
+                  </p>
+                  <p className="text-[11px] text-gray-500 truncate">
+                    This photo will be printed on the Ayush Health Card.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setHeadImage("")}
+                  className="inline-flex items-center justify-center h-7 w-7 rounded-full border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+
+            <input
+              type="file"
+              accept="image/*"
+              ref={headImageInputRef}
+              onChange={handleHeadImageUpload}
+              className="hidden"
+            />
           </div>
         </div>
       </div>
@@ -1160,7 +1283,14 @@ const CreateHealthCard = () => {
           </div>
           <div className="p-12 flex items-center justify-center bg-gray-50/20 py-16">
              <div className="w-full max-w-[540px]">
-               <AyushCardPreview data={formData} side={cardSide} onFlip={(s) => setCardSide(s)} />
+               <AyushCardPreview
+                 data={{
+                   ...formData,
+                   profileImage: headImage || formData.documentFront || undefined,
+                 }}
+                 side={cardSide}
+                 onFlip={(s) => setCardSide(s)}
+               />
              </div>
           </div>
           <div className="p-8 border-t border-gray-100 bg-white grid grid-cols-2 md:grid-cols-5 gap-6">
@@ -1289,26 +1419,63 @@ const CreateHealthCard = () => {
                        </>
                     )}
                  </div>
-               ) : (
-                 <div className="flex flex-col gap-6">
-                    <div className="p-4 rounded-2xl border-2 border-orange-100 bg-orange-50/50 space-y-3">
-                       <label className="flex items-center gap-3 font-bold text-[13px] text-orange-800">
-                          <Check size={18} /> Collect Cash Payment
-                       </label>
-                       <label className="flex items-center gap-3 font-bold text-[13px] text-orange-800">
-                          <Check size={18} /> Handover Payment Slip
-                       </label>
-                    </div>
-                    <button onClick={() => performSave("cash", null)} disabled={saveLoading} className="w-full py-5 bg-[#2A3342] hover:bg-[#1E2530] text-white rounded-2xl font-black text-[18px] shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95">
-                       {saveLoading ? <Loader2 className="animate-spin" /> : <Check />} {saveLoading ? "Processing..." : "Confirm Collection"}
-                    </button>
-                 </div>
-               )}
+              ) : (
+                <div className="flex flex-col gap-6">
+                  {/* Cash payment proof upload */}
+                  <div className="space-y-3">
+                   <p className="text-[13px] font-semibold text-gray-700">Cash Payment Proof (optional)</p>
+                   <button
+                    type="button"
+                    onClick={() => cashPaymentInputRef.current?.click()}
+                    className="w-full py-3 px-4 border-2 border-dashed border-[#fa8112] rounded-2xl bg-orange-50/40 hover:bg-orange-50 transition-all flex items-center justify-center gap-2 text-[13px] font-semibold text-[#222222]"
+                   >
+                    <UploadCloud size={18} className="text-[#fa8112]" />
+                    {cashPaymentImage ? "Change Uploaded Image" : "Upload Cash Receipt Image"}
+                   </button>
+                   <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    ref={cashPaymentInputRef}
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (!file) return;
+                      if (file.size > 5 * 1024 * 1024) {
+                        toastWarn("Image size should be less than 5MB");
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setCashPaymentImage(reader.result);
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                   />
+                   {cashPaymentImage && (
+                    <p className="text-[11px] text-green-600 font-medium">Cash receipt image attached.</p>
+                   )}
+                  </div>
+
+                  <div className="p-4 rounded-2xl border-2 border-orange-100 bg-orange-50/50 space-y-3">
+                    <label className="flex items-center gap-3 font-bold text-[13px] text-orange-800">
+                      <Check size={18} /> Collect Cash Payment
+                    </label>
+                    <label className="flex items-center gap-3 font-bold text-[13px] text-orange-800">
+                      <Check size={18} /> Handover Payment Slip
+                    </label>
+                  </div>
+                  <button onClick={() => performSave("cash", null)} disabled={saveLoading} className="w-full py-5 bg-[#2A3342] hover:bg-[#1E2530] text-white rounded-2xl font-black text-[18px] shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95">
+                    {saveLoading ? <Loader2 className="animate-spin" /> : <Check />} {saveLoading ? "Processing..." : "Confirm Collection"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
       </div>
     );
+
   };
 
   const renderThermalReceipt = () => (

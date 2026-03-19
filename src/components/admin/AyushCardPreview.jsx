@@ -146,10 +146,18 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
                   "—"
                 }
               />
-
               <Row label="DOB" value={data?.dob || "—"} muted={!data?.dob} />
               <Row label="Phone" value={data?.phone || data?.contact || "—"} />
-              <Row label="Aadhaar" value={data?.aadhaarNumber || "—"} />
+              <Row
+                label="Aadhaar No."
+                value={
+                  data?.aadhaarNumber ||
+                  data?.aadhaarNo ||
+                  data?.aadharNumber ||
+                  "—"
+                }
+                muted={!data?.aadhaarNumber && !data?.aadhaarNo && !data?.aadharNumber}
+              />
               <Row label="Reg Date" value={data?.dateApplied || data?.applicationDate || "—"} />
             </div>
 
