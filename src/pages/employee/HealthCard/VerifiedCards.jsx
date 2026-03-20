@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { Search, Eye, Trash2, Plus, Loader2 } from "lucide-react";
+import { Search, Eye, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import apiService from "../../../api/service";
 
@@ -66,7 +66,7 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-const ActionButtons = ({ item, navigate, onDelete }) => {
+const ActionButtons = ({ item, navigate }) => {
   return (
     <div className="flex items-center gap-4">
       <button
@@ -85,22 +85,14 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
         />
       </button>
 
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() =>
-            navigate(`/employee/health-card/${item._id || item.id}`)
-          }
-          className="text-[#F68E5F] hover:text-[#ff6e2b] cursor-pointer transition-colors p-1.5"
-        >
-          <Eye size={20} />
-        </button>
-        <button
-          onClick={() => onDelete(item)}
-          className="text-[#F68E5F] hover:text-[#ff6e2b] transition-colors p-1.5"
-        >
-          <Trash2 size={20} />
-        </button>
-      </div>
+      <button
+        onClick={() =>
+          navigate(`/employee/health-card/${item._id || item.id}`)
+        }
+        className="text-[#F68E5F] hover:text-[#ff6e2b] cursor-pointer transition-colors p-1.5"
+      >
+        <Eye size={20} />
+      </button>
     </div>
   );
 };
@@ -112,9 +104,6 @@ export default function VerifiedCards() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemToDelete, setItemToDelete] = useState(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
-  const [deleteError, setDeleteError] = useState("");
 
   const ITEMS_PER_PAGE = 10;
 
@@ -140,28 +129,6 @@ export default function VerifiedCards() {
       console.error("[VerifiedCards] Failed to fetch:", err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!itemToDelete) return;
-    setDeleteLoading(true);
-    setDeleteError("");
-    try {
-      const mongoId = itemToDelete._id || itemToDelete.id;
-      await apiService.deleteHealthCard(mongoId);
-
-      setHealthCards((prev) =>
-        prev.filter(
-          (c) => c._id !== itemToDelete._id && c.id !== itemToDelete.id,
-        ),
-      );
-      setItemToDelete(null);
-    } catch (err) {
-      console.error("[VerifiedCards] Delete failed:", err);
-      setDeleteError("Delete failed. Please try again.");
-    } finally {
-      setDeleteLoading(false);
     }
   };
 
@@ -281,7 +248,6 @@ export default function VerifiedCards() {
                         <ActionButtons
                           item={row}
                           navigate={navigate}
-                          onDelete={setItemToDelete}
                         />
                       </td>
                     </tr>
@@ -298,52 +264,6 @@ export default function VerifiedCards() {
           </div>
         )}
       </div>
-
-      {/* Delete Confirmation Modal */}
-      {itemToDelete && (
-        <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl p-6 w-100 shadow-lg animate-in fade-in zoom-in duration-200">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <Trash2 size={20} className="text-red-600" />
-              </div>
-              <h3 className="text-lg font-bold text-[#22333B]">
-                Are you sure?
-              </h3>
-            </div>
-            <p className="text-[#4B5563] text-sm mb-4 pl-12 line-clamp-3">
-              Do you really want to delete the ayush card application for{" "}
-              <strong>{itemToDelete.applicant}</strong> ({itemToDelete.id})?
-              This process cannot be undone.
-            </p>
-            {deleteError && (
-              <p className="mb-4 pl-12 text-sm text-red-500">{deleteError}</p>
-            )}
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => {
-                  setItemToDelete(null);
-                  setDeleteError("");
-                }}
-                disabled={deleteLoading}
-                className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteConfirm}
-                disabled={deleteLoading}
-                className="px-4 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff702d] transition-colors shadow-sm flex items-center gap-2 disabled:opacity-60"
-              >
-                {deleteLoading && (
-                  <Loader2 size={14} className="animate-spin" />
-                )}
-                {deleteLoading ? "Deleting…" : "Confirm Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
