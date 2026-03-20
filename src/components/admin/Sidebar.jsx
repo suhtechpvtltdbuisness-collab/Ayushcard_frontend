@@ -33,7 +33,6 @@ const Sidebar = () => {
       subItems: [
         { name: "Ayush Card Apply", path: `${basePath}/health-card` },
         { name: "Verified Cards", path: `${basePath}/health-card/verified` },
-        { name: "Exported Cards", path: `${basePath}/health-card/exported` },
       ],
     },
     {
@@ -68,11 +67,11 @@ const Sidebar = () => {
       return true;
     })
     .map((item) => {
-      if (item.name === "Health Card" && userRole === "Employee") {
+      if (item.name === "Ayush Card" && userRole === "Employee") {
         return {
           ...item,
           subItems: item.subItems.filter(
-            (sub) => sub.name === "Ayush Card Apply"
+            (sub) => sub.name !== "Exported Cards"
           ),
         };
       }

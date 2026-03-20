@@ -360,6 +360,7 @@ export default function ExportedCards() {
           onClose={() => setIsExportModalOpen(false)}
           selectedData={selectedRows.map((idx) => processedData[idx])}
           onExportSuccess={handleExportSuccess}
+          markPrintedOnDownload={false}
         />
       )}
 
