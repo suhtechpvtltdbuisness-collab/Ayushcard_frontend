@@ -27,7 +27,7 @@ const Sidebar = () => {
   const mainMenuItems = [
     { name: "Dashboard", icon: LayoutDashboard, path: `${basePath}` },
     {
-      name: "Health Card",
+      name: "Ayush Card",
       icon: CreditCard,
       path: `${basePath}/health-card`,
       subItems: [

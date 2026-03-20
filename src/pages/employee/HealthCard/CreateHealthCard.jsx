@@ -891,7 +891,7 @@ const CreateHealthCard = () => {
         <div className="w-full border-2 border-[#fa8112]/30 bg-orange-50/20 p-4 sm:p-8 rounded-3xl flex flex-col items-center justify-center transition-all overflow-hidden min-h-[400px]">
             {cameraActive ? (
               <div className="w-full max-w-md space-y-4 animate-in fade-in zoom-in-95">
-                <div className="relative aspect-[4/3] bg-black rounded-2xl overflow-hidden shadow-2xl border-4 border-white">
+                <div className="relative aspect-4/3 bg-black rounded-2xl overflow-hidden shadow-2xl border-4 border-white">
                   <video 
                     ref={videoRef} 
                     autoPlay 
@@ -929,7 +929,7 @@ const CreateHealthCard = () => {
                   <button 
                     onClick={capturePhoto}
                     disabled={ocrLoading}
-                    className="flex-[2] py-4 bg-[#fa8112] hover:bg-[#e47510] text-white rounded-2xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 active:scale-95"
+                    className="flex-2 py-4 bg-[#fa8112] hover:bg-[#e47510] text-white rounded-2xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 active:scale-95"
                   >
                     {ocrLoading ? <Loader2 className="animate-spin" /> : <Camera size={20} />}
                     {ocrLoading ? "Scanning..." : "Capture & Scan"}
@@ -1510,7 +1510,7 @@ const CreateHealthCard = () => {
 
                          {cashCameraActive ? (
                            <div className="border-2 border-dashed border-[#fa8112]/60 rounded-2xl p-4 bg-white flex flex-col gap-3">
-                             <div className="relative aspect-[4/3] bg-black rounded-xl overflow-hidden">
+                             <div className="relative aspect-4/3 bg-black rounded-xl overflow-hidden">
                                <video
                                  ref={cashCameraVideoRef}
                                  autoPlay
@@ -1628,7 +1628,7 @@ const CreateHealthCard = () => {
       <div className="border-y border-dashed border-gray-300 py-2 mb-3">
         <div className="flex flex-col mb-1 text-[11px]">
           <span className="uppercase opacity-60 font-semibold mb-0.5">Applicant:</span>
-          <span className="font-bold text-[13px] uppercase break-words">
+          <span className="font-bold text-[13px] uppercase wrap-break-word">
             {[formData.applicantFirstName, formData.applicantMiddleName, formData.applicantLastName].filter(Boolean).join(" ")}
           </span>
         </div>
@@ -1766,7 +1766,7 @@ const CreateHealthCard = () => {
                 onClick={() => navigate("/employee/health-card")}
                 className="w-full py-4 bg-white border-2 border-[#E2E8F0] text-gray-600 rounded-xl font-bold hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
               >
-                Go to Healthcard List
+                Go to Ayushcard List
               </button>
            </div>
         </div>

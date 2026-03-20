@@ -309,11 +309,11 @@ const Reports = () => {
       doc.setPage(i);
       doc.setFontSize(8);
       doc.setTextColor(150, 150, 150);
-      doc.text("Official Maharashtra Health Authority Analytics Report • Confidential", 14, 290);
+      doc.text("Official Maharashtra Ayush Authority Analytics Report • Confidential", 14, 290);
       doc.text(`Page ${i}`, pageWidth - 14, 290, { align: "right" });
     }
 
-    doc.save(`Health_Card_Analytics_${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.save(`Ayush_Card_Analytics_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   const [genericTooltip, setGenericTooltip] = useState({
@@ -657,7 +657,7 @@ const Reports = () => {
               Age Group Distribution
             </h3>
             <p className="text-xs text-[#94A3B8] font-normal mt-0.5 tracking-wide">
-              Health cards issued by age bracket
+              Ayush cards issued by age bracket
             </p>
           </div>
 

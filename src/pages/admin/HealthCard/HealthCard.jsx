@@ -583,7 +583,7 @@ const HealthCard = () => {
               </h3>
             </div>
             <p className="text-[#4B5563] text-sm mb-4 pl-12 line-clamp-3">
-              Do you really want to delete the health card application for{" "}
+              Do you really want to delete the ayush card application for{" "}
               <strong>{itemToDelete.applicant}</strong> ({itemToDelete.id})?
               This process cannot be undone.
             </p>
