@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { FileText, Clock } from "lucide-react";
+import { FileText, Clock, Loader2 } from "lucide-react";
+import apiService from "../../../api/service";
 import {
   AreaChart,
   Area,
@@ -14,90 +15,22 @@ import {
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
-// --- Dummy Data ---
-const statusData = [
-  { name: "Verified", value: 8920, color: "#feceac" }, // Light orange
-  { name: "Non-Verified", value: 2614, color: "#fb7312" }, // Dark orange
-  { name: "Expiring Soon", value: 1313, color: "#ffaf78" }, // Base orange
-];
-
-const baseNewCardsData = {
-  Daily: [
-    { name: "Mon", cards: 45 },
-    { name: "Tue", cards: 52 },
-    { name: "Wed", cards: 38 },
-    { name: "Thu", cards: 65 },
-    { name: "Fri", cards: 80 },
-    { name: "Sat", cards: 110 },
-    { name: "Sun", cards: 140 },
-  ],
-  Weekly: [
-    { name: "Week 1", cards: 320 },
-    { name: "Week 2", cards: 450 },
-    { name: "Week 3", cards: 410 },
-    { name: "Week 4", cards: 580 },
-  ],
-  Monthly: [
-    { name: "Sep", cards: 400 },
-    { name: "Oct", cards: 500 },
-    { name: "Nov", cards: 945 },
-    { name: "Dec", cards: 800 },
-    { name: "Jan", cards: 1200 },
-    { name: "Feb", cards: 2100 },
-  ],
-  Yearly: [
-    { name: "2020", cards: 1200 },
-    { name: "2021", cards: 3500 },
-    { name: "2022", cards: 5800 },
-    { name: "2023", cards: 8400 },
-    { name: "2024", cards: 12500 },
-  ],
+// Colors for status distribution (mirroring admin reports)
+const STATUS_COLORS = {
+  approved: "#fb7312", // Dark orange
+  pending: "#ffaf78", // Base orange
+  active: "#feceac", // Light orange
+  expired: "#64748B", // Slate
+  rejected: "#ef4444", // Red
 };
 
-const ageData = [
-  { name: "0-12", value: 950 },
-  { name: "13-18", value: 2400 },
-  { name: "19-30", value: 1600 },
-  { name: "31-45", value: 1800 },
-  { name: "46-60", value: 800 },
-  { name: "61-75", value: 1100 },
-  { name: "75+", value: 500 },
-];
+const AGE_COLORS = ["#fb7312", "#ffaf78", "#feceac", "#fed7aa", "#ffedd5"];
 
+// Static gender data (no specific API provided for gender split yet)
 const genderData = [
-  { name: "Male", value: 6732, percent: "52.4%", color: "#ffaf78" }, // Light orange
-  { name: "Female", value: 5814, percent: "45.3%", color: "#feefe2" }, // Base orange
-  { name: "Other", value: 301, percent: "2.3%", color: "#fb7312" }, // Dark orange
-];
-
-const locationData = [
-  { name: "Lucknow", value: 3200, max: 3400 },
-  { name: "Kanpur", value: 2900, max: 3400 },
-  { name: "Varanasi", value: 1900, max: 3400 },
-  { name: "Agra", value: 1750, max: 3400 },
-  { name: "Prayagraj", value: 1200, max: 3400 },
-  { name: "Ghaziabad", value: 1100, max: 3400 },
-  { name: "Meerut", value: 900, max: 3400 },
-  { name: "Noida", value: 400, max: 3400 },
-];
-
-const topCitiesData = [
-  { name: "Mumbai", value: 3240, max: 3500 },
-  { name: "Pune", value: 2810, max: 3500 },
-  { name: "Nashik", value: 1920, max: 3500 },
-  { name: "Nagpur", value: 1650, max: 3500 },
-  { name: "Aurangabad", value: 1220, max: 3500 },
-  { name: "Solapur", value: 980, max: 3500 },
-];
-
-const employeeData = [
-  { name: "Priya S.", value: 342, region: "Field North", max: 400 },
-  { name: "Arjun M.", value: 298, region: "Field South", max: 400 },
-  { name: "Sneha K.", value: 276, region: "Field East", max: 400 },
-  { name: "Rahul P.", value: 251, region: "Field West", max: 400 },
-  { name: "Meena T.", value: 234, region: "Field Central", max: 400 },
-  { name: "Kiran B.", value: 218, region: "Field North", max: 400 },
-  { name: "Dev C.", value: 189, region: "Field South", max: 400 },
+  { name: "Male", value: 6732, percent: "52.4%", color: "#ffaf78" },
+  { name: "Female", value: 5814, percent: "45.3%", color: "#feefe2" },
+  { name: "Other", value: 301, percent: "2.3%", color: "#fb7312" },
 ];
 
 // Custom Tooltip for Area Chart
@@ -131,376 +64,6 @@ const BarTooltip = ({ active, payload, label }) => {
     );
   }
   return null;
-};
-
-// PDF Export Function
-const handleExportPDF = () => {
-  const doc = new jsPDF();
-  const pageWidth = doc.internal.pageSize.width;
-
-  // Custom font size and styles
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.setTextColor(15, 23, 42); // #0F172A
-  doc.text("Ayush Card Analytics Report", 14, 20);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(100, 116, 139); // #64748B
-  const today = new Date().toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-  doc.text(`Generated: ${today}`, pageWidth - 14, 20, { align: "right" });
-
-  doc.setFontSize(10);
-  doc.text("Maharashtra Health Authority • FY 2024–25", 14, 26);
-
-  // Draw header line
-  doc.setDrawColor(200, 200, 200);
-  doc.setLineWidth(0.5);
-  doc.line(14, 30, pageWidth - 14, 30);
-
-  let currentY = 40;
-
-  // Helper for Section Titles
-  const addSectionTitle = (title) => {
-    if (currentY > 260) {
-      doc.addPage();
-      currentY = 20;
-    }
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(15, 23, 42);
-    doc.text(title, 14, currentY);
-    currentY += 5;
-  };
-
-  // 1. Key Summary
-  addSectionTitle("1. Key Summary");
-  autoTable(doc, {
-    startY: currentY,
-    head: [["Metric", "Value", "Notes"]],
-    body: [
-      ["Total Ayush Cards Issued", "12,847", "+1,243 issued this month"],
-      ["Verified Cards", "8,920", "69.4% of total"],
-      ["Pending Verification", "2,614", "Awaiting review"],
-      ["Expiring Soon", "1,313", "Within next 30 days"],
-    ],
-    headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [250, 250, 250] },
-    theme: "grid",
-    styles: {
-      fontSize: 9,
-      cellPadding: 2,
-      lineColor: [230, 230, 230],
-      textColor: [50, 50, 50],
-    },
-  });
-  currentY = doc.lastAutoTable.finalY + 15;
-
-  // 2. New Health Cards Issued — Monthly Trend
-  addSectionTitle("2. New Ayush Cards Issued — Monthly Trend");
-  const maxMonthly = Math.max(...baseNewCardsData.Monthly.map((d) => d.cards));
-  const monthlyBody = baseNewCardsData.Monthly.map((item) => {
-    return [item.name, item.cards.toLocaleString(), ""];
-  });
-
-  autoTable(doc, {
-    startY: currentY,
-    head: [["Month", "Cards Issued", "Trend"]],
-    body: monthlyBody,
-    headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [250, 250, 250] },
-    theme: "grid",
-    styles: {
-      fontSize: 9,
-      cellPadding: 2,
-      lineColor: [230, 230, 230],
-      textColor: [50, 50, 50],
-    },
-    columnStyles: { 2: { minCellWidth: 70 } },
-    didDrawCell: (data) => {
-      if (data.column.index === 2 && data.cell.section === "body") {
-        const item = baseNewCardsData.Monthly[data.row.index];
-        const val = item.cards;
-        // fit max 23 blocks dynamically depending on cell width
-        const totalBlocks = Math.round(23 * (val / maxMonthly));
-        doc.setFillColor(110, 110, 110);
-        for (let i = 0; i < totalBlocks; i++) {
-          doc.rect(
-            data.cell.x + 3 + i * 3.5,
-            data.cell.y + data.cell.height / 2 - 1.25,
-            2.5,
-            2.5,
-            "F",
-          );
-        }
-      }
-    },
-  });
-  currentY = doc.lastAutoTable.finalY + 15;
-
-  // 3. Cards by Status
-  addSectionTitle("3. Cards by Status");
-  const totalStatus = statusData.reduce((sum, item) => sum + item.value, 0);
-  const statusBody = statusData.map((item) => [
-    item.name,
-    item.value.toLocaleString(),
-    ((item.value / totalStatus) * 100).toFixed(1) + "%",
-    "",
-  ]);
-  autoTable(doc, {
-    startY: currentY,
-    head: [["Status", "Count", "Share (%)", "Distribution"]],
-    body: statusBody,
-    headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [250, 250, 250] },
-    theme: "grid",
-    styles: {
-      fontSize: 9,
-      cellPadding: 2,
-      lineColor: [230, 230, 230],
-      textColor: [50, 50, 50],
-    },
-    columnStyles: { 3: { minCellWidth: 70 } },
-    didDrawCell: (data) => {
-      if (data.column.index === 3 && data.cell.section === "body") {
-        const item = statusData[data.row.index];
-        const totalBlocks = Math.round(23 * (item.value / totalStatus));
-        doc.setFillColor(110, 110, 110);
-        for (let i = 0; i < totalBlocks; i++) {
-          doc.rect(
-            data.cell.x + 3 + i * 3.5,
-            data.cell.y + data.cell.height / 2 - 1.25,
-            2.5,
-            2.5,
-            "F",
-          );
-        }
-      }
-    },
-  });
-  currentY = doc.lastAutoTable.finalY + 15;
-
-  // 4. Age Group Distribution
-  addSectionTitle("4. Age Group Distribution");
-  const totalAge = ageData.reduce((sum, item) => sum + item.value, 0);
-  const maxAge = Math.max(...ageData.map((d) => d.value));
-  const ageBody = ageData.map((item) => [
-    item.name,
-    item.value.toLocaleString(),
-    ((item.value / totalAge) * 100).toFixed(1) + "%",
-    "",
-  ]);
-  autoTable(doc, {
-    startY: currentY,
-    head: [["Age Group", "Cards Issued", "Share (%)", "Distribution"]],
-    body: ageBody,
-    headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [250, 250, 250] },
-    theme: "grid",
-    styles: {
-      fontSize: 9,
-      cellPadding: 2,
-      lineColor: [230, 230, 230],
-      textColor: [50, 50, 50],
-    },
-    columnStyles: { 3: { minCellWidth: 70 } },
-    didDrawCell: (data) => {
-      if (data.column.index === 3 && data.cell.section === "body") {
-        const item = ageData[data.row.index];
-        const totalBlocks = Math.round(23 * (item.value / maxAge));
-        doc.setFillColor(110, 110, 110);
-        for (let i = 0; i < totalBlocks; i++) {
-          doc.rect(
-            data.cell.x + 3 + i * 3.5,
-            data.cell.y + data.cell.height / 2 - 1.25,
-            2.5,
-            2.5,
-            "F",
-          );
-        }
-      }
-    },
-  });
-  currentY = doc.lastAutoTable.finalY + 15;
-
-  // 5. Gender-wise Distribution
-  addSectionTitle("5. Gender-wise Distribution");
-  const maxGender = Math.max(...genderData.map((d) => d.value));
-  const genderBody = genderData.map((item) => [
-    item.name,
-    item.value.toLocaleString(),
-    item.percent,
-    "",
-  ]);
-  autoTable(doc, {
-    startY: currentY,
-    head: [["Gender", "Cards Issued", "Share (%)", "Distribution"]],
-    body: genderBody,
-    headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [250, 250, 250] },
-    theme: "grid",
-    styles: {
-      fontSize: 9,
-      cellPadding: 2,
-      lineColor: [230, 230, 230],
-      textColor: [50, 50, 50],
-    },
-    columnStyles: { 3: { minCellWidth: 70 } },
-    didDrawCell: (data) => {
-      if (data.column.index === 3 && data.cell.section === "body") {
-        const item = genderData[data.row.index];
-        const totalBlocks = Math.round(23 * (item.value / maxGender));
-        doc.setFillColor(110, 110, 110);
-        for (let i = 0; i < totalBlocks; i++) {
-          doc.rect(
-            data.cell.x + 3 + i * 3.5,
-            data.cell.y + data.cell.height / 2 - 1.25,
-            2.5,
-            2.5,
-            "F",
-          );
-        }
-      }
-    },
-  });
-  currentY = doc.lastAutoTable.finalY + 15;
-
-  // 6. Location-wise Distribution
-  addSectionTitle("6. Location-wise Distribution");
-  const combinedLocations = [
-    { name: "Mumbai", value: 3240 },
-    { name: "Pune", value: 2810 },
-    { name: "Nashik", value: 1920 },
-    { name: "Nagpur", value: 1650 },
-    { name: "Aurangabad", value: 1220 },
-    { name: "Solapur", value: 980 },
-    { name: "Kolhapur", value: 760 },
-    { name: "Thane", value: 267 },
-  ];
-  const maxLoc = combinedLocations[0].value;
-  const totalLoc = 12847; // approx total matching design
-  const locBody = combinedLocations.map((item, idx) => [
-    idx + 1,
-    item.name,
-    item.value.toLocaleString(),
-    ((item.value / totalLoc) * 100).toFixed(1) + "%",
-    "",
-  ]);
-  autoTable(doc, {
-    startY: currentY,
-    head: [
-      ["Rank", "City / District", "Cards Issued", "Share (%)", "Distribution"],
-    ],
-    body: locBody,
-    headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [250, 250, 250] },
-    theme: "grid",
-    styles: {
-      fontSize: 9,
-      cellPadding: 2,
-      lineColor: [230, 230, 230],
-      textColor: [50, 50, 50],
-    },
-    columnStyles: { 4: { minCellWidth: 70 } },
-    didDrawCell: (data) => {
-      if (data.column.index === 4 && data.cell.section === "body") {
-        const item = combinedLocations[data.row.index];
-        const totalBlocks = Math.round(23 * (item.value / maxLoc));
-        doc.setFillColor(110, 110, 110);
-        for (let i = 0; i < totalBlocks; i++) {
-          doc.rect(
-            data.cell.x + 3 + i * 3.5,
-            data.cell.y + data.cell.height / 2 - 1.25,
-            2.5,
-            2.5,
-            "F",
-          );
-        }
-      }
-    },
-  });
-  currentY = doc.lastAutoTable.finalY + 15;
-
-  // 7. Field Employee Performance
-  addSectionTitle("7. Field Employee Performance");
-  const empList = [
-    { name: "Priya S.", dept: "Field North", value: 342, rank: 1 },
-    { name: "Arjun M.", dept: "Field South", value: 298, rank: 2 },
-    { name: "Sneha K.", dept: "Field East", value: 276, rank: 3 },
-    { name: "Rahul P.", dept: "Field West", value: 251, rank: 4 },
-    { name: "Meena T.", dept: "Field North", value: 234, rank: 5 },
-    { name: "Kiran B.", dept: "Field South", value: 218, rank: 6 },
-    { name: "Anjali R.", dept: "Field Central", value: 205, rank: 7 },
-    { name: "Dev C.", dept: "Field East", value: 189, rank: 8 },
-    { name: "Lata N.", dept: "Field West", value: 176, rank: 9 },
-    { name: "Suresh V.", dept: "Field Central", value: 162, rank: 10 },
-  ];
-
-  const empBody = empList.map((item) => [
-    item.rank,
-    item.name,
-    item.dept,
-    item.value.toLocaleString(),
-    Math.round((item.value / 342) * 100) + "%",
-    "",
-  ]);
-  autoTable(doc, {
-    startY: currentY,
-    head: [
-      ["Rank", "Employee", "Department", "Cards", "% of Top", "Performance"],
-    ],
-    body: empBody,
-    headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [250, 250, 250] },
-    theme: "grid",
-    styles: {
-      fontSize: 9,
-      cellPadding: 2,
-      lineColor: [230, 230, 230],
-      textColor: [50, 50, 50],
-    },
-    columnStyles: { 5: { minCellWidth: 70 } },
-    didDrawCell: (data) => {
-      if (data.column.index === 5 && data.cell.section === "body") {
-        const item = empList[data.row.index];
-        const totalBlocks = Math.round(23 * (item.value / 342));
-        doc.setFillColor(110, 110, 110);
-        for (let i = 0; i < totalBlocks; i++) {
-          doc.rect(
-            data.cell.x + 3 + i * 3.5,
-            data.cell.y + data.cell.height / 2 - 1.25,
-            2.5,
-            2.5,
-            "F",
-          );
-        }
-      }
-    },
-  });
-
-  // Footer for all pages
-  const totalPages = doc.internal.getNumberOfPages();
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i);
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.5);
-    doc.line(14, 285, pageWidth - 14, 285);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text(
-      "Maharashtra Health Authority • Ayush Card Analytics • FY 2024–25 • Confidential",
-      14,
-      290,
-    );
-    doc.text(`Page ${i}`, pageWidth - 14, 290, { align: "right" });
-  }
-
-  doc.save("Ayush_Card_Analytics_Report_FY24-25.pdf");
 };
 
 const CustomDonutChart = ({
@@ -638,12 +201,17 @@ const CustomDonutChart = ({
 
 const Reports = () => {
   const [timeFilter, setTimeFilter] = useState("Monthly");
-  const [barTooltip, setBarTooltip] = useState({
-    visible: false,
-    x: 0,
-    y: 0,
-    data: null,
-  });
+  const [loading, setLoading] = useState(true);
+
+  // Live data states (aligned with admin reports)
+  const [summary, setSummary] = useState(null);
+  const [trendData, setTrendData] = useState([]);
+  const [statusDistribution, setStatusDistribution] = useState([]);
+  const [ageDistribution, setAgeDistribution] = useState([]);
+  const [locations, setLocations] = useState([]);
+  const [performance, setPerformance] = useState([]);
+  const [periodMetrics, setPeriodMetrics] = useState(null);
+
   const [genericTooltip, setGenericTooltip] = useState({
     visible: false,
     x: 0,
@@ -666,7 +234,278 @@ const Reports = () => {
     setGenericTooltip({ visible: false, x: 0, y: 0, title: "", value: "" });
   };
 
-  const filteredCardsData = baseNewCardsData[timeFilter];
+  useEffect(() => {
+    fetchAllReports();
+  }, []);
+
+  useEffect(() => {
+    fetchTimeframeMetrics();
+  }, [timeFilter]);
+
+  const fetchAllReports = async () => {
+    setLoading(true);
+    try {
+      const [
+        summaryRes,
+        trendRes,
+        statusRes,
+        ageRes,
+        locationRes,
+        performanceRes,
+      ] = await Promise.all([
+        apiService.getReportsSummary(),
+        apiService.getReportsMonthlyTrend(),
+        apiService.getReportsCardsStatus(),
+        apiService.getReportsCardsAgeGroups(),
+        apiService.getReportsCardsLocation(),
+        apiService.getReportsEmployeePerformance(),
+      ]);
+
+      if (summaryRes?.success) setSummary(summaryRes.data);
+
+      if (trendRes?.success) {
+        const mappedTrend = (trendRes.data?.trend || []).map((item) => ({
+          name: item.month,
+          cards: item.cardsIssued,
+        }));
+        setTrendData(mappedTrend);
+      }
+
+      if (statusRes?.success) {
+        const mappedStatus = (statusRes.data || []).map((item) => ({
+          name: item.status.charAt(0).toUpperCase() + item.status.slice(1),
+          value: item.count,
+          percentage: item.percentage,
+          color: STATUS_COLORS[item.status] || "#fa8112",
+        }));
+        setStatusDistribution(mappedStatus);
+      }
+
+      if (ageRes?.success) {
+        const mappedAge = (ageRes.data || []).map((item, idx) => ({
+          name: item.ageGroup,
+          value: item.count,
+          percentage: item.percentage,
+          color: AGE_COLORS[idx % AGE_COLORS.length],
+        }));
+        setAgeDistribution(mappedAge);
+      }
+
+      if (locationRes?.success) setLocations(locationRes.data || []);
+      if (performanceRes?.success) setPerformance(performanceRes.data || []);
+    } catch (err) {
+      console.error("Error fetching employee report data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchTimeframeMetrics = async () => {
+    try {
+      let res;
+      if (timeFilter === "Daily") res = await apiService.getReportsDaily();
+      else if (timeFilter === "Monthly") res = await apiService.getReportsMonthly();
+      else if (timeFilter === "Yearly") res = await apiService.getReportsYearly();
+      else return;
+
+      if (res?.success) setPeriodMetrics(res.data?.metrics);
+    } catch (err) {
+      console.error(`Error fetching employee ${timeFilter} metrics:`, err);
+    }
+  };
+
+  const maxLocationCount =
+    locations.reduce((max, loc) => Math.max(max, loc.count || 0), 0) || 1;
+
+  const maxTopLocationCount =
+    locations.slice(0, 6).reduce((max, loc) => Math.max(max, loc.count || 0), 0) ||
+    1;
+
+  const maxEmployeeCards =
+    performance.reduce((max, emp) => Math.max(max, emp.cardsIssued || 0), 0) ||
+    1;
+
+  const handleExportPDF = () => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.width;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.setTextColor(15, 23, 42);
+    doc.text("Ayush Card Analytics Report", 14, 20);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    const today = new Date().toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    });
+    doc.text(`Generated: ${today}`, pageWidth - 14, 20, { align: "right" });
+
+    doc.setFontSize(10);
+    doc.text("Maharashtra Health Authority • Live Data Report", 14, 26);
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.5);
+    doc.line(14, 30, pageWidth - 14, 30);
+
+    let currentY = 40;
+
+    const addSectionTitle = (title) => {
+      if (currentY > 260) {
+        doc.addPage();
+        currentY = 20;
+      }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.setTextColor(15, 23, 42);
+      doc.text(title, 14, currentY);
+      currentY += 5;
+    };
+
+    // 1. Key Summary
+    addSectionTitle("1. Key Summary");
+    autoTable(doc, {
+      startY: currentY,
+      head: [["Metric", "Value", "Notes"]],
+      body: [
+        [
+          "Total Health Cards Issued",
+          summary?.totalCards?.toLocaleString() || "0",
+          "All time",
+        ],
+        [
+          "Verified Cards",
+          summary?.verifiedCards?.toLocaleString() || "0",
+          summary?.totalCards > 0
+            ? `${(
+                (summary.verifiedCards / summary.totalCards) * 100
+              ).toFixed(1)}% success`
+            : "0% success",
+        ],
+        [
+          "Pending Verification",
+          summary?.pendingCards?.toLocaleString() || "0",
+          "Awaiting review",
+        ],
+        [
+          "Expiring Soon",
+          summary?.expiringSoon?.toLocaleString() || "0",
+          "Next 30 days",
+        ],
+      ],
+      headStyles: { fillColor: [15, 23, 42], textColor: 255 },
+      theme: "grid",
+    });
+    currentY = doc.lastAutoTable.finalY + 15;
+
+    // 2. Monthly Issuance Trend
+    addSectionTitle("2. Monthly Issuance Trend");
+    const trendBody = trendData.map((item) => [
+      item.name,
+      item.cards.toLocaleString(),
+    ]);
+    autoTable(doc, {
+      startY: currentY,
+      head: [["Month", "Cards Issued"]],
+      body: trendBody,
+      headStyles: { fillColor: [15, 23, 42], textColor: 255 },
+      theme: "grid",
+    });
+    currentY = doc.lastAutoTable.finalY + 15;
+
+    // 3. Status Distribution
+    addSectionTitle("3. Distribution by Status");
+    const statusBody = statusDistribution.map((item) => [
+      item.name,
+      item.value.toLocaleString(),
+      `${item.percentage}%`,
+    ]);
+    autoTable(doc, {
+      startY: currentY,
+      head: [["Status", "Count", "Percentage"]],
+      body: statusBody,
+      headStyles: { fillColor: [15, 23, 42], textColor: 255 },
+      theme: "grid",
+    });
+    currentY = doc.lastAutoTable.finalY + 15;
+
+    // 4. Age Distribution
+    addSectionTitle("4. Age Group Distribution");
+    const ageBody = ageDistribution.map((item) => [
+      item.name,
+      item.value.toLocaleString(),
+      `${item.percentage}%`,
+    ]);
+    autoTable(doc, {
+      startY: currentY,
+      head: [["Age bracket", "Count", "Percentage"]],
+      body: ageBody,
+      headStyles: { fillColor: [15, 23, 42], textColor: 255 },
+      theme: "grid",
+    });
+    currentY = doc.lastAutoTable.finalY + 15;
+
+    // 5. Location Distribution
+    addSectionTitle("5. Geographic Distribution (Top 15 Pincodes)");
+    const locBody = locations.slice(0, 15).map((loc) => [
+      loc.rank,
+      loc.pincode,
+      loc.count.toLocaleString(),
+      `${loc.percentage}%`,
+    ]);
+    autoTable(doc, {
+      startY: currentY,
+      head: [["Rank", "Pincode", "Count", "Percentage"]],
+      body: locBody,
+      headStyles: { fillColor: [15, 23, 42], textColor: 255 },
+      theme: "grid",
+    });
+    currentY = doc.lastAutoTable.finalY + 15;
+
+    // 6. Employee Performance
+    addSectionTitle("6. Field Employee Performance");
+    const perfBody = performance.map((emp) => [
+      emp.rank,
+      emp.name,
+      emp.cardsIssued.toLocaleString(),
+      `${emp.percentageOfTop}%`,
+    ]);
+    autoTable(doc, {
+      startY: currentY,
+      head: [["Rank", "Name", "Cards Issued", "% of Top"]],
+      body: perfBody,
+      headStyles: { fillColor: [15, 23, 42], textColor: 255 },
+      theme: "grid",
+    });
+
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(
+        "Official Maharashtra Ayush Authority Analytics Report • Confidential",
+        14,
+        290,
+      );
+      doc.text(`Page ${i}`, pageWidth - 14, 290, { align: "right" });
+    }
+
+    doc.save(
+      `Ayush_Card_Analytics_${new Date().toISOString().split("T")[0]}.pdf`,
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="flex h-[80vh] items-center justify-center">
+        <Loader2 className="w-10 h-10 text-[#fa8112] animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div
       className="w-full bg-[#ffffff] min-h-screen"
@@ -675,7 +514,13 @@ const Reports = () => {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-xl font-bold text-[#242D35]">Reports</h1>
-
+        <button
+          onClick={handleExportPDF}
+          className="flex items-center gap-2 bg-[#F68E5F] text-white px-4 py-2 rounded-lg text-[14px] font-semibold shadow-sm hover:bg-[#ff7535] transition-colors"
+        >
+          <FileText className="w-4 h-4" />
+          Export Report
+        </button>
       </div>
 
       {/* Top Stats Cards */}
@@ -686,33 +531,43 @@ const Reports = () => {
           <p className="text-xs font-bold text-[#64748B] tracking-wider mb-3 uppercase">
             TOTAL CARDS ISSUED
           </p>
-          <h2 className="text-3xl font-bold text-[#0F172A] mb-2">2,847</h2>
+          <h2 className="text-3xl font-bold text-[#0F172A] mb-2">
+            {(summary?.totalCards || 0).toLocaleString()}
+          </h2>
           <p className="text-sm font-semibold text-[#10B981] flex items-center gap-1">
-            <span className="text-lg">↑</span> 12.5% this month
-          </p>
-        </div>
-
-        {/* Active Members */}
-        <div className="bg-white rounded-xl p-6 shadow-xs relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-[#10B981]"></div>
-          <p className="text-xs font-bold text-[#64748B] tracking-wider mb-3 uppercase">
-            ACTIVE MEMBERS
-          </p>
-          <h2 className="text-3xl font-bold text-[#0F172A] mb-2">8,421</h2>
-          <p className="text-sm font-semibold text-[#10B981] flex items-center gap-1">
-            <span className="text-lg">↑</span> 8.3% this month
+            Live data
           </p>
         </div>
 
         {/* Verified Cards */}
         <div className="bg-white rounded-xl p-6 shadow-xs relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-[#06B6D4]"></div>
+          <div className="absolute top-0 left-0 w-full h-1 bg-[#10B981]"></div>
           <p className="text-xs font-bold text-[#64748B] tracking-wider mb-3 uppercase">
             VERIFIED CARDS
           </p>
-          <h2 className="text-3xl font-bold text-[#0F172A] mb-2">2,654</h2>
+          <h2 className="text-3xl font-bold text-[#0F172A] mb-2">
+            {(summary?.verifiedCards || 0).toLocaleString()}
+          </h2>
           <p className="text-sm font-semibold text-[#10B981] flex items-center gap-1">
-            <span className="text-lg">↑</span> 93.2% verified
+            {summary?.totalCards > 0
+              ? `${(
+                  (summary.verifiedCards / summary.totalCards) * 100
+                ).toFixed(1)}% verified`
+              : "0% verified"}
+          </p>
+        </div>
+
+        {/* Pending Cards */}
+        <div className="bg-white rounded-xl p-6 shadow-xs relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-[#06B6D4]"></div>
+          <p className="text-xs font-bold text-[#64748B] tracking-wider mb-3 uppercase">
+            PENDING CARDS
+          </p>
+          <h2 className="text-3xl font-bold text-[#0F172A] mb-2">
+            {(summary?.pendingCards || 0).toLocaleString()}
+          </h2>
+          <p className="text-sm font-semibold text-[#10B981] flex items-center gap-1">
+            Action required
           </p>
         </div>
 
@@ -722,7 +577,9 @@ const Reports = () => {
           <p className="text-xs font-bold text-[#64748B] tracking-wider mb-3 uppercase">
             EXPIRING SOON
           </p>
-          <h2 className="text-3xl font-extrabold text-[#0F172A] mb-3">186</h2>
+          <h2 className="text-3xl font-extrabold text-[#0F172A] mb-3">
+            {(summary?.expiringSoon || 0).toLocaleString()}
+          </h2>
           <p className="text-xs font-bold text-[#F97316] flex items-center gap-1">
             <Clock className="w-3.5 h-3.5" /> Next 30 days
           </p>
@@ -735,21 +592,17 @@ const Reports = () => {
         <div className="bg-white rounded-2xl p-6 shadow-xs border border-[#F1F5F9] flex flex-col">
           <h3 className="text-lg font-bold text-[#0F172A]">Cards by Status</h3>
           <p className="text-xs text-[#94A3B8] mb-6 font-normal tracking-wide">
-            Verified • Non-verified • Expiring
+            Distribution by application status
           </p>
 
           <div className="flex-1 relative min-h-[220px] mb-8 flex items-center justify-center">
             <CustomDonutChart
-              data={[
-                statusData[0], // Light orange
-                statusData[2], // Base orange
-                statusData[1], // Dark orange
-              ]}
-              total={12847}
+              data={statusDistribution}
+              total={summary?.totalCards || 0}
               renderCenter={() => (
                 <>
                   <span className="text-3xl font-extrabold text-[#0F172A]">
-                    12.8k
+                    {(summary?.totalCards || 0).toLocaleString()}
                   </span>
                   <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mt-1">
                     TOTAL CARDS
@@ -762,7 +615,7 @@ const Reports = () => {
           </div>
 
           <div className="space-y-3">
-            {statusData.map((item, idx) => (
+            {statusDistribution.map((item, idx) => (
               <div
                 key={idx}
                 className="flex justify-between items-center text-sm"
@@ -779,7 +632,7 @@ const Reports = () => {
                     {item.value.toLocaleString()}
                   </span>
                   <span className="text-[10px] font-bold text-[#F97316] bg-[#FFF1F2] px-2.5 py-1 rounded-full">
-                    {((item.value / 12847) * 100).toFixed(1)}%
+                    {item.percentage}%
                   </span>
                 </div>
               </div>
@@ -795,11 +648,11 @@ const Reports = () => {
                 New Cards Issued
               </h3>
               <p className="text-xs text-[#94A3B8] font-normal mt-0.5 tracking-wide">
-                Last 6 months • 6,198 cards
+                Volume trend for Year {new Date().getFullYear()}
               </p>
             </div>
             <div className="flex bg-[#F8FAFC] rounded-lg p-1 border border-gray-100">
-              {["Daily", "Weekly", "Monthly", "Yearly"].map((period) => (
+              {["Daily", "Monthly", "Yearly"].map((period) => (
                 <button
                   key={period}
                   onClick={() => setTimeFilter(period)}
@@ -818,28 +671,34 @@ const Reports = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
             <div className="bg-[#F0F9FF] rounded-[16px] p-4 border border-[#E0F2FE]">
               <p className="text-[10px] font-bold text-[#0284C7] uppercase tracking-widest mb-1">
-                CARDS THIS MONTH
+                TOTAL IN PERIOD
               </p>
-              <p className="text-2xl font-bold text-[#0C4A6E]">1,243</p>
+              <p className="text-2xl font-bold text-[#0C4A6E]">
+                {periodMetrics?.totalCards || 0}
+              </p>
             </div>
             <div className="bg-[#ECFDF5] rounded-[16px] p-4 border border-[#D1FAE5]">
               <p className="text-[10px] font-bold text-[#059669] uppercase tracking-widest mb-1">
-                GROWTH
+                VERIFIED
               </p>
-              <p className="text-2xl font-bold text-[#064E3B]">+18.4%</p>
+              <p className="text-2xl font-bold text-[#064E3B]">
+                {periodMetrics?.verifiedCards || periodMetrics?.approvedCards || 0}
+              </p>
             </div>
             <div className="bg-[#F8FAFC] rounded-[16px] p-4 border border-[#F1F5F9]">
               <p className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest mb-1">
-                PERIOD TOTAL
+                PENDING
               </p>
-              <p className="text-2xl font-bold text-[#0F172A]">6,198</p>
+              <p className="text-2xl font-bold text-[#0F172A]">
+                {periodMetrics?.unverifiedCards || periodMetrics?.pendingCards || 0}
+              </p>
             </div>
           </div>
 
           <div className="flex-1 min-h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart
-                data={filteredCardsData}
+                data={trendData}
                 margin={{ top: 10, right: 0, left: -20, bottom: 0 }}
               >
                 <defs>
@@ -906,7 +765,7 @@ const Reports = () => {
           <div className="h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={ageData}
+                data={ageDistribution}
                 margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
               >
                 <CartesianGrid
@@ -928,56 +787,15 @@ const Reports = () => {
                   tickCount={6}
                   domain={[0, 4700]}
                 />
+                <Tooltip content={<BarTooltip />} cursor={{ fill: "#F8FAFC" }} />
                 <Bar
                   dataKey="value"
                   fill="#F97316"
                   radius={[6, 6, 6, 6]}
                   barSize={32}
-                  onMouseMove={(data, index, e) => {
-                    const evt = e || index;
-                    if (evt && evt.clientX) {
-                      const container = evt.currentTarget.closest(
-                        "[data-age-chart-container]",
-                      );
-                      if (container) {
-                        const rect = container.getBoundingClientRect();
-                        setBarTooltip({
-                          visible: true,
-                          x: evt.clientX - rect.left,
-                          y: Math.min(evt.clientY - rect.top, 250),
-                          data: data,
-                        });
-                      }
-                    }
-                  }}
-                  onMouseLeave={() =>
-                    setBarTooltip({ visible: false, x: 0, y: 0, data: null })
-                  }
                 />
               </BarChart>
             </ResponsiveContainer>
-
-            {barTooltip.visible && (barTooltip.data || barTooltip.data?.payload) && (
-              <div
-                className="absolute z-10 bg-[#FFFFFF] px-3 py-2 rounded-lg shadow-xl pointer-events-none"
-                style={{
-                  left: barTooltip.x,
-                  top: barTooltip.y,
-                  transform: "translate(-50%, -100%)",
-                  marginTop: "-10px",
-                }}
-              >
-                <p className="text-[#64748B] text-xs font-bold">
-                  {barTooltip.data?.name || barTooltip.data?.payload?.name || "N/A"}
-                </p>
-                <p className="text-[#F97316] text-sm font-bold">
-                  {((barTooltip.data?.value !== undefined
-                    ? barTooltip.data.value
-                    : barTooltip.data?.payload?.value) || 0).toLocaleString()}{" "}
-                  cards
-                </p>
-              </div>
-            )}
           </div>
         </div>
 
@@ -1056,20 +874,20 @@ const Reports = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
           {/* Left side: Main Districts */}
           <div className="space-y-5">
-            {locationData.map((item, idx) => (
+            {locations.slice(0, 8).map((item, idx) => (
               <div key={idx} className="flex items-center gap-6">
                 <span className="w-20 text-xs text-[#64748B] font-medium text-right">
-                  {item.name}
+                  Pincode {item.pincode}
                 </span>
                 <div className="flex-1 h-[24px] bg-[#F1F5F9] rounded-r-lg overflow-hidden flex items-center relative isolation-auto border-l-0">
                   <div
                     className="absolute top-0 left-0 h-full bg-[#F97316] rounded-r-lg transition-all duration-1000 ease-out cursor-pointer hover:brightness-110"
-                    style={{ width: `${(item.value / item.max) * 100}%` }}
+                    style={{ width: `${(item.count / maxLocationCount) * 100}%` }}
                     onMouseMove={(e) =>
                       handleGenericMouseMove(
                         e,
                         item.name,
-                        `${item.value.toLocaleString()} cards`,
+                        `${item.count.toLocaleString()} cards`,
                       )
                     }
                     onMouseLeave={handleGenericMouseLeave}
@@ -1089,7 +907,7 @@ const Reports = () => {
 
           {/* Right side: Ranked Cities */}
           <div className="space-y-6 lg:pl-8">
-            {topCitiesData.map((item, idx) => (
+            {locations.slice(0, 6).map((item, idx) => (
               <div key={idx} className="flex flex-col gap-1.5 group">
                 <div className="flex justify-between items-end mb-0.5">
                   <div className="flex items-center gap-3">
@@ -1097,11 +915,11 @@ const Reports = () => {
                       {idx + 1}
                     </div>
                     <span className="text-sm font-semibold text-[#1E293B]">
-                      {item.name}
+                      Pincode {item.pincode}
                     </span>
                   </div>
                   <span className="text-sm font-semibold text-[#1E293B]">
-                    {item.value.toLocaleString()}
+                    {item.count.toLocaleString()}
                   </span>
                 </div>
                 <div
@@ -1111,12 +929,14 @@ const Reports = () => {
                   <div className="absolute top-0 left-0 w-full h-full bg-[#F1F5F9] rounded-full"></div>
                   <div
                     className="absolute top-0 left-0 h-full bg-[#F97316] rounded-l-full transition-all duration-1000 ease-out cursor-pointer hover:brightness-110"
-                    style={{ width: `${(item.value / item.max) * 100}%` }}
+                    style={{
+                      width: `${(item.count / maxTopLocationCount) * 100}%`,
+                    }}
                     onMouseMove={(e) =>
                       handleGenericMouseMove(
                         e,
                         item.name,
-                        `${item.value.toLocaleString()} cards`,
+                        `${item.count.toLocaleString()} cards`,
                       )
                     }
                     onMouseLeave={handleGenericMouseLeave}
@@ -1165,7 +985,7 @@ const Reports = () => {
             </p>
 
             <div className="space-y-5">
-              {employeeData.map((item, idx) => (
+              {performance.map((item, idx) => (
                 <div
                   key={idx}
                   className="flex items-center gap-6 relative group"
@@ -1176,18 +996,20 @@ const Reports = () => {
                   <div className="flex-1 h-6 bg-[#F1F5F9] rounded-r-full overflow-hidden flex items-center relative border border-gray-50 border-l-0">
                     <div
                       className="absolute top-0 left-0 h-full bg-[#F97316] rounded-full transition-all duration-1000 flex items-center justify-end pr-3 cursor-pointer hover:brightness-110"
-                      style={{ width: `${(item.value / item.max) * 100}%` }}
+                      style={{
+                        width: `${(item.cardsIssued / maxEmployeeCards) * 100}%`,
+                      }}
                       onMouseMove={(e) =>
                         handleGenericMouseMove(
                           e,
                           item.name,
-                          `${item.value.toLocaleString()} cards`,
+                          `${item.cardsIssued.toLocaleString()} cards`,
                         )
                       }
                       onMouseLeave={handleGenericMouseLeave}
                     >
                       <span className="text-xs font-bold text-white shadow-xs pointer-events-none">
-                        {item.value}
+                        {item.cardsIssued}
                       </span>
                     </div>
                   </div>
@@ -1211,7 +1033,7 @@ const Reports = () => {
             </p>
 
             <div className="space-y-4">
-              {employeeData.slice(0, 4).map((emp, idx) => (
+              {performance.slice(0, 4).map((emp, idx) => (
                 <div
                   key={idx}
                   className="bg-white rounded-xl p-4 pb-5 flex items-center gap-4 relative overflow-hidden border border-[#F1F5F9]"
@@ -1271,7 +1093,7 @@ const Reports = () => {
                       {emp.name}
                     </h4>
                     <p className="text-[10px] font-normal text-[#64748B] mt-0.5">
-                      {emp.region}
+                      ID: {emp.employeeId?.slice(-6).toUpperCase() || "N/A"}
                     </p>
                   </div>
 
@@ -1280,10 +1102,10 @@ const Reports = () => {
                     <h4
                       className={`text-xl font-extrabold ${idx > 0 ? "text-[#0F172A]" : "text-[#14B8A6]"}`}
                     >
-                      {emp.value}
+                      {emp.cardsIssued}
                     </h4>
                     <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest mt-1 mb-1">
-                      {Math.round((emp.value / 342) * 100)}% OF TOP
+                      {emp.percentageOfTop}% OF TOP
                     </p>
                   </div>
                 </div>
