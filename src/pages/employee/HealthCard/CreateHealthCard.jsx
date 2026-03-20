@@ -127,6 +127,11 @@ const CreateHealthCard = () => {
   }, [currentStep]);
 
   const startCashCamera = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toastError("Camera not supported on this device/browser. Please use Upload from Gallery.");
+      return;
+    }
+
     try {
       setCashCameraLoading(true);
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -135,11 +140,24 @@ const CreateHealthCard = () => {
       cashCameraStreamRef.current = stream;
       if (cashCameraVideoRef.current) {
         cashCameraVideoRef.current.srcObject = stream;
+        try {
+          await cashCameraVideoRef.current.play();
+        } catch (playErr) {
+          console.warn("Cash camera video play error:", playErr);
+        }
       }
       setCashCameraActive(true);
     } catch (err) {
       console.error("Cash camera error:", err);
-      toastError("Could not access camera. Please use Upload instead.");
+      if (err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError") {
+        toastError(
+          "Camera permission denied. Please allow camera access from browser settings (lock icon) and try again, or use Upload from Gallery."
+        );
+      } else if (err?.name === "NotFoundError" || err?.name === "DevicesNotFoundError") {
+        toastError("No camera device found. Please connect a camera or use Upload from Gallery.");
+      } else {
+        toastError("Could not access camera. Please use Upload from Gallery.");
+      }
     } finally {
       setCashCameraLoading(false);
     }
@@ -189,20 +207,49 @@ const CreateHealthCard = () => {
   useEffect(() => {
     if (cameraActive && videoRef.current && streamRef.current) {
       videoRef.current.srcObject = streamRef.current;
+      try {
+        videoRef.current.play();
+      } catch (playErr) {
+        console.warn("OCR camera video play error:", playErr);
+      }
     }
   }, [cameraActive]);
 
+  useEffect(() => {
+    if (cashCameraActive && cashCameraVideoRef.current && cashCameraStreamRef.current) {
+      cashCameraVideoRef.current.srcObject = cashCameraStreamRef.current;
+      try {
+        cashCameraVideoRef.current.play();
+      } catch (playErr) {
+        console.warn("Cash camera video play error (effect):", playErr);
+      }
+    }
+  }, [cashCameraActive]);
+
   const startCamera = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toastError("Camera not supported on this device/browser. Please use Gallery Upload.");
+      return;
+    }
+
     try {
       setOcrLoading(true);
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
       });
       streamRef.current = stream;
       setCameraActive(true);
     } catch (err) {
       console.error("Camera error:", err);
-      toastError("Could not access camera. Please use Gallery Upload.");
+      if (err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError") {
+        toastError(
+          "Camera permission denied. Please allow camera access from browser settings (lock icon) and try again, or use Gallery Upload."
+        );
+      } else if (err?.name === "NotFoundError" || err?.name === "DevicesNotFoundError") {
+        toastError("No camera device found. Please connect a camera or use Gallery Upload.");
+      } else {
+        toastError("Could not access camera. Please use Gallery Upload.");
+      }
     } finally {
       setOcrLoading(false);
     }
@@ -1514,8 +1561,9 @@ const CreateHealthCard = () => {
                                <video
                                  ref={cashCameraVideoRef}
                                  autoPlay
+                                 muted
                                  playsInline
-                                 className="w-full h-full object-contain"
+                                 className="w-full h-full object-cover"
                                />
                              </div>
                              <div className="flex gap-3">
