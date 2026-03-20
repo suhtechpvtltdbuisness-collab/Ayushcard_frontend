@@ -105,7 +105,7 @@ export const performOCR = async (imageBase64, onProgress = () => {}) => {
             }
         }
 
-        // Name is usually 1 or 2 lines above DOB and below Government of India
+                // Name is usually 1 or 2 lines above DOB and below Government of India
         if (dobIndex !== -1) {
             // Search upwards from DOB for the first valid English name line
             for (let j = dobIndex - 1; j > Math.max(govtIndex, -1); j--) {
@@ -117,7 +117,9 @@ export const performOCR = async (imageBase64, onProgress = () => {}) => {
                 const digitCount = (tempClean.match(/\d/g) || []).length;
                 if (digitCount < 3 && !/[&%=]/.test(tempClean) && tempClean.length > 3) {
                     const cleanName = tempClean.replace(/[^A-Za-z\s.]/g, '').trim();
-                    if (cleanName.split(' ').length >= 2 && cleanName.split(' ').length <= 4) {
+                                        const partsCount = cleanName.split(/\s+/).filter(Boolean).length;
+                                        // Accept even single-word names like "Anita" (Aadhaar YOB format)
+                                        if (partsCount >= 1 && partsCount <= 4) {
                         results.name = cleanName;
                         break;
                     }

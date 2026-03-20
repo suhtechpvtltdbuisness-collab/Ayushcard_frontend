@@ -386,6 +386,7 @@ export default function VerifiedCards() {
           onClose={() => setIsExportModalOpen(false)}
           selectedData={selectedRows.map((idx) => processedData[idx])}
           onExportSuccess={handleExportSuccess}
+          markPrintedOnDownload={true}
         />
       )}
 

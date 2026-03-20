@@ -22,6 +22,7 @@ import { useToast } from "../../ui/Toast";
 import apiService from "../../../api/service";
 import { performOCR } from "../../../utils/ocr";
 import { load } from "@cashfreepayments/cashfree-js";
+import AyushCardPreview from "../../admin/AyushCardPreview";
 
 const ApplyAyushCardModal = ({ isOpen, onClose }) => {
   const [currentStep, setCurrentStep] = useState(1);
@@ -40,7 +41,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
   const [isEditingReview, setIsEditingReview] = useState(false);
   
   // Payment States
-  const [paymentMethod, setPaymentMethod] = useState("online"); // kept for state but UI only allows online now
+  const [paymentMethod, setPaymentMethod] = useState(null); // select between "online" | "cash" in Step 4
   const [onlinePaymentLoading, setOnlinePaymentLoading] = useState(false);
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [orderId, setOrderId] = useState(null);
@@ -70,6 +71,9 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
           canvas.width = width;
           canvas.height = height;
           const ctx = canvas.getContext("2d");
+          // Fill background to avoid transparent areas turning black in JPEG
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, width, height);
           ctx.drawImage(img, 0, 0, width, height);
 
           const outputBase64 = canvas.toDataURL("image/jpeg", quality);
@@ -545,7 +549,12 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
       }),
       payment: {
         transactionId: finalTxnId,
-        method: paymentScreenshot ? 'manual' : 'online',
+        method:
+          paymentMethod === 'cash'
+            ? 'cash'
+            : paymentScreenshot
+              ? 'manual'
+              : 'online',
         totalAmount: estimatedFee,
         date: new Date().toISOString(),
         orderId: orderId || "",
@@ -661,8 +670,9 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
           verifyRes?.transactionId ||
           `TXN${Date.now()}`;
         
+        // Store transaction ID and show success state in Step 4.
+        // User will click "Complete Registration" to submit, same as admin flow.
         setTxnId(resolvedTxnId);
-        await submitFinalApplication(resolvedTxnId);
       } else {
         toastWarn("Payment verification pending or failed. Please check your bank or retry.");
       }
@@ -737,8 +747,18 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
 
     // Step 4: handled by Cashfree flow
     if (currentStep === 4) {
-      if (!txnId && !paymentScreenshot) {
-        toastWarn("Please complete the payment before continuing.");
+      if (!paymentMethod) {
+        toastWarn("Please select a payment mode.");
+        return;
+      }
+
+      if (paymentMethod === "online" && !txnId) {
+        toastWarn("Please complete and verify online payment before continuing.");
+        return;
+      }
+
+      if (paymentMethod === "cash" && !paymentScreenshot) {
+        toastWarn("Please upload payment screenshot for cash mode.");
         return;
       }
       await submitFinalApplication();
@@ -759,6 +779,96 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
 
   const totalMembersCount = 1 + members.length;
   const estimatedFee = 120 + members.length * 10; // dummy calculation
+
+  const todayFormatted = new Date()
+    .toLocaleDateString("en-GB")
+    .replace(/\//g, "-");
+
+  const cardPreviewData = {
+    applicantFirstName: (familyHead.fullName || "").split(" ")[0] || "",
+    applicantLastName:
+      (familyHead.fullName || "")
+        .split(" ")
+        .slice(1)
+        .join(" ") || "",
+    dob: familyHead.dob || "",
+    phone: familyHead.contactNumber || "",
+    aadhaarNumber: familyHead.aadhaarNumber || "",
+    dateApplied: todayFormatted,
+    applicationDate: todayFormatted,
+    members: members.map((m) => ({
+      name: m.fullName,
+      relation: m.relation || "Family Member",
+      age: parseInt(m.age) || 0,
+    })),
+    documentFront: docFront?.base64 || docFront?.url || "",
+    profileImage: headImage || docFront?.base64 || docFront?.url || "",
+    payment: {
+      totalPaid: estimatedFee,
+    },
+  };
+
+  const renderPublicThermalReceipt = () => (
+    <div
+      id="public-thermal-receipt"
+      className="hidden print:block w-[3in] bg-white p-4 font-sans text-black"
+    >
+      <div className="text-center border-b-2 border-dashed border-gray-300 pb-3 mb-3">
+        <h2 className="font-extrabold text-[18px] uppercase tracking-tighter">
+          BKBS TRUST
+        </h2>
+        <p className="text-[10px] leading-tight font-bold opacity-60">
+          Human Welfare &amp; Social Trust
+        </p>
+      </div>
+      <div className="flex justify-between text-[11px] mb-1 font-bold">
+        <span>DATE:</span>
+        <span>{new Date().toLocaleDateString()}</span>
+      </div>
+      <div className="flex justify-between text-[11px] mb-3 font-bold">
+        <span>APP ID:</span>
+        <span>{applicationId || "Pending"}</span>
+      </div>
+      <div className="border-y border-dashed border-gray-300 py-3 mb-4">
+        <p className="text-[10px] font-bold text-gray-400 mb-0.5">
+          APPLICANT HEAD:
+        </p>
+        <p className="font-extrabold text-[14px] uppercase tracking-tight leading-tight">
+          {familyHead.fullName}
+        </p>
+        <p className="text-[11px] font-bold mt-1">
+          PHONE: {familyHead.contactNumber}
+        </p>
+      </div>
+      <div className="space-y-1 mb-6">
+        <div className="flex justify-between text-[12px]">
+          <span>Card Fee</span>
+          <span className="font-bold">₹120.00</span>
+        </div>
+        {members.length > 0 && (
+          <div className="flex justify-between text-[12px]">
+            <span>Members ({members.length})</span>
+            <span className="font-bold">₹{members.length * 10}.00</span>
+          </div>
+        )}
+        <div className="flex justify-between font-extrabold border-top-2 border-black pt-2 mt-2 text-[18px]">
+          <span>TOTAL</span>
+          <span>₹{estimatedFee}.00</span>
+        </div>
+      </div>
+      <div className="text-[9px] font-bold space-y-1 opacity-80 border-t border-dashed border-gray-300 pt-3">
+        <p className="uppercase">
+          Transaction ID: {txnId || `CASH-${Date.now()}`}
+        </p>
+        <p className="uppercase">
+          Payment: {paymentMethod === "online" ? "UPI/Online" : "Cash Received"}
+        </p>
+        <p className="text-center text-[10px] mt-4 font-black tracking-widest border border-black py-1 uppercase italic">
+          Paid &amp; Verified
+        </p>
+      </div>
+    </div>
+  );
 
   return (
     <div
@@ -1456,6 +1566,62 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
               {/* STEP 3: REVIEW */}
               {currentStep === 3 && (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                  {/* Card Preview Section */}
+                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-6">
+                    <div className="flex justify-between items-center p-4 bg-gray-50 border-b border-gray-200">
+                      <h4 className="font-bold text-[#222222] text-[15px]">
+                        Card Preview
+                      </h4>
+                    </div>
+                    <div className="p-4 sm:p-6 flex items-center justify-center bg-[#fcfcfc]">
+                      <div className="w-full max-w-[480px]">
+                        <AyushCardPreview data={cardPreviewData} side="front" />
+                      </div>
+                    </div>
+                    <div className="p-4 border-t border-gray-100 grid grid-cols-2 md:grid-cols-5 gap-4 bg-white">
+                      <div>
+                        <p className="text-[11px] font-bold text-gray-400 uppercase">
+                          Head Name
+                        </p>
+                        <p className="text-[14px] font-bold text-[#222222] truncate">
+                          {familyHead.fullName || "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold text-gray-400 uppercase">
+                          Aadhaar No
+                        </p>
+                        <p className="text-[14px] font-bold text-[#222222] truncate">
+                          {familyHead.aadhaarNumber || "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold text-gray-400 uppercase">
+                          Contact
+                        </p>
+                        <p className="text-[14px] font-bold text-[#222222] truncate">
+                          {familyHead.contactNumber || "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold text-gray-400 uppercase">
+                          Members
+                        </p>
+                        <p className="text-[14px] font-bold text-[#222222]">
+                          {totalMembersCount}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[11px] font-bold text-gray-400 uppercase">
+                          Amount
+                        </p>
+                        <p className="text-[14px] font-bold text-[#fa8112]">
+                          ₹{estimatedFee}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="bg-[#FAF3E1] rounded-lg p-3 px-4 flex items-center gap-3 border-l-4 border-[#FA8112] mb-2">
                     <User size={20} className="text-[#222222]" />
                     <h3 className="font-semibold text-[#222222]">
@@ -1888,23 +2054,60 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
               {/* STEP 4: PAYMENT */}
               {currentStep === 4 && (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                  <div className="bg-[#FAF3E1] rounded-lg p-3 px-4 flex items-center gap-3 border-l-4 border-[#FA8112] mb-6">
-                    <User size={20} className="text-[#222222]" />
-                    <h3 className="font-semibold text-[#222222]">
-                      Secure Payment
+                  <div className="text-center mb-8">
+                    <h3 className="font-black text-[22px] md:text-[24px] text-[#22333B] uppercase tracking-tight mb-2">
+                      Select Payment Mode
                     </h3>
+                    <p className="text-[13px] text-gray-500">
+                      Total Payable Amount: <span className="font-bold text-[#fa8112]">₹{Number(estimatedFee).toFixed(2)}</span>
+                    </p>
                   </div>
-                  
-                  <div className="flex flex-col items-center justify-center py-2">
-                    <div className="bg-white border-2 border-[#fa8112] rounded-3xl p-8 flex flex-col items-center shadow-xl w-full max-w-md relative overflow-hidden">
-                      {/* Decorative background for amount */}
-                      <div className="absolute top-0 left-0 w-full h-1 bg-[#fa8112]"></div>
-                      
-                      <div className="text-gray-400 text-[10px] font-bold uppercase tracking-[0.2em] mb-2 font-inter">Total Payable Amount</div>
-                      <h2 className="text-5xl font-extrabold text-[#222222] mb-8 font-inter">
-                        <span className="text-2xl font-semibold mr-1">₹</span>{Number(estimatedFee).toFixed(2)}
-                      </h2>
 
+                  <div className="grid grid-cols-1 gap-6 mb-8 max-w-2xl mx-auto">
+                    <div
+                      onClick={() => setPaymentMethod("online")}
+                      className={`group border-2 rounded-[32px] p-6 sm:p-8 bg-white cursor-pointer transition-all flex flex-col sm:flex-row items-center gap-6 ${
+                        paymentMethod === "online" ? "border-[#fa8112] shadow-2xl" : "border-gray-100 hover:border-[#fa8112] hover:shadow-xl"
+                      }`}
+                    >
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-orange-50 rounded-3xl flex items-center justify-center text-[#fa8112] group-hover:bg-[#fa8112] group-hover:text-white transition-all shadow-inner shrink-0">
+                        <span className="text-2xl">💳</span>
+                      </div>
+                      <div className="flex-1 text-center sm:text-left">
+                        <h4 className="font-bold text-[#22333B] text-[18px] sm:text-[20px] mb-1">Online Payment</h4>
+                        <p className="text-gray-500 text-[13px] sm:text-[14px] leading-relaxed">
+                          Fast & instant activation via UPI, GPay, or Cards.
+                        </p>
+                        <div className="flex justify-center sm:justify-start gap-2 mt-4 opacity-80">
+                          <span className="px-3 py-1 bg-green-50 text-green-700 text-[10px] font-bold rounded-lg border border-green-100 tracking-tighter">RECOMMENDED</span>
+                          <span className="px-3 py-1 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-lg border border-blue-100 uppercase">SAFE</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      onClick={() => setPaymentMethod("cash")}
+                      className={`group border-2 rounded-[32px] p-6 sm:p-8 bg-white cursor-pointer transition-all flex flex-col sm:flex-row items-center gap-6 ${
+                        paymentMethod === "cash" ? "border-[#fa8112] shadow-2xl" : "border-gray-100 hover:border-[#fa8112] hover:shadow-xl"
+                      }`}
+                    >
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-50 rounded-3xl flex items-center justify-center text-gray-400 group-hover:bg-[#fa8112] group-hover:text-white transition-all shadow-inner shrink-0">
+                        <span className="text-2xl">💵</span>
+                      </div>
+                      <div className="flex-1 text-center sm:text-left">
+                        <h4 className="font-bold text-[#22333B] text-[18px] sm:text-[20px] mb-1">Cash Payment</h4>
+                        <p className="text-gray-500 text-[13px] sm:text-[14px] leading-relaxed">
+                          Pay to agent directly. Receipt issued after manual confirmation.
+                        </p>
+                        <div className="flex justify-center sm:justify-start gap-2 mt-4 opacity-80">
+                          <span className="px-3 py-1 bg-gray-50 text-gray-600 text-[10px] font-bold rounded-lg border border-gray-100 tracking-tighter uppercase">OFFLINE</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {paymentMethod && (
+                    <div className="max-w-xl mx-auto">
                       {saveError && (
                         <div className="bg-red-50 text-red-600 text-xs p-3 rounded-lg mb-4 border border-red-100 w-full text-center">
                           {saveError}
@@ -1913,32 +2116,51 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
 
                       {txnId || paymentScreenshot ? (
                         <div className="w-full flex flex-col gap-4 animate-in fade-in zoom-in duration-500">
-                          <div className={`border rounded-2xl p-6 flex flex-col items-center gap-3 ${txnId ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'}`}>
-                            <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg mb-1 ${txnId ? 'bg-green-500' : 'bg-orange-500'}`}>
+                          <div
+                            className={`border rounded-2xl p-6 flex flex-col items-center gap-3 ${
+                              txnId ? "bg-green-50 border-green-200" : "bg-orange-50 border-orange-200"
+                            }`}
+                          >
+                            <div
+                              className={`w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg mb-1 ${
+                                txnId ? "bg-green-500" : "bg-orange-500"
+                              }`}
+                            >
                               <Check size={28} strokeWidth={3} />
                             </div>
-                            <h3 className={`text-lg font-bold ${txnId ? 'text-green-700' : 'text-orange-700'}`}>
+                            <h3
+                              className={`text-lg font-bold ${
+                                txnId ? "text-green-700" : "text-orange-700"
+                              }`}
+                            >
                               {txnId ? "Payment Verified!" : "Screenshot Uploaded!"}
                             </h3>
-                            <p className={`text-[11px] text-center font-medium ${txnId ? 'text-green-600' : 'text-orange-600'}`}>
+                            <p
+                              className={`text-[11px] text-center font-medium ${
+                                txnId ? "text-green-600" : "text-orange-600"
+                              }`}
+                            >
                               {txnId ? (
                                 <>
-                                  Ref: <span className="font-mono font-bold uppercase select-all tracking-wider">{txnId}</span>
+                                  Ref: {" "}
+                                  <span className="font-mono font-bold uppercase select-all tracking-wider">
+                                    {txnId}
+                                  </span>
                                 </>
                               ) : (
                                 "Manual verification in progress after submission"
                               )}
                             </p>
                             {paymentScreenshot && !txnId && (
-                               <button 
-                                 onClick={() => setPaymentScreenshot(null)}
-                                 className="text-[10px] text-orange-400 hover:text-orange-600 underline"
-                               >
-                                 Remove and change method
-                               </button>
+                              <button
+                                onClick={() => setPaymentScreenshot(null)}
+                                className="text-[10px] text-orange-400 hover:text-orange-600 underline"
+                              >
+                                Remove and change method
+                              </button>
                             )}
                           </div>
-                          
+
                           <button
                             onClick={() => submitFinalApplication(txnId)}
                             disabled={submitting}
@@ -1954,72 +2176,108 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                             )}
                           </button>
                         </div>
-                      ) : (
-                        <>
-                          {paymentMethod === "online" ? (
-                            <div className="w-full space-y-4">
-                              {!orderId ? (
-                                <button
-                                  onClick={handleInitiateCashfreePayment}
-                                  disabled={onlinePaymentLoading}
-                                  className="w-full bg-[#fa8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:active:scale-100"
-                                >
-                                  {onlinePaymentLoading ? (
-                                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                  ) : (
-                                    <span className="text-xl">💳</span>
-                                  )}
-                                  {onlinePaymentLoading ? "Preparing Gateway..." : "Pay with Cashfree"}
-                                </button>
+                      ) : paymentMethod === "online" ? (
+                        <div className="w-full space-y-4">
+                          {!orderId ? (
+                            <button
+                              onClick={handleInitiateCashfreePayment}
+                              disabled={onlinePaymentLoading}
+                              className="w-full bg-[#fa8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:active:scale-100"
+                            >
+                              {onlinePaymentLoading ? (
+                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                               ) : (
-                                <div className="w-full space-y-4">
-                                  <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex flex-col items-center gap-2">
-                                    <div className="flex items-center gap-2 text-[#fa8112] font-bold text-sm">
-                                      <span className="w-2 h-2 rounded-full bg-[#fa8112] animate-pulse"></span>
-                                      Awaiting Payment...
-                                    </div>
-                                    <p className="text-[10px] text-gray-500 text-center font-mono">
-                                      OrderId: {orderId}
-                                    </p>
-                                  </div>
-
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <button
-                                      onClick={() => setOrderId(null)}
-                                      className="py-3 border border-gray-300 rounded-xl text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors"
-                                    >
-                                      Retry
-                                    </button>
-                                    <button
-                                      onClick={() => handleVerifyCashfreePayment()}
-                                      disabled={verifyLoading}
-                                      className="py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-70"
-                                    >
-                                      {verifyLoading ? (
-                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                      ) : (
-                                        "Verify"
-                                      )}
-                                    </button>
-                                  </div>
-                                </div>
+                                <span className="text-xl">💳</span>
                               )}
-                              
-                              <div className="pt-6 border-t border-gray-50 flex items-center justify-center gap-6 grayscale opacity-40">
-                                <img src="https://www.cashfree.com/wp-content/uploads/2022/10/cashfree-logo.png" className="h-4" alt="Cashfree" />
-                                <div className="h-4 w-px bg-gray-200" />
-                                <div className="flex gap-2">
-                                  <span className="text-[9px] font-bold text-gray-400">UPI</span>
-                                  <span className="text-[9px] font-bold text-gray-400">CARDS</span>
-                                  <span className="text-[9px] font-bold text-gray-400">NETBANKING</span>
+                              {onlinePaymentLoading ? "Preparing Gateway..." : "Pay with Cashfree"}
+                            </button>
+                          ) : (
+                            <div className="w-full space-y-4">
+                              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex flex-col items-center gap-2">
+                                <div className="flex items-center gap-2 text-[#fa8112] font-bold text-sm">
+                                  <span className="w-2 h-2 rounded-full bg-[#fa8112] animate-pulse"></span>
+                                  Awaiting Payment...
                                 </div>
+                                <p className="text-[10px] text-gray-500 text-center font-mono">
+                                  OrderId: {orderId}
+                                </p>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3">
+                                <button
+                                  onClick={() => setOrderId(null)}
+                                  className="py-3 border border-gray-300 rounded-xl text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors"
+                                >
+                                  Retry
+                                </button>
+                                <button
+                                  onClick={() => handleVerifyCashfreePayment()}
+                                  disabled={verifyLoading}
+                                  className="py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-70"
+                                >
+                                  {verifyLoading ? (
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    "Verify"
+                                  )}
+                                </button>
                               </div>
                             </div>
-                          ) : null}
-                        </>
+                          )}
+
+                          <div className="pt-6 border-t border-gray-50 flex items-center justify-center gap-6 grayscale opacity-40">
+                            <img
+                              src="https://www.cashfree.com/wp-content/uploads/2022/10/cashfree-logo.png"
+                              className="h-4"
+                              alt="Cashfree"
+                            />
+                            <div className="h-4 w-px bg-gray-200" />
+                            <div className="flex gap-2">
+                              <span className="text-[9px] font-bold text-gray-400">UPI</span>
+                              <span className="text-[9px] font-bold text-gray-400">CARDS</span>
+                              <span className="text-[9px] font-bold text-gray-400">NETBANKING</span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <p className="text-[13px] font-semibold text-gray-700">
+                              Upload Payment Screenshot
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => paymentInputRef.current?.click()}
+                              className="w-full py-3 px-4 border-2 border-dashed border-[#fa8112] rounded-2xl bg-orange-50/40 hover:bg-orange-50 transition-all flex items-center justify-center gap-2 text-[13px] font-semibold text-[#222222]"
+                            >
+                              <UploadCloud size={18} className="text-[#fa8112]" />
+                              {paymentScreenshot ? "Change Uploaded Image" : "Upload Payment Receipt Image"}
+                            </button>
+                            {paymentScreenshot && (
+                              <p className="text-[11px] text-green-600 font-medium">
+                                Payment screenshot attached.
+                              </p>
+                            )}
+                          </div>
+
+                          <button
+                            onClick={() => {
+                              if (!paymentScreenshot) {
+                                toastWarn("Please upload payment screenshot for cash mode.");
+                                return;
+                              }
+                              submitFinalApplication(null);
+                            }}
+                            disabled={submitting}
+                            className="w-full py-4 bg-[#2A3342] hover:bg-[#1E2530] text-white rounded-2xl font-black text-[16px] shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-70"
+                          >
+                            {submitting ? <Loader2 className="animate-spin" size={20} /> : <Check />}
+                            {submitting ? "Processing..." : "Confirm Cash Payment"}
+                          </button>
+                        </div>
                       )}
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2056,7 +2314,11 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                   disabled={submitting}
                   className="flex items-center gap-2 bg-[#fa8112] hover:bg-[#e0720f] shadow-md active:scale-95 text-white font-medium pl-6 pr-2 py-2 rounded-full transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  {submitting ? 'Submitting...' : 'Continue'}
+                  {submitting
+                    ? 'Submitting...'
+                    : currentStep === 4
+                      ? 'Confirm Registration'
+                      : 'Continue'}
                   <span className="flex items-center justify-center bg-white rounded-full w-8 h-8 ml-2">
                     {submitting ? (
                       <div className="w-4 h-4 border-2 border-[#fa8112] border-t-transparent rounded-full animate-spin" />
@@ -2071,7 +2333,22 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
         ) : (
           /* STEP 5: SUCCESS / RECEIPT */
           <div className="flex-1 overflow-y-auto px-8 py-8 animate-in zoom-in-95 duration-500 bg-[#F9FAFB] custom-scrollbar">
-            <div className="max-w-md mx-auto">
+            <style>{`
+              @media print {
+                @page { size: 3in auto; margin: 0; }
+                body * { visibility: hidden !important; }
+                #public-thermal-receipt, #public-thermal-receipt * { visibility: visible !important; }
+                #public-thermal-receipt { position: fixed !important; left: 0 !important; top: 0 !important; width: 3in !important; margin: 0 !important; padding: 12px !important; display: block !important; }
+                .no-print-public { display: none !important; }
+              }
+            `}</style>
+
+            {renderPublicThermalReceipt()}
+
+            <div
+              id="public-application-receipt"
+              className="max-w-md mx-auto bg-transparent no-print-public"
+            >
               {/* Receipt Header */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
                 <div className="bg-green-500 p-6 flex flex-col items-center">
@@ -2079,31 +2356,49 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                     <Check className="text-white w-6 h-6" strokeWidth={3} />
                   </div>
                   <h2 className="text-white text-xl font-bold">Payment Successful</h2>
-                  <p className="text-green-100 text-sm mt-1">Application Reference: {applicationId || 'Pending'}</p>
+                  <p className="text-green-100 text-sm mt-1">
+                    Application Reference: {applicationId || "Pending"}
+                  </p>
                 </div>
 
                 <div className="p-6 space-y-4">
                   <div className="flex justify-between items-center pb-4 border-b border-gray-50">
                     <span className="text-gray-500 text-sm">Amount Paid</span>
-                    <span className="text-xl font-bold text-[#222222]">₹{estimatedFee}.00</span>
+                    <span className="text-xl font-bold text-[#222222]">
+                      ₹{estimatedFee}.00
+                    </span>
                   </div>
 
                   <div className="space-y-3">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Transaction ID</span>
-                      <span className="font-semibold text-[#222222] uppercase">{txnId || "N/A"}</span>
+                      <span className="font-semibold text-[#222222] uppercase">
+                        {txnId || "N/A"}
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Payment Date</span>
-                      <span className="font-semibold text-[#222222]">{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                      <span className="font-semibold text-[#222222]">
+                        {new Date().toLocaleDateString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Family Head</span>
-                      <span className="font-semibold text-[#222222]">{familyHead.fullName}</span>
+                      <span className="font-semibold text-[#222222]">
+                        {familyHead.fullName}
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Total Members</span>
-                      <span className="font-semibold text-[#222222]">{totalMembersCount}</span>
+                      <span className="font-semibold text-[#222222]">
+                        {totalMembersCount}
+                      </span>
                     </div>
                   </div>
 

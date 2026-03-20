@@ -100,7 +100,7 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
               {(() => {
                 const getImageUrl = (url) => {
                   if (!url) return null;
-                  if (typeof url !== 'string') return null;
+                  if (typeof url !== "string") return null;
                   if (url.startsWith("data:") || url.startsWith("http") || url.startsWith("blob:")) return url;
 
                   let baseUrl = import.meta.env.VITE_API_BASE_URL || "";
@@ -113,13 +113,44 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
                   return `${cleanBase}${url.startsWith("/") ? "" : "/"}${url}`;
                 };
 
-                const imgSrc = 
-                  getImageUrl(data?.profileImage) || 
-                  getImageUrl(data?.documentFront) || 
-                  (Array.isArray(data?.documents) && data.documents.length > 0 
-                    ? (getImageUrl(data.documents[0].path) || getImageUrl(data.documents[0].url)) 
-                    : null) || 
-                  "/gallery1.svg";
+                const isImageLike = (path = "", mime = "") => {
+                  const lower = path.toLowerCase();
+                  if (/(\.jpg|\.jpeg|\.png|\.webp|\.gif)$/.test(lower)) return true;
+                  if (mime && typeof mime === "string" && mime.toLowerCase().startsWith("image/")) return true;
+                  return false;
+                };
+
+                const pickFromDocuments = (docs) => {
+                  if (!Array.isArray(docs)) return null;
+                  for (const doc of docs) {
+                    const rawPath = doc?.path || doc?.url || "";
+                    const mime = doc?.mimetype || "";
+                    if (!isImageLike(rawPath, mime)) continue; // skip PDFs and other non-image files
+                    const built = getImageUrl(rawPath);
+                    if (built) return built;
+                  }
+                  return null;
+                };
+
+                let imgSrc = null;
+
+                // Prefer explicit profile image
+                imgSrc = getImageUrl(data?.profileImage);
+
+                // Fallback to front document if it looks like an image
+                if (!imgSrc && isImageLike(data?.documentFront || "", data?.documentFrontMime)) {
+                  imgSrc = getImageUrl(data?.documentFront);
+                }
+
+                // Finally, try documents array but skip PDFs (like doc1.pdf)
+                if (!imgSrc) {
+                  imgSrc = pickFromDocuments(data?.documents);
+                }
+
+                // As a very last fallback, use local placeholder instead of a missing backend asset
+                if (!imgSrc) {
+                  imgSrc = "/gallery1.svg";
+                }
 
                 return (
                   <img

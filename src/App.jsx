@@ -63,7 +63,6 @@ import EmployeeHealthCard from "./pages/employee/HealthCard/HealthCard";
 import EmployeeHealthCardDetails from "./pages/employee/HealthCard/HealthCardDetails";
 import EmployeeCreateHealthCard from "./pages/employee/HealthCard/CreateHealthCard";
 import VerifiedCards from "./pages/employee/HealthCard/VerifiedCards";
-import ExportedCards from "./pages/employee/HealthCard/ExportedCards";
 import EmployeePartners from "./pages/employee/Partners/Partners";
 import EmployeePartnerDetails from "./pages/employee/Partners/PartnerDetails";
 import EmployeeCreatePartner from "./pages/employee/Partners/CreatePartner";
@@ -206,7 +205,6 @@ function App() {
             <Route index element={<EmployeeDashboard />} />
             <Route path="health-card" element={<EmployeeHealthCard />} />
             <Route path="health-card/verified" element={<VerifiedCards />} />
-            <Route path="health-card/exported" element={<ExportedCards />} />
             <Route
               path="health-card/create"
               element={<EmployeeCreateHealthCard />}

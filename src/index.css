@@ -26,3 +26,5 @@
     -webkit-transform-style: preserve-3d;
   }
 }
+
+/* (Print styles for receipts are scoped inside respective components) */

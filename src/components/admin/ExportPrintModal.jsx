@@ -151,7 +151,7 @@ const PreviewGrid = ({ cards, side, total }) => (
 /* ─────────────────────────────────────────────────────────────────────────────
    Main Modal
 ───────────────────────────────────────────────────────────────────────────── */
-export default function ExportPrintModal({ isOpen, onClose, selectedData, onExportSuccess }) {
+export default function ExportPrintModal({ isOpen, onClose, selectedData, onExportSuccess, markPrintedOnDownload = false }) {
   const { toastSuccess, toastError, toastWarn } = useToast();
 
   const [downloading, setDownloading]         = useState(false);
@@ -166,6 +166,17 @@ export default function ExportPrintModal({ isOpen, onClose, selectedData, onExpo
   const currentCards = chunks[currentChunkIndex] || [];
 
   if (!isOpen) return null;
+
+  const markAsPrinted = async () => {
+    if (!markPrintedOnDownload) return;
+    const cardIds = selectedData.map((c) => c._id || c.id).filter(Boolean);
+    if (cardIds.length === 0) return;
+    try {
+      await apiService.updatePrintStatus(cardIds, true);
+    } catch (err) {
+      console.error("[ExportModal] Failed to update print status:", err);
+    }
+  };
 
   /* ── capture all cards in a batch for a given side ── */
   const captureAll = async (cards, side, batchLabel) => {
@@ -230,16 +241,12 @@ export default function ExportPrintModal({ isOpen, onClose, selectedData, onExpo
         buildGridPdf(backImgs,  `Batch_${ci + 1}_BACK_${s}-${e}.pdf`);
         setDownloadedCount((p) => p + 2);
       }
-      
-      // After successful completion of all batches, update print status in backend
+      // After successful completion of all batches, update print status in backend (if enabled)
       setProgress("Finalizing print status...");
-      const cardIds = selectedData.map(c => c._id || c.id).filter(Boolean);
-      if (cardIds.length > 0) {
-        await apiService.updatePrintStatus(cardIds, true);
-      }
+      await markAsPrinted();
 
       toastSuccess("All batches downloaded! Cards marked as exported.");
-      onExportSuccess();
+      if (onExportSuccess) onExportSuccess();
     } catch (err) {
       console.error("[ExportModal]", err);
       toastError("Download failed: " + (err?.message || "Unknown error. Check console."));
