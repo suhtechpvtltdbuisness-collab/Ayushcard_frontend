@@ -33,6 +33,7 @@ const Sidebar = () => {
       subItems: [
         { name: "Ayush Card Apply", path: `${basePath}/health-card` },
         { name: "Verified Cards", path: `${basePath}/health-card/verified` },
+        { name: "Exported Cards", path: `${basePath}/health-card/exported` },
       ],
     },
     {
