@@ -142,7 +142,7 @@ const handleExportPDF = () => {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
   doc.setTextColor(15, 23, 42); // #0F172A
-  doc.text("Health Card Analytics Report", 14, 20);
+  doc.text("Ayush Card Analytics Report", 14, 20);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
@@ -183,7 +183,7 @@ const handleExportPDF = () => {
     startY: currentY,
     head: [["Metric", "Value", "Notes"]],
     body: [
-      ["Total Health Cards Issued", "12,847", "+1,243 issued this month"],
+      ["Total Ayush Cards Issued", "12,847", "+1,243 issued this month"],
       ["Verified Cards", "8,920", "69.4% of total"],
       ["Pending Verification", "2,614", "Awaiting review"],
       ["Expiring Soon", "1,313", "Within next 30 days"],
@@ -201,7 +201,7 @@ const handleExportPDF = () => {
   currentY = doc.lastAutoTable.finalY + 15;
 
   // 2. New Health Cards Issued — Monthly Trend
-  addSectionTitle("2. New Health Cards Issued — Monthly Trend");
+  addSectionTitle("2. New Ayush Cards Issued — Monthly Trend");
   const maxMonthly = Math.max(...baseNewCardsData.Monthly.map((d) => d.cards));
   const monthlyBody = baseNewCardsData.Monthly.map((item) => {
     return [item.name, item.cards.toLocaleString(), ""];
@@ -493,14 +493,14 @@ const handleExportPDF = () => {
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
     doc.text(
-      "Maharashtra Health Authority • Health Card Analytics • FY 2024–25 • Confidential",
+      "Maharashtra Health Authority • Ayush Card Analytics • FY 2024–25 • Confidential",
       14,
       290,
     );
     doc.text(`Page ${i}`, pageWidth - 14, 290, { align: "right" });
   }
 
-  doc.save("Health_Card_Analytics_Report_FY24-25.pdf");
+  doc.save("Ayush_Card_Analytics_Report_FY24-25.pdf");
 };
 
 const CustomDonutChart = ({
@@ -899,7 +899,7 @@ const Reports = () => {
               Age Group Distribution
             </h3>
             <p className="text-xs text-[#94A3B8] font-normal mt-0.5 tracking-wide">
-              Health cards issued by age bracket
+              Ayush cards issued by age bracket
             </p>
           </div>
 
@@ -1049,7 +1049,7 @@ const Reports = () => {
             Location-wise Distribution
           </h3>
           <p className="text-xs text-[#94A3B8] font-normal mt-0.5 tracking-wide">
-            Health cards issued across districts / cities
+            Ayush cards issued across districts / cities
           </p>
         </div>
 

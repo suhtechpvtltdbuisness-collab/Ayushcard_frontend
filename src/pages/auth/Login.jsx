@@ -102,7 +102,7 @@ const Login = () => {
       />
 
       {/* Main Login Card Wrapper to allow Logo positioning */}
-      <div className="relative w-full max-w-[600px] px-4 sm:px-6 md:px-0 flex justify-center items-center">
+      <div className="relative w-full max-w-[600px] px-4 sm:px-6 md:px-0 flex flex-col justify-center items-center">
         {/* Logo protruding from top */}
         <div className="absolute -top-14 sm:-top-20 left-0 right-0 z-10 flex justify-center w-full pointer-events-none">
           <img
@@ -113,16 +113,7 @@ const Login = () => {
         </div>
 
         {/* Card Component */}
-        <div className="bg-white rounded-3xl sm:rounded-4xl shadow-xl p-5 sm:p-8 pt-16 sm:pt-20 relative w-full max-w-[540px] min-h-[620px] sm:min-h-[680px] border border-gray-100 flex flex-col justify-center">
-          {/* Back to Landing Page (inside card, top-left corner) */}
-          <button
-            type="button"
-            onClick={() => navigate("/")}
-            className="absolute top-4 left-4 inline-flex items-center gap-1 text-sm font-['Inter'] text-[#F68E5F] hover:text-[#ff702d] transition-colors"
-          >
-            <ArrowLeft size={18} />
-            <span>Back to Home</span>
-          </button>
+        <div className="bg-white rounded-3xl sm:rounded-4xl shadow-xl p-5 sm:p-8 pt-10 sm:pt-14 relative w-full max-w-[540px] min-h-[680px] sm:min-h-[620px] border border-gray-100 flex flex-col justify-center">
           {/* Tabs */}
           <div
             className="flex w-full mb-6 border rounded-xl border-[#F68E5F] p-2"
@@ -284,6 +275,16 @@ const Login = () => {
             </button>
           </form>
         </div>
+
+        {/* Back to Home Button BELOW card */}
+        <button
+          type="button"
+          onClick={() => navigate("/")}
+          className="mt-4 mb-2 inline-flex items-center justify-center gap-2 text-[15px] font-medium font-['Inter'] text-[#F68E5F] hover:text-[#ff702d] transition-all px-5 py-2.5 rounded-full hover:bg-[#F68E5F]/5 z-10"
+        >
+          <ArrowLeft size={18} />
+          <span>Back to Home</span>
+        </button>
       </div>
     </div>
   );

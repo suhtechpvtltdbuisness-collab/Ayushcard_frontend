@@ -715,7 +715,7 @@ const CreateHealthCard = () => {
       setSaveError(""); // Clear any previous errors on success
       setCurrentStep(5); // Auto-advance to receipt step
     } catch (err) {
-      console.error("Health card create error:", err);
+      console.error("Ayush card create error:", err);
       const errMsg = err.response?.data?.message || err.message || "";
       
       // If the error says the transaction already exists, it means the card was created on a previous attempt
@@ -729,7 +729,7 @@ const CreateHealthCard = () => {
       }
 
       setSaveError(
-        errMsg || "Failed to create health card. Please try again."
+        errMsg || "Failed to create ayush card. Please try again."
       );
     } finally {
       setSaveLoading(false);
@@ -768,7 +768,7 @@ const CreateHealthCard = () => {
                     ? "bg-[#fa8112] text-white shadow-lg scale-110"
                     : currentStep > step.id
                       ? "bg-[#fa8112] text-white"
-                      : "border-2 border-orange-100 text-[#222222] bg-white text-gray-400"
+                      : "border-2 border-orange-100 bg-white text-gray-400"
                 }`}
               >
                 {currentStep > step.id ? (
@@ -811,7 +811,7 @@ const CreateHealthCard = () => {
           <div className="w-full border-2 border-[#fa8112]/30 bg-orange-50/20 p-4 sm:p-8 rounded-3xl flex flex-col items-center justify-center transition-all overflow-hidden min-h-[400px]">
               {cameraActive ? (
                 <div className="w-full max-w-md space-y-4 animate-in fade-in zoom-in-95">
-                  <div className="relative aspect-[4/3] bg-black rounded-2xl overflow-hidden shadow-2xl border-4 border-white">
+                  <div className="relative aspect-4/3 bg-black rounded-2xl overflow-hidden shadow-2xl border-4 border-white">
                     <video 
                       ref={videoRef} 
                       autoPlay 
@@ -850,7 +850,7 @@ const CreateHealthCard = () => {
                     <button 
                       onClick={capturePhoto}
                       disabled={ocrLoading}
-                      className="flex-[2] py-4 bg-[#fa8112] hover:bg-[#e47510] text-white rounded-2xl font-bold shadow-lg shadow-orange-200 transition-all flex items-center justify-center gap-2 active:scale-95"
+                      className="flex-2 py-4 bg-[#fa8112] hover:bg-[#e47510] text-white rounded-2xl font-bold shadow-lg shadow-orange-200 transition-all flex items-center justify-center gap-2 active:scale-95"
                     >
                       {ocrLoading ? <Loader2 className="animate-spin" /> : <Camera size={20} />}
                       {ocrLoading ? "Scanning..." : "Capture & Scan"}
@@ -1106,7 +1106,7 @@ const CreateHealthCard = () => {
               </button>
             ) : (
               <div className="flex items-center gap-4 bg-emerald-50/60 border border-emerald-100 rounded-lg p-3">
-                <div className="h-14 w-14 rounded-full overflow-hidden border border-emerald-200 flex-shrink-0">
+                <div className="h-14 w-14 rounded-full overflow-hidden border border-emerald-200 shrink-0">
                   <img
                     src={headImage}
                     alt="Family Head"
@@ -1118,7 +1118,7 @@ const CreateHealthCard = () => {
                     Family head photo attached
                   </p>
                   <p className="text-[11px] text-gray-500 truncate">
-                    This photo will be printed on the Ayush Health Card.
+                    This photo will be printed on the Ayush Card.
                   </p>
                 </div>
                 <button
@@ -1169,8 +1169,8 @@ const CreateHealthCard = () => {
             <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center text-gray-200 mb-6">
               <Plus size={40} />
             </div>
-            <h4 className="font-bold text-[#22333B] text-[20px] mb-2 text-gray-300">No Family Members</h4>
-            <p className="text-gray-400 text-[14px] max-w-[240px]">Include your family members to share health card benefits (₹10/member)</p>
+            <h4 className="font-bold text-[20px] mb-2 text-gray-300">No Family Members</h4>
+            <p className="text-gray-400 text-[14px] max-w-[240px]">Include your family members to share ayush card benefits (₹10/member)</p>
           </div>
         ) : (
           <>
@@ -1594,7 +1594,7 @@ const CreateHealthCard = () => {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[1070px] h-full max-h-full flex flex-col relative overflow-hidden animate-in zoom-in-95 duration-200">
         <div className="flex justify-between items-center p-4 sm:p-6 shrink-0 border-b border-gray-100 gap-4">
           <h2 className="text-base sm:text-[20px] font-bold text-[#22333B]">
-            New Healthcard Application
+            New Ayush Card Application
           </h2>
           <button
             onClick={() => {
@@ -1661,7 +1661,7 @@ const CreateHealthCard = () => {
               onClick={handleFinalSave}
               className="px-6 py-2.5 bg-[#2A3342] hover:bg-[#1E2530] text-white rounded-lg text-sm font-medium transition-colors shadow-xs"
             >
-              Back to Healthcard List
+              Back to Ayushcard List
             </button>
           )}
         </div>

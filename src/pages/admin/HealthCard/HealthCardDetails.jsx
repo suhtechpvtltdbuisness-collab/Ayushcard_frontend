@@ -615,7 +615,7 @@ const HealthCardDetails = () => {
           {/* QR Code */}
           <div className="border border-[#E2E8F0] rounded-xl p-4 sm:p-6 bg-white flex flex-col">
             <h3 className="font-bold text-[15px] text-[#22333B]">QR Code</h3>
-            <p className="text-[13px] text-[#6D6D6D] mb-5">A Unique QR code of your Health Card</p>
+            <p className="text-[13px] text-[#6D6D6D] mb-5">A Unique QR code of your Ayush Card</p>
             <div className="flex-1 flex items-center justify-center">
               <img
                 src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`${window.location.origin}/verify/${formData.id}`)}`}

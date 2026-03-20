@@ -16,8 +16,8 @@ const HelpSupport = () => {
 
   const categories = [
     {
-      title: "Health Cards",
-      description: "Manage health cards, applications.",
+      title: "Ayush Cards",
+      description: "Manage ayush cards, applications.",
       icon: <CreditCard className="w-5 h-5 text-[#F68E5F]" />,
       bgClass: "bg-[#FFF7ED]",
     },
