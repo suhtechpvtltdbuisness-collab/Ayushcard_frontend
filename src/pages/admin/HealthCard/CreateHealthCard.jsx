@@ -62,6 +62,8 @@ const CreateHealthCard = () => {
   const headCameraStreamRef = useRef(null);
   const [headImage, setHeadImage] = useState("");
   const [headCameraActive, setHeadCameraActive] = useState(false);
+  const [headCameraPermissionDenied, setHeadCameraPermissionDenied] =
+    useState(false);
 
   // Store actual File objects for API upload
   const documentFrontFileRef = useRef(null);
@@ -288,19 +290,41 @@ const CreateHealthCard = () => {
   };
 
   const startHeadCamera = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setHeadCameraPermissionDenied(false);
+      toastWarn("Camera is not supported in this browser.");
+      return;
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "user",
-          width: { ideal: 720 },
-          height: { ideal: 720 },
-        },
-      });
+      setHeadCameraPermissionDenied(false);
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: "user",
+            width: { ideal: 720 },
+            height: { ideal: 720 },
+          },
+        });
+      } catch (primaryErr) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+        });
+      }
       headCameraStreamRef.current = stream;
       setHeadCameraActive(true);
     } catch (err) {
       console.error("Head camera error:", err);
-      toastWarn("Could not access camera. Please use upload option.");
+      const denied =
+        err?.name === "NotAllowedError" ||
+        err?.name === "PermissionDeniedError";
+      setHeadCameraPermissionDenied(denied);
+      toastWarn(
+        denied
+          ? "Camera permission denied. Click Allow Camera and permit camera access."
+          : "Could not access camera. Please check camera availability.",
+      );
     }
   };
 
@@ -325,6 +349,7 @@ const CreateHealthCard = () => {
 
     const base64 = canvas.toDataURL("image/jpeg", 0.8);
     setHeadImage(base64);
+    setHeadCameraPermissionDenied(false);
     stopHeadCamera();
   };
 
@@ -1560,9 +1585,17 @@ const CreateHealthCard = () => {
                       onClick={startHeadCamera}
                       className="px-3 py-1.5 text-xs font-semibold bg-[#fa8112] text-white rounded-lg hover:bg-[#e47510]"
                     >
-                      Use Camera
+                      {headCameraPermissionDenied
+                        ? "Allow Camera"
+                        : "Use Camera"}
                     </button>
                   </div>
+                  {headCameraPermissionDenied && (
+                    <p className="text-[11px] text-red-500 mt-2 text-center">
+                      Camera access is blocked. Tap Allow Camera, then approve
+                      permission in browser settings/popup.
+                    </p>
+                  )}
                 </div>
               )
             ) : (
@@ -1716,7 +1749,10 @@ const CreateHealthCard = () => {
                       />
                       {memberScanningIndex !== index && (
                         <button
-                          onClick={() => startMemberCamera(index)}
+                          onClick={() => {
+                            setMemberScanningIndex(index);
+                            setMemberScanProgress(0);
+                          }}
                           className="px-3 py-3 bg-orange-50 border border-orange-200 rounded-xl hover:bg-orange-100 transition-colors"
                           title="Scan member ID"
                         >

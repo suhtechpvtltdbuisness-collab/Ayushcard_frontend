@@ -98,6 +98,8 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
   // Step 2 State (Family Head)
   const [headImage, setHeadImage] = useState(null);
   const [headCameraActive, setHeadCameraActive] = useState(false);
+  const [headCameraPermissionDenied, setHeadCameraPermissionDenied] =
+    useState(false);
   const [familyHead, setFamilyHead] = useState({
     fullName: "",
     dob: "",
@@ -507,19 +509,41 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
   };
 
   const startHeadCamera = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setHeadCameraPermissionDenied(false);
+      toastWarn("Camera is not supported in this browser.");
+      return;
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "user",
-          width: { ideal: 720 },
-          height: { ideal: 720 },
-        },
-      });
+      setHeadCameraPermissionDenied(false);
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: "user",
+            width: { ideal: 720 },
+            height: { ideal: 720 },
+          },
+        });
+      } catch (primaryErr) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+        });
+      }
       headCameraStreamRef.current = stream;
       setHeadCameraActive(true);
     } catch (err) {
       console.error("Head camera error:", err);
-      toastWarn("Could not access camera. Please use upload option.");
+      const denied =
+        err?.name === "NotAllowedError" ||
+        err?.name === "PermissionDeniedError";
+      setHeadCameraPermissionDenied(denied);
+      toastWarn(
+        denied
+          ? "Camera permission denied. Click Allow Camera and permit camera access."
+          : "Could not access camera. Please check camera availability.",
+      );
     }
   };
 
@@ -549,9 +573,11 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
     try {
       const compressedBase64 = await compressBase64Image(base64, 800, 800, 0.7);
       setHeadImage(compressedBase64);
+      setHeadCameraPermissionDenied(false);
     } catch (err) {
       console.error("Head camera compression failed", err);
       setHeadImage(base64);
+      setHeadCameraPermissionDenied(false);
     }
   };
 
@@ -1512,9 +1538,17 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                               onClick={startHeadCamera}
                               className="flex-1 px-3 py-2 bg-[#fa8112] text-white rounded-lg text-[12px] font-semibold"
                             >
-                              Camera
+                              {headCameraPermissionDenied
+                                ? "Allow Camera"
+                                : "Camera"}
                             </button>
                           </div>
+                          {headCameraPermissionDenied && (
+                            <p className="text-[11px] text-red-500 mt-2 text-center">
+                              Camera access is blocked. Tap Allow Camera, then
+                              approve permission in browser settings/popup.
+                            </p>
+                          )}
                         </div>
                       )
                     ) : (
@@ -1961,9 +1995,11 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                           />
                           {memberScanningIndex !== activeMemberTab - 1 && (
                             <button
-                              onClick={() =>
-                                setMemberScanningIndex(activeMemberTab - 1)
-                              }
+                              onClick={() => {
+                                stopMemberCamera();
+                                setMemberScanProgress(0);
+                                setMemberScanningIndex(activeMemberTab - 1);
+                              }}
                               className="px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors"
                               title="Scan member ID"
                             >
