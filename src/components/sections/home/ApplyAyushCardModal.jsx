@@ -39,9 +39,9 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
 
   const [paymentScreenshot, setPaymentScreenshot] = useState(null);
   const [isEditingReview, setIsEditingReview] = useState(false);
-  
+
   // Payment States
-  const [paymentMethod, setPaymentMethod] = useState(null); // select between "online" | "cash" in Step 4
+  const [paymentMethod, setPaymentMethod] = useState("online");
   const [onlinePaymentLoading, setOnlinePaymentLoading] = useState(false);
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [orderId, setOrderId] = useState(null);
@@ -55,7 +55,12 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
   const [cameraActive, setCameraActive] = useState(false);
 
   // Helper: compress a base64 image to reasonable dimensions/quality
-  const compressBase64Image = (base64Src, maxWidth = 1000, maxHeight = 1000, quality = 0.7) => {
+  const compressBase64Image = (
+    base64Src,
+    maxWidth = 1000,
+    maxHeight = 1000,
+    quality = 0.7,
+  ) => {
     return new Promise((resolve, reject) => {
       try {
         const img = new Image();
@@ -104,6 +109,15 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
 
   const [members, setMembers] = useState([]);
   const [activeMemberTab, setActiveMemberTab] = useState(0); // 0 is head, 1+ is members
+
+  // Member scanning state
+  const [memberScanningIndex, setMemberScanningIndex] = useState(null);
+  const [memberScanProgress, setMemberScanProgress] = useState(0);
+  const memberVideoRef = useRef(null);
+  const memberCanvasRef = useRef(null);
+  const memberStreamRef = useRef(null);
+  const [memberCameraActive, setMemberCameraActive] = useState(false);
+  const memberInputRef = useRef(null);
 
   const resetForm = () => {
     setCurrentStep(1);
@@ -161,11 +175,33 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
     }
   }, [cameraActive]);
 
+  useEffect(() => {
+    if (
+      memberCameraActive &&
+      memberVideoRef.current &&
+      memberStreamRef.current
+    ) {
+      memberVideoRef.current.srcObject = memberStreamRef.current;
+    }
+  }, [memberCameraActive]);
+
+  useEffect(() => {
+    return () => {
+      if (memberStreamRef.current) {
+        memberStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, []);
+
   const startCamera = async () => {
     try {
       setOcrLoading(true);
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
       });
       streamRef.current = stream;
       setCameraActive(true);
@@ -179,7 +215,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
 
   const stopCamera = () => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
     if (videoRef.current) videoRef.current.srcObject = null;
@@ -188,47 +224,52 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
 
   const capturePhoto = async () => {
     if (!videoRef.current || !canvasRef.current) return;
-    
+
     setOcrLoading(true);
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    
+
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext("2d");
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    
+
     const base64 = canvas.toDataURL("image/jpeg", 0.8);
     stopCamera();
-    
+
     try {
       const results = await performOCR(base64, (p) => setOcrProgress(p));
       if (results) {
-        setFamilyHead(prev => ({
+        setFamilyHead((prev) => ({
           ...prev,
           fullName: results.name || results.fullName || prev.fullName || "",
           gender: results.gender || prev.gender || "",
           dob: results.dob || prev.dob || "",
           pincode: results.pincode || prev.pincode || "",
           address: results.address || prev.address || "",
-          aadhaarNumber: (results.type === 'aadhaar' ? results.docNumber : prev.aadhaarNumber) || prev.aadhaarNumber || ""
+          aadhaarNumber:
+            (results.type === "aadhaar"
+              ? results.docNumber
+              : prev.aadhaarNumber) ||
+            prev.aadhaarNumber ||
+            "",
         }));
-        setDocFront({ 
-          name: "captured_id.jpg", 
-          size: "Live Capture", 
+        setDocFront({
+          name: "captured_id.jpg",
+          size: "Live Capture",
           url: base64,
-          base64: base64
+          base64: base64,
         });
         toastWarn("Details extracted successfully!");
       }
     } catch (err) {
       console.error("Capture OCR Error:", err);
       toastWarn("Could not extract details. Please enter manually.");
-      setDocFront({ 
-        name: "captured_id.jpg", 
-        size: "Live Capture", 
+      setDocFront({
+        name: "captured_id.jpg",
+        size: "Live Capture",
         url: base64,
-        base64: base64
+        base64: base64,
       });
     } finally {
       setOcrLoading(false);
@@ -238,31 +279,50 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
 
   const parseAadhaarQR = (text) => {
     try {
-      const isXML = text.includes("<?xml") || text.includes("PrintLetterBarcodeData");
+      const isXML =
+        text.includes("<?xml") || text.includes("PrintLetterBarcodeData");
       if (isXML) {
         const uidMatch = text.match(/uid="([^"]+)"/i);
         const nameMatch = text.match(/name="([^"]+)"/i);
         const genderMatch = text.match(/gender="([^"]+)"/i);
         const dobMatch = text.match(/dob="([^"]+)"/i);
         const yobMatch = text.match(/yob="([^"]+)"/i);
-        
-        let dobStr = dobMatch ? dobMatch[1] : (yobMatch ? `01/01/${yobMatch[1]}` : "");
+
+        let dobStr = dobMatch
+          ? dobMatch[1]
+          : yobMatch
+            ? `01/01/${yobMatch[1]}`
+            : "";
         if (dobStr && dobStr.includes("/")) {
           const parts = dobStr.split("/");
-          if (parts.length === 3) dobStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
-        } else if (dobStr && dobStr.includes("-") && dobStr.split("-")[0].length !== 4) {
+          if (parts.length === 3)
+            dobStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        } else if (
+          dobStr &&
+          dobStr.includes("-") &&
+          dobStr.split("-")[0].length !== 4
+        ) {
           const parts = dobStr.split("-");
-          if (parts.length === 3) dobStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+          if (parts.length === 3)
+            dobStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
         }
-        
+
         return {
           uid: uidMatch ? uidMatch[1] : "",
           name: nameMatch ? nameMatch[1] : "",
-          gender: genderMatch ? (genderMatch[1] === 'M' ? 'Male' : genderMatch[1] === 'F' ? 'Female' : 'Other') : "",
+          gender: genderMatch
+            ? genderMatch[1] === "M"
+              ? "Male"
+              : genderMatch[1] === "F"
+                ? "Female"
+                : "Other"
+            : "",
           dob: dobStr,
         };
       }
-    } catch (e) { console.error("Aadhaar parse error", e); }
+    } catch (e) {
+      console.error("Aadhaar parse error", e);
+    }
     return null;
   };
 
@@ -273,41 +333,49 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
         toastWarn("Image size should be less than 5MB");
         return;
       }
-      
+
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64 = reader.result;
         setOcrLoading(true);
         setOcrProgress(0);
         toastWarn("Processing image... please wait.");
-        
+
         try {
           const results = await performOCR(base64, (p) => setOcrProgress(p));
           if (results) {
-            setFamilyHead(prev => ({
+            setFamilyHead((prev) => ({
               ...prev,
               fullName: results.name || results.fullName || prev.fullName || "",
-              aadhaarNumber: (results.type === 'aadhaar' ? results.docNumber : prev.aadhaarNumber) || prev.aadhaarNumber || "",
+              aadhaarNumber:
+                (results.type === "aadhaar"
+                  ? results.docNumber
+                  : prev.aadhaarNumber) ||
+                prev.aadhaarNumber ||
+                "",
               gender: results.gender || prev.gender || "",
               dob: results.dob || prev.dob || "",
               pincode: results.pincode || prev.pincode || "",
-              address: results.address || prev.address || ""
+              address: results.address || prev.address || "",
             }));
             // Compress scanned image before sending to backend
             let compressedBase64 = base64;
             try {
               compressedBase64 = await compressBase64Image(base64);
             } catch (err) {
-              console.warn("Compression failed, using original base64 for scanned image", err);
+              console.warn(
+                "Compression failed, using original base64 for scanned image",
+                err,
+              );
             }
 
-            setDocFront({ 
-              name: file.name, 
-              size: (file.size / (1024 * 1024)).toFixed(2) + " MB", 
+            setDocFront({
+              name: file.name,
+              size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
               url: URL.createObjectURL(file),
-              base64: compressedBase64
+              base64: compressedBase64,
             });
-            
+
             toastWarn("Details extracted and autofilled!");
           } else {
             toastError("Could not extract details. Please enter manually.");
@@ -328,7 +396,8 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
     let { name, value } = e.target;
 
     // Validations
-    if (name === "fullName" || name === "relatedPerson") value = value.replace(/[0-9]/g, "");
+    if (name === "fullName" || name === "relatedPerson")
+      value = value.replace(/[0-9]/g, "");
     if (name === "contactNumber") value = value.replace(/\D/g, "").slice(0, 10);
     if (name === "aadhaarNumber") value = value.replace(/\D/g, "").slice(0, 12);
     if (name === "pincode") value = value.replace(/\D/g, "").slice(0, 6);
@@ -401,7 +470,12 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
       const reader = new FileReader();
       reader.onloadend = async () => {
         try {
-          const compressedBase64 = await compressBase64Image(reader.result, 800, 800, 0.7);
+          const compressedBase64 = await compressBase64Image(
+            reader.result,
+            800,
+            800,
+            0.7,
+          );
           setHeadImage(compressedBase64);
         } catch (err) {
           console.error("Head image compression failed", err);
@@ -422,7 +496,12 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
       const reader = new FileReader();
       reader.onloadend = async () => {
         try {
-          const compressedBase64 = await compressBase64Image(reader.result, 800, 800, 0.7);
+          const compressedBase64 = await compressBase64Image(
+            reader.result,
+            800,
+            800,
+            0.7,
+          );
           setPaymentScreenshot({
             name: file.name,
             size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
@@ -465,29 +544,167 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
     }
   };
 
+  // Member Scanning Functions
+  const startMemberCamera = async (index) => {
+    try {
+      setMemberScanningIndex(index);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
+      memberStreamRef.current = stream;
+      setMemberCameraActive(true);
+    } catch (err) {
+      console.error("Member camera error:", err);
+      toastWarn("Could not access camera. Please use Gallery Upload.");
+    }
+  };
+
+  const stopMemberCamera = () => {
+    if (memberStreamRef.current) {
+      memberStreamRef.current.getTracks().forEach((track) => track.stop());
+      memberStreamRef.current = null;
+    }
+    if (memberVideoRef.current) memberVideoRef.current.srcObject = null;
+    setMemberCameraActive(false);
+    setMemberScanningIndex(null);
+  };
+
+  const calculateAge = (dobStr) => {
+    if (!dobStr) return "";
+    try {
+      const [year, month, day] = dobStr.split("-");
+      if (!year || !month || !day) return "";
+
+      const today = new Date();
+      const birthDate = new Date(
+        parseInt(year),
+        parseInt(month) - 1,
+        parseInt(day),
+      );
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+
+      if (
+        monthDiff < 0 ||
+        (monthDiff === 0 && today.getDate() < birthDate.getDate())
+      ) {
+        age--;
+      }
+
+      return age > 0 && age < 120 ? age.toString() : "";
+    } catch (e) {
+      return "";
+    }
+  };
+
+  const captureMemberPhoto = async () => {
+    if (
+      !memberVideoRef.current ||
+      !memberCanvasRef.current ||
+      memberScanningIndex === null
+    )
+      return;
+
+    const video = memberVideoRef.current;
+    const canvas = memberCanvasRef.current;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const base64 = canvas.toDataURL("image/jpeg", 0.8);
+    stopMemberCamera();
+
+    try {
+      const results = await performOCR(base64, (p) => setMemberScanProgress(p));
+      if (results) {
+        const age = calculateAge(results.dob);
+        const updatedMembers = [...members];
+        updatedMembers[memberScanningIndex] = {
+          ...updatedMembers[memberScanningIndex],
+          fullName: results.name || "",
+          age: age,
+          scannedImage: base64,
+        };
+        setMembers(updatedMembers);
+        toastWarn("Member details extracted successfully!");
+      }
+    } catch (err) {
+      console.error("Member capture OCR Error:", err);
+      toastWarn("Could not extract details. Please enter manually.");
+    } finally {
+      setMemberScanProgress(0);
+    }
+  };
+
+  const handleMemberScanImage = async (e, index) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const base64String = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.readAsDataURL(file);
+    });
+
+    setMemberScanningIndex(index);
+    setMemberScanProgress(0);
+
+    try {
+      const details = await performOCR(base64String, (p) =>
+        setMemberScanProgress(p),
+      );
+      if (details) {
+        const age = calculateAge(details.dob);
+        const updatedMembers = [...members];
+        updatedMembers[index] = {
+          ...updatedMembers[index],
+          fullName: details.name || "",
+          age: age,
+          scannedImage: base64String,
+        };
+        setMembers(updatedMembers);
+        toastWarn("Member details extracted successfully!");
+      }
+    } catch (err) {
+      console.error("Member OCR Error:", err);
+      toastWarn("Could not extract details. Please enter manually.");
+    } finally {
+      setMemberScanProgress(0);
+      setMemberScanningIndex(null);
+    }
+  };
+
   const submitFinalApplication = async (resolvedTxnId = null) => {
     const finalTxnId = resolvedTxnId || txnId || `MANUAL-${Date.now()}`;
-    
+
     // Build the API payload
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split("T")[0];
     const cardExpiry = new Date();
     cardExpiry.setFullYear(cardExpiry.getFullYear() + 1);
-    const cardExpiryDate = cardExpiry.toISOString().split('T')[0];
+    const cardExpiryDate = cardExpiry.toISOString().split("T")[0];
 
     // Split fullName into firstName / middleName / lastName
-    const nameParts = familyHead.fullName.trim().split(' ').filter(Boolean);
-    const firstName = nameParts[0] || '';
-    const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
-    const middleName = nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '';
+    const nameParts = familyHead.fullName.trim().split(" ").filter(Boolean);
+    const firstName = nameParts[0] || "";
+    const lastName =
+      nameParts.length > 1 ? nameParts[nameParts.length - 1] : "";
+    const middleName =
+      nameParts.length > 2 ? nameParts.slice(1, -1).join(" ") : "";
 
     const payload = {
       applicationDate: today,
-      status: 'pending',
+      status: "pending",
       firstName,
       middleName,
       lastName,
       contact: familyHead.contactNumber,
-      alternateContact: '',
+      alternateContact: "",
       email: familyHead.emailAddress,
       relation: familyHead.relation,
       relatedPerson: familyHead.relatedPerson,
@@ -507,8 +724,8 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
           originalName: docFront.name,
           path: docFront.base64 || docFront.url,
           size: 0,
-          mimetype: 'image/jpeg',
-          type: 'aadhaar_front',
+          mimetype: "image/jpeg",
+          type: "aadhaar_front",
           uploadedAt: new Date().toISOString(),
         },
         docBack && {
@@ -516,17 +733,17 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
           originalName: docBack.name,
           path: docBack.base64 || docBack.url,
           size: 0,
-          mimetype: 'image/jpeg',
-          type: 'aadhaar_back',
+          mimetype: "image/jpeg",
+          type: "aadhaar_back",
           uploadedAt: new Date().toISOString(),
         },
         headImage && {
-          filename: 'family_head_photo.jpg',
-          originalName: 'family_head_photo.jpg',
+          filename: "family_head_photo.jpg",
+          originalName: "family_head_photo.jpg",
           path: headImage, // This is already base64 now
           size: 0,
-          mimetype: 'image/jpeg',
-          type: 'profile_photo',
+          mimetype: "image/jpeg",
+          type: "profile_photo",
           uploadedAt: new Date().toISOString(),
         },
         paymentScreenshot && {
@@ -534,27 +751,22 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
           originalName: paymentScreenshot.name,
           path: paymentScreenshot.base64 || paymentScreenshot.url,
           size: 0,
-          mimetype: 'image/jpeg',
-          type: 'payment_screenshot',
+          mimetype: "image/jpeg",
+          type: "payment_screenshot",
           uploadedAt: new Date().toISOString(),
-        }
+        },
       ].filter(Boolean),
       isPrint: false,
       members: members.map((m) => {
         return {
           name: m.fullName,
-          relation: m.relation || 'Family Member',
+          relation: m.relation || "Family Member",
           age: parseInt(m.age) || 0,
         };
       }),
       payment: {
         transactionId: finalTxnId,
-        method:
-          paymentMethod === 'cash'
-            ? 'cash'
-            : paymentScreenshot
-              ? 'manual'
-              : 'online',
+        method: "online",
         totalAmount: estimatedFee,
         date: new Date().toISOString(),
         orderId: orderId || "",
@@ -575,19 +787,19 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
       setApplicationId(appId);
       setCurrentStep(5);
     } catch (err) {
-      console.error('Card application submission error:', err);
+      console.error("Card application submission error:", err);
       const errMsg = err.response?.data?.message || err.message || "";
-      
+
       if (errMsg.toLowerCase().includes("already exists")) {
-        console.log("Card already exists (public modal), proceeding to success.");
+        console.log(
+          "Card already exists (public modal), proceeding to success.",
+        );
         // Try to recover appId if possible, though it's less critical here for the receipt view
         setCurrentStep(5);
         return;
       }
 
-      toastError(
-        errMsg || 'Failed to submit application. Please try again.'
-      );
+      toastError(errMsg || "Failed to submit application. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -601,18 +813,34 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
       const payload = {
         amount,
         customerName: (familyHead.fullName || "").trim() || "Customer",
-        customerEmail: (familyHead.emailAddress || "").trim() || "customer@example.com",
-        customerPhone: (familyHead.contactNumber || "").trim().replace(/\D/g, "").slice(0, 10) || "9999999999",
+        customerEmail:
+          (familyHead.emailAddress || "").trim() || "customer@example.com",
+        customerPhone:
+          (familyHead.contactNumber || "")
+            .trim()
+            .replace(/\D/g, "")
+            .slice(0, 10) || "9999999999",
       };
 
       const res = await apiService.createPublicPaymentOrder(payload);
-      
-      const possibleData = [res, res?.data, res?.data?.data, res?.order, res?.data?.order].filter(Boolean);
+
+      const possibleData = [
+        res,
+        res?.data,
+        res?.data?.data,
+        res?.order,
+        res?.data?.order,
+      ].filter(Boolean);
       let sessionId = null;
       let cOrderId = null;
 
       for (const d of possibleData) {
-        sessionId = sessionId || d.payment_session_id || d.paymentSessionId || d.cf_session_id || d.sessionId;
+        sessionId =
+          sessionId ||
+          d.payment_session_id ||
+          d.paymentSessionId ||
+          d.cf_session_id ||
+          d.sessionId;
         cOrderId = cOrderId || d.order_id || d.orderId || d.cf_order_id;
       }
 
@@ -623,17 +851,23 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
       setOrderId(cOrderId);
 
       const cashfree = await load({ mode: "sandbox" });
-      cashfree.checkout({
-        paymentSessionId: sessionId,
-        redirectTarget: "_modal",
-      }).then(() => {
-        setTimeout(() => {
-          handleVerifyCashfreePayment(cOrderId);
-        }, 1500);
-      });
+      cashfree
+        .checkout({
+          paymentSessionId: sessionId,
+          redirectTarget: "_modal",
+        })
+        .then(() => {
+          setTimeout(() => {
+            handleVerifyCashfreePayment(cOrderId);
+          }, 1500);
+        });
     } catch (err) {
       console.error("[Cashfree] Initiate failed:", err);
-      const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || "Failed to initiate payment.";
+      const errorMsg =
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        err.message ||
+        "Failed to initiate payment.";
       setSaveError(errorMsg);
       toastError(errorMsg);
     } finally {
@@ -654,8 +888,11 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
         customerPhone: familyHead.contactNumber,
       };
 
-      const verifyRes = await apiService.verifyPublicPayment(activeOrderId, verifyData);
-      
+      const verifyRes = await apiService.verifyPublicPayment(
+        activeOrderId,
+        verifyData,
+      );
+
       const isSuccess =
         verifyRes?.success === true ||
         verifyRes?.data?.payment?.status === "SUCCESS" ||
@@ -669,12 +906,14 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
           verifyRes?.data?.gatewayOrder?.cf_order_id ||
           verifyRes?.transactionId ||
           `TXN${Date.now()}`;
-        
+
         // Store transaction ID and show success state in Step 4.
         // User will click "Complete Registration" to submit, same as admin flow.
         setTxnId(resolvedTxnId);
       } else {
-        toastWarn("Payment verification pending or failed. Please check your bank or retry.");
+        toastWarn(
+          "Payment verification pending or failed. Please check your bank or retry.",
+        );
       }
     } catch (err) {
       console.error("Verification error:", err);
@@ -707,7 +946,9 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
       if (!fg.pincode) missingFields.push("Pincode");
 
       if (missingFields.length > 0) {
-        toastWarn(`Please fill missing family head details: ${missingFields.join(", ")}`);
+        toastWarn(
+          `Please fill missing family head details: ${missingFields.join(", ")}`,
+        );
         return;
       }
 
@@ -723,8 +964,6 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
         toastWarn("Pincode must be 6 digits.");
         return;
       }
-
-
 
       // Logic to auto redirect to Member 1 on Step 3 if we add a member
       if (members.length > 0) {
@@ -745,20 +984,12 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
       }
     }
 
-    // Step 4: handled by Cashfree flow
+    // Step 4: handled by online Cashfree flow
     if (currentStep === 4) {
-      if (!paymentMethod) {
-        toastWarn("Please select a payment mode.");
-        return;
-      }
-
-      if (paymentMethod === "online" && !txnId) {
-        toastWarn("Please complete and verify online payment before continuing.");
-        return;
-      }
-
-      if (paymentMethod === "cash" && !paymentScreenshot) {
-        toastWarn("Please upload payment screenshot for cash mode.");
+      if (!txnId) {
+        toastWarn(
+          "Please complete and verify online payment before continuing.",
+        );
         return;
       }
       await submitFinalApplication();
@@ -787,10 +1018,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
   const cardPreviewData = {
     applicantFirstName: (familyHead.fullName || "").split(" ")[0] || "",
     applicantLastName:
-      (familyHead.fullName || "")
-        .split(" ")
-        .slice(1)
-        .join(" ") || "",
+      (familyHead.fullName || "").split(" ").slice(1).join(" ") || "",
     dob: familyHead.dob || "",
     phone: familyHead.contactNumber || "",
     aadhaarNumber: familyHead.aadhaarNumber || "",
@@ -858,11 +1086,9 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
       </div>
       <div className="text-[9px] font-bold space-y-1 opacity-80 border-t border-dashed border-gray-300 pt-3">
         <p className="uppercase">
-          Transaction ID: {txnId || `CASH-${Date.now()}`}
+          Transaction ID: {txnId || `ONLINE-${Date.now()}`}
         </p>
-        <p className="uppercase">
-          Payment: {paymentMethod === "online" ? "UPI/Online" : "Cash Received"}
-        </p>
+        <p className="uppercase">Payment: UPI/Online</p>
         <p className="text-center text-[10px] mt-4 font-black tracking-widest border border-black py-1 uppercase italic">
           Paid &amp; Verified
         </p>
@@ -894,8 +1120,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                 Apply for Ayush Card
               </h3>
               <h2 className="text-[16px] font-medium text-[#757575] tracking-wide mt-0.5">
-                Ayush Card for You & Your Family — INR 100 to INR 500 per
-                family
+                Ayush Card for You & Your Family — INR 100 to INR 500 per family
               </h2>
             </div>
             <button
@@ -1020,79 +1245,109 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                   <div className="flex flex-col gap-6 mb-6 relative w-full items-center justify-center">
                     {/* Scanner Section */}
                     <div className="w-full flex flex-col items-center justify-center p-4 sm:p-6 rounded-xl border border-[#fa8112]/30 bg-[#faf3e1] min-h-[320px]">
-                        {cameraActive ? (
-                          <div className="w-full max-w-sm space-y-4 animate-in fade-in zoom-in-95">
-                            <div className="relative aspect-[4/3] bg-black rounded-xl overflow-hidden shadow-xl border-2 border-white">
-                              <video 
-                                ref={videoRef} 
-                                autoPlay 
-                                playsInline 
-                                className="w-full h-full object-cover"
-                              />
-                              <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 border-2 border-white/50 border-dashed aspect-[1.6/1] rounded-lg"></div>
-                              {ocrLoading && (
-                                <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center p-6 transition-all animate-in fade-in">
-                                  <div className="w-full max-w-[160px] h-1.5 bg-white/20 rounded-full overflow-hidden mb-3 relative">
-                                    <div className="h-full bg-[#fa8112] transition-all duration-300" style={{ width: `${ocrProgress}%` }}></div>
-                                  </div>
-                                  <p className="text-white text-[12px] font-bold animate-pulse">Scanning... {ocrProgress}%</p>
-                                  <div className="absolute left-0 right-0 h-0.5 bg-[#fa8112] shadow-[0_0_10px_#fa8112] blur-[1px] animate-[scan_2s_infinite]"></div>
+                      {cameraActive ? (
+                        <div className="w-full max-w-sm space-y-4 animate-in fade-in zoom-in-95">
+                          <div className="relative aspect-[4/3] bg-black rounded-xl overflow-hidden shadow-xl border-2 border-white">
+                            <video
+                              ref={videoRef}
+                              autoPlay
+                              playsInline
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 border-2 border-white/50 border-dashed aspect-[1.6/1] rounded-lg"></div>
+                            {ocrLoading && (
+                              <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center p-6 transition-all animate-in fade-in">
+                                <div className="w-full max-w-[160px] h-1.5 bg-white/20 rounded-full overflow-hidden mb-3 relative">
+                                  <div
+                                    className="h-full bg-[#fa8112] transition-all duration-300"
+                                    style={{ width: `${ocrProgress}%` }}
+                                  ></div>
                                 </div>
-                              )}
-                            </div>
-                            <style>{`
+                                <p className="text-white text-[12px] font-bold animate-pulse">
+                                  Scanning... {ocrProgress}%
+                                </p>
+                                <div className="absolute left-0 right-0 h-0.5 bg-[#fa8112] shadow-[0_0_10px_#fa8112] blur-[1px] animate-[scan_2s_infinite]"></div>
+                              </div>
+                            )}
+                          </div>
+                          <style>{`
                               @keyframes scan {
                                 0% { top: 20%; }
                                 50% { top: 80%; }
                                 100% { top: 20%; }
                               }
                             `}</style>
-                            <div className="flex gap-3">
-                              <button 
-                                onClick={stopCamera}
-                                className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 rounded-lg font-bold transition-all"
-                              >
-                                Cancel
-                              </button>
-                              <button 
-                                onClick={capturePhoto}
-                                disabled={ocrLoading}
-                                className="flex-[2] py-3 bg-[#fa8112] text-white rounded-lg font-bold shadow-md flex items-center justify-center gap-2 active:scale-95"
-                              >
-                                {ocrLoading ? <Loader2 className="animate-spin" size={18} /> : <Camera size={18} />}
-                                {ocrLoading ? "Scanning..." : "Capture & Scan"}
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center group">
-                            <div 
-                              className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center shadow-lg mb-6 cursor-pointer hover:scale-105 transition-all border border-orange-100 group-hover:border-[#fa8112]"
-                              onClick={startCamera}
+                          <div className="flex gap-3">
+                            <button
+                              onClick={stopCamera}
+                              className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 rounded-lg font-bold transition-all"
                             >
-                              {ocrLoading ? <Loader2 className="animate-spin text-[#fa8112]" size={32} /> : <Camera size={32} className="text-[#fa8112]" />}
-                            </div>
-                            <h4 className="font-bold text-[#22333B] text-[16px] mb-2">Live ID Scanner</h4>
-                            <p className="text-[13px] text-gray-500 max-w-[240px] text-center mb-6">Open your camera to instantly extract details from Aadhaar or PAN cards.</p>
-                            <div className="flex gap-3 w-full">
-                              <button 
-                                onClick={startCamera}
-                                className="px-6 py-2.5 bg-[#fa8112] text-white rounded-lg font-bold flex items-center justify-center gap-2 shadow-md hover:bg-[#e47510] transition-all"
-                              >
-                                <Camera size={16} /> Open Camera
-                              </button>
-                              <button 
-                                onClick={() => document.getElementById('ocr-input').click()}
-                                className="px-6 py-2.5 bg-white border border-[#fa8112] text-[#fa8112] rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-orange-50 transition-all"
-                              >
-                                <UploadCloud size={16} /> From Gallery
-                              </button>
-                            </div>
+                              Cancel
+                            </button>
+                            <button
+                              onClick={capturePhoto}
+                              disabled={ocrLoading}
+                              className="flex-[2] py-3 bg-[#fa8112] text-white rounded-lg font-bold shadow-md flex items-center justify-center gap-2 active:scale-95"
+                            >
+                              {ocrLoading ? (
+                                <Loader2 className="animate-spin" size={18} />
+                              ) : (
+                                <Camera size={18} />
+                              )}
+                              {ocrLoading ? "Scanning..." : "Capture & Scan"}
+                            </button>
                           </div>
-                        )}
-                        <canvas ref={canvasRef} className="hidden" />
-                        <input id="ocr-input" type="file" accept="image/*" capture="environment" className="hidden" onChange={handleScanImage} />
-                      </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center group">
+                          <div
+                            className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center shadow-lg mb-6 cursor-pointer hover:scale-105 transition-all border border-orange-100 group-hover:border-[#fa8112]"
+                            onClick={startCamera}
+                          >
+                            {ocrLoading ? (
+                              <Loader2
+                                className="animate-spin text-[#fa8112]"
+                                size={32}
+                              />
+                            ) : (
+                              <Camera size={32} className="text-[#fa8112]" />
+                            )}
+                          </div>
+                          <h4 className="font-bold text-[#22333B] text-[16px] mb-2">
+                            Live ID Scanner
+                          </h4>
+                          <p className="text-[13px] text-gray-500 max-w-[240px] text-center mb-6">
+                            Open your camera to instantly extract details from
+                            Aadhaar or PAN cards.
+                          </p>
+                          <div className="flex gap-3 w-full">
+                            <button
+                              onClick={startCamera}
+                              className="px-6 py-2.5 bg-[#fa8112] text-white rounded-lg font-bold flex items-center justify-center gap-2 shadow-md hover:bg-[#e47510] transition-all"
+                            >
+                              <Camera size={16} /> Open Camera
+                            </button>
+                            <button
+                              onClick={() =>
+                                document.getElementById("ocr-input").click()
+                              }
+                              className="px-6 py-2.5 bg-white border border-[#fa8112] text-[#fa8112] rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-orange-50 transition-all"
+                            >
+                              <UploadCloud size={16} /> From Gallery
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      <canvas ref={canvasRef} className="hidden" />
+                      <input
+                        id="ocr-input"
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={handleScanImage}
+                      />
+                    </div>
 
                     {/* Upload Section */}
                     <div className="w-full border-2 border-[#fa8112] bg-[#faf3e1] p-6 rounded-xl">
@@ -1100,7 +1355,8 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                         Upload Identity Document (JPG/PNG)
                       </h4>
                       <p className="text-[12px] text-gray-600 text-center mb-4">
-                        Step 1: Scan to auto-fill details (optional). Step 2: Upload a clear photo of the same document.
+                        Step 1: Scan to auto-fill details (optional). Step 2:
+                        Upload a clear photo of the same document.
                       </p>
                       <div className="flex justify-center">
                         <button
@@ -1114,8 +1370,14 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                               : "bg-white border hover:border-[#fa8112]"
                           }`}
                         >
-                          <div className={`w-10 h-10 ${docFront ? "bg-green-500" : "bg-[#fa8112]"} rounded-full flex items-center justify-center text-white mb-3`}>
-                            {docFront ? <Check size={20} className="text-white" /> : <UploadCloud size={20} />}
+                          <div
+                            className={`w-10 h-10 ${docFront ? "bg-green-500" : "bg-[#fa8112]"} rounded-full flex items-center justify-center text-white mb-3`}
+                          >
+                            {docFront ? (
+                              <Check size={20} className="text-white" />
+                            ) : (
+                              <UploadCloud size={20} />
+                            )}
                           </div>
                           <span className="text-[14px] font-semibold text-[#222222]">
                             {docFront ? "Document Selected" : "Upload Document"}
@@ -1260,7 +1522,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                     </div>
 
                     {/* Relation and Father/Husband Name removed */}
-                    
+
                     <div>
                       <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
                         Pincode
@@ -1499,21 +1761,109 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                       className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3"
                       key={`member-${activeMemberTab}`}
                     >
+                      {/* Member Scanning UI */}
+                      {memberScanningIndex === activeMemberTab - 1 && (
+                        <div className="md:col-span-2 bg-orange-50 border border-[#FBD7B0] rounded-lg p-3 mb-3">
+                          {memberCameraActive ? (
+                            <div className="space-y-3">
+                              <video
+                                ref={memberVideoRef}
+                                autoPlay
+                                playsInline
+                                className="w-full rounded-lg border border-[#F6B579] max-h-64"
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={captureMemberPhoto}
+                                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#FA8112] text-white rounded-lg hover:bg-[#E47510] font-semibold"
+                                >
+                                  <Check size={18} /> Capture
+                                </button>
+                                <button
+                                  onClick={stopMemberCamera}
+                                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-100 font-semibold"
+                                >
+                                  <X size={18} /> Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {memberScanProgress > 0 && (
+                                <div>
+                                  <div className="w-full bg-gray-200 rounded-full h-2">
+                                    <div
+                                      className="bg-[#FA8112] h-2 rounded-full transition-all"
+                                      style={{
+                                        width: `${memberScanProgress}%`,
+                                      }}
+                                    />
+                                  </div>
+                                  <p className="text-xs text-gray-600 mt-1">
+                                    Scanning: {memberScanProgress}%
+                                  </p>
+                                </div>
+                              )}
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() =>
+                                    startMemberCamera(activeMemberTab - 1)
+                                  }
+                                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#FA8112] text-white rounded-lg hover:bg-[#E47510] font-semibold"
+                                >
+                                  <Camera size={18} /> Use Camera
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    memberInputRef.current?.click()
+                                  }
+                                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#FA8112] text-white rounded-lg hover:bg-[#E47510] font-semibold"
+                                >
+                                  <UploadCloud size={18} /> Upload Photo
+                                </button>
+                              </div>
+                              <input
+                                ref={memberInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) =>
+                                  handleMemberScanImage(e, activeMemberTab - 1)
+                                }
+                                style={{ display: "none" }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <div>
                         <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
                           Full Name
                         </label>
-                        <input
-                          type="text"
-                          name="fullName"
-                          value={members[activeMemberTab - 1].fullName}
-                          onChange={(e) =>
-                            handleMemberChange(activeMemberTab - 1, e)
-                          }
-                          placeholder="Full Name"
-                          style={{ fontFamily: "'Inter', sans-serif" }}
-                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
-                        />
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            name="fullName"
+                            value={members[activeMemberTab - 1].fullName}
+                            onChange={(e) =>
+                              handleMemberChange(activeMemberTab - 1, e)
+                            }
+                            placeholder="Full Name"
+                            style={{ fontFamily: "'Inter', sans-serif" }}
+                            className="flex-1 border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                          />
+                          {memberScanningIndex !== activeMemberTab - 1 && (
+                            <button
+                              onClick={() =>
+                                setMemberScanningIndex(activeMemberTab - 1)
+                              }
+                              className="px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors"
+                              title="Scan member ID"
+                            >
+                              <ScanLine size={18} className="text-[#fa8112]" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div>
                         <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
@@ -1550,8 +1900,12 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                           name="age"
                           value={members[activeMemberTab - 1].age}
                           onChange={(e) => {
-                            const val = e.target.value.replace(/\D/g, "").slice(0, 3);
-                            handleMemberChange(activeMemberTab - 1, { target: { name: 'age', value: val } });
+                            const val = e.target.value
+                              .replace(/\D/g, "")
+                              .slice(0, 3);
+                            handleMemberChange(activeMemberTab - 1, {
+                              target: { name: "age", value: val },
+                            });
                           }}
                           placeholder="Age"
                           style={{ fontFamily: "'Inter', sans-serif" }}
@@ -1562,6 +1916,9 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                   )}
                 </div>
               )}
+
+              {/* Member scanning canvas - hidden */}
+              <canvas ref={memberCanvasRef} style={{ display: "none" }} />
 
               {/* STEP 3: REVIEW */}
               {currentStep === 3 && (
@@ -1663,10 +2020,10 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                                       alt="Document"
                                     />
                                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                      <button 
+                                      <button
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          window.open(docFront.url, '_blank');
+                                          window.open(docFront.url, "_blank");
                                         }}
                                         className="bg-white/90 hover:bg-white text-[#222222] p-1.5 rounded-full shadow-lg transition-all"
                                         title="View Document"
@@ -1700,9 +2057,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                                 className="w-full h-full flex flex-col items-center justify-center text-gray-400 hover:bg-gray-50 transition-colors"
                               >
                                 <UploadCloud size={24} className="mb-2" />
-                                <span className="text-xs">
-                                  Upload Document
-                                </span>
+                                <span className="text-xs">Upload Document</span>
                               </button>
                             )}
                           </div>
@@ -1727,11 +2082,13 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                                     className="w-full h-full object-cover"
                                   />
                                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                    <button 
+                                    <button
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         const win = window.open();
-                                        win.document.write(`<img src="${headImage}" />`);
+                                        win.document.write(
+                                          `<img src="${headImage}" />`,
+                                        );
                                       }}
                                       className="bg-white/90 hover:bg-white text-[#222222] p-1.5 rounded-full shadow-lg transition-all"
                                       title="View Photo"
@@ -1997,8 +2354,12 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                                       <option value="Mother">Mother</option>
                                       <option value="Brother">Brother</option>
                                       <option value="Sister">Sister</option>
-                                      <option value="Grandfather">Grandfather</option>
-                                      <option value="Grandmother">Grandmother</option>
+                                      <option value="Grandfather">
+                                        Grandfather
+                                      </option>
+                                      <option value="Grandmother">
+                                        Grandmother
+                                      </option>
                                       <option value="Other">Other</option>
                                     </select>
                                   ) : (
@@ -2017,8 +2378,12 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                                       name="age"
                                       value={member.age}
                                       onChange={(e) => {
-                                        const val = e.target.value.replace(/\D/g, "").slice(0, 3);
-                                        handleMemberChange(idx, { target: { name: 'age', value: val } });
+                                        const val = e.target.value
+                                          .replace(/\D/g, "")
+                                          .slice(0, 3);
+                                        handleMemberChange(idx, {
+                                          target: { name: "age", value: val },
+                                        });
                                       }}
                                       className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
                                     />
@@ -2056,228 +2421,166 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                 <div className="animate-in fade-in slide-in-from-right-4 duration-300">
                   <div className="text-center mb-8">
                     <h3 className="font-black text-[22px] md:text-[24px] text-[#22333B] uppercase tracking-tight mb-2">
-                      Select Payment Mode
+                      Complete Online Payment
                     </h3>
                     <p className="text-[13px] text-gray-500">
-                      Total Payable Amount: <span className="font-bold text-[#fa8112]">₹{Number(estimatedFee).toFixed(2)}</span>
+                      Total Payable Amount:{" "}
+                      <span className="font-bold text-[#fa8112]">
+                        ₹{Number(estimatedFee).toFixed(2)}
+                      </span>
                     </p>
                   </div>
 
                   <div className="grid grid-cols-1 gap-6 mb-8 max-w-2xl mx-auto">
-                    <div
-                      onClick={() => setPaymentMethod("online")}
-                      className={`group border-2 rounded-[32px] p-6 sm:p-8 bg-white cursor-pointer transition-all flex flex-col sm:flex-row items-center gap-6 ${
-                        paymentMethod === "online" ? "border-[#fa8112] shadow-2xl" : "border-gray-100 hover:border-[#fa8112] hover:shadow-xl"
-                      }`}
-                    >
+                    <div className="group border-2 rounded-[32px] p-6 sm:p-8 bg-white transition-all flex flex-col sm:flex-row items-center gap-6 border-[#fa8112] shadow-2xl">
                       <div className="w-16 h-16 sm:w-20 sm:h-20 bg-orange-50 rounded-3xl flex items-center justify-center text-[#fa8112] group-hover:bg-[#fa8112] group-hover:text-white transition-all shadow-inner shrink-0">
                         <span className="text-2xl">💳</span>
                       </div>
                       <div className="flex-1 text-center sm:text-left">
-                        <h4 className="font-bold text-[#22333B] text-[18px] sm:text-[20px] mb-1">Online Payment</h4>
+                        <h4 className="font-bold text-[#22333B] text-[18px] sm:text-[20px] mb-1">
+                          Online Payment
+                        </h4>
                         <p className="text-gray-500 text-[13px] sm:text-[14px] leading-relaxed">
                           Fast & instant activation via UPI, GPay, or Cards.
                         </p>
                         <div className="flex justify-center sm:justify-start gap-2 mt-4 opacity-80">
-                          <span className="px-3 py-1 bg-green-50 text-green-700 text-[10px] font-bold rounded-lg border border-green-100 tracking-tighter">RECOMMENDED</span>
-                          <span className="px-3 py-1 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-lg border border-blue-100 uppercase">SAFE</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div
-                      onClick={() => setPaymentMethod("cash")}
-                      className={`group border-2 rounded-[32px] p-6 sm:p-8 bg-white cursor-pointer transition-all flex flex-col sm:flex-row items-center gap-6 ${
-                        paymentMethod === "cash" ? "border-[#fa8112] shadow-2xl" : "border-gray-100 hover:border-[#fa8112] hover:shadow-xl"
-                      }`}
-                    >
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-50 rounded-3xl flex items-center justify-center text-gray-400 group-hover:bg-[#fa8112] group-hover:text-white transition-all shadow-inner shrink-0">
-                        <span className="text-2xl">💵</span>
-                      </div>
-                      <div className="flex-1 text-center sm:text-left">
-                        <h4 className="font-bold text-[#22333B] text-[18px] sm:text-[20px] mb-1">Cash Payment</h4>
-                        <p className="text-gray-500 text-[13px] sm:text-[14px] leading-relaxed">
-                          Pay to agent directly. Receipt issued after manual confirmation.
-                        </p>
-                        <div className="flex justify-center sm:justify-start gap-2 mt-4 opacity-80">
-                          <span className="px-3 py-1 bg-gray-50 text-gray-600 text-[10px] font-bold rounded-lg border border-gray-100 tracking-tighter uppercase">OFFLINE</span>
+                          <span className="px-3 py-1 bg-green-50 text-green-700 text-[10px] font-bold rounded-lg border border-green-100 tracking-tighter">
+                            RECOMMENDED
+                          </span>
+                          <span className="px-3 py-1 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-lg border border-blue-100 uppercase">
+                            SAFE
+                          </span>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {paymentMethod && (
-                    <div className="max-w-xl mx-auto">
-                      {saveError && (
-                        <div className="bg-red-50 text-red-600 text-xs p-3 rounded-lg mb-4 border border-red-100 w-full text-center">
-                          {saveError}
-                        </div>
-                      )}
+                  <div className="max-w-xl mx-auto">
+                    {saveError && (
+                      <div className="bg-red-50 text-red-600 text-xs p-3 rounded-lg mb-4 border border-red-100 w-full text-center">
+                        {saveError}
+                      </div>
+                    )}
 
-                      {txnId || paymentScreenshot ? (
-                        <div className="w-full flex flex-col gap-4 animate-in fade-in zoom-in duration-500">
+                    {txnId ? (
+                      <div className="w-full flex flex-col gap-4 animate-in fade-in zoom-in duration-500">
+                        <div
+                          className={`border rounded-2xl p-6 flex flex-col items-center gap-3 ${
+                            txnId
+                              ? "bg-green-50 border-green-200"
+                              : "bg-orange-50 border-orange-200"
+                          }`}
+                        >
                           <div
-                            className={`border rounded-2xl p-6 flex flex-col items-center gap-3 ${
-                              txnId ? "bg-green-50 border-green-200" : "bg-orange-50 border-orange-200"
+                            className={`w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg mb-1 ${
+                              txnId ? "bg-green-500" : "bg-orange-500"
                             }`}
                           >
-                            <div
-                              className={`w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg mb-1 ${
-                                txnId ? "bg-green-500" : "bg-orange-500"
-                              }`}
-                            >
-                              <Check size={28} strokeWidth={3} />
-                            </div>
-                            <h3
-                              className={`text-lg font-bold ${
-                                txnId ? "text-green-700" : "text-orange-700"
-                              }`}
-                            >
-                              {txnId ? "Payment Verified!" : "Screenshot Uploaded!"}
-                            </h3>
-                            <p
-                              className={`text-[11px] text-center font-medium ${
-                                txnId ? "text-green-600" : "text-orange-600"
-                              }`}
-                            >
-                              {txnId ? (
-                                <>
-                                  Ref: {" "}
-                                  <span className="font-mono font-bold uppercase select-all tracking-wider">
-                                    {txnId}
-                                  </span>
-                                </>
-                              ) : (
-                                "Manual verification in progress after submission"
-                              )}
-                            </p>
-                            {paymentScreenshot && !txnId && (
-                              <button
-                                onClick={() => setPaymentScreenshot(null)}
-                                className="text-[10px] text-orange-400 hover:text-orange-600 underline"
-                              >
-                                Remove and change method
-                              </button>
-                            )}
+                            <Check size={28} strokeWidth={3} />
                           </div>
-
-                          <button
-                            onClick={() => submitFinalApplication(txnId)}
-                            disabled={submitting}
-                            className="w-full bg-[#fa8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:active:scale-100"
+                          <h3
+                            className={`text-lg font-bold ${
+                              txnId ? "text-green-700" : "text-orange-700"
+                            }`}
                           >
-                            {submitting ? (
-                              <Loader2 className="animate-spin" size={24} />
-                            ) : (
-                              <>
-                                <CheckCircle2 size={24} />
-                                Complete Registration
-                              </>
-                            )}
-                          </button>
+                            Payment Verified!
+                          </h3>
+                          <p className="text-[11px] text-center font-medium text-green-600">
+                            Ref:{" "}
+                            <span className="font-mono font-bold uppercase select-all tracking-wider">
+                              {txnId}
+                            </span>
+                          </p>
                         </div>
-                      ) : paymentMethod === "online" ? (
-                        <div className="w-full space-y-4">
-                          {!orderId ? (
-                            <button
-                              onClick={handleInitiateCashfreePayment}
-                              disabled={onlinePaymentLoading}
-                              className="w-full bg-[#fa8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:active:scale-100"
-                            >
-                              {onlinePaymentLoading ? (
-                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              ) : (
-                                <span className="text-xl">💳</span>
-                              )}
-                              {onlinePaymentLoading ? "Preparing Gateway..." : "Pay with Cashfree"}
-                            </button>
+
+                        <button
+                          onClick={() => submitFinalApplication(txnId)}
+                          disabled={submitting}
+                          className="w-full bg-[#fa8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:active:scale-100"
+                        >
+                          {submitting ? (
+                            <Loader2 className="animate-spin" size={24} />
                           ) : (
-                            <div className="w-full space-y-4">
-                              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex flex-col items-center gap-2">
-                                <div className="flex items-center gap-2 text-[#fa8112] font-bold text-sm">
-                                  <span className="w-2 h-2 rounded-full bg-[#fa8112] animate-pulse"></span>
-                                  Awaiting Payment...
-                                </div>
-                                <p className="text-[10px] text-gray-500 text-center font-mono">
-                                  OrderId: {orderId}
-                                </p>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-3">
-                                <button
-                                  onClick={() => setOrderId(null)}
-                                  className="py-3 border border-gray-300 rounded-xl text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors"
-                                >
-                                  Retry
-                                </button>
-                                <button
-                                  onClick={() => handleVerifyCashfreePayment()}
-                                  disabled={verifyLoading}
-                                  className="py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-70"
-                                >
-                                  {verifyLoading ? (
-                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                  ) : (
-                                    "Verify"
-                                  )}
-                                </button>
-                              </div>
-                            </div>
+                            <>
+                              <CheckCircle2 size={24} />
+                              Complete Registration
+                            </>
                           )}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-full space-y-4">
+                        {!orderId ? (
+                          <button
+                            onClick={handleInitiateCashfreePayment}
+                            disabled={onlinePaymentLoading}
+                            className="w-full bg-[#fa8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:active:scale-100"
+                          >
+                            {onlinePaymentLoading ? (
+                              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <span className="text-xl">💳</span>
+                            )}
+                            {onlinePaymentLoading
+                              ? "Preparing Gateway..."
+                              : "Pay with Cashfree"}
+                          </button>
+                        ) : (
+                          <div className="w-full space-y-4">
+                            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex flex-col items-center gap-2">
+                              <div className="flex items-center gap-2 text-[#fa8112] font-bold text-sm">
+                                <span className="w-2 h-2 rounded-full bg-[#fa8112] animate-pulse"></span>
+                                Awaiting Payment...
+                              </div>
+                              <p className="text-[10px] text-gray-500 text-center font-mono">
+                                OrderId: {orderId}
+                              </p>
+                            </div>
 
-                          <div className="pt-6 border-t border-gray-50 flex items-center justify-center gap-6 grayscale opacity-40">
-                            <img
-                              src="https://www.cashfree.com/wp-content/uploads/2022/10/cashfree-logo.png"
-                              className="h-4"
-                              alt="Cashfree"
-                            />
-                            <div className="h-4 w-px bg-gray-200" />
-                            <div className="flex gap-2">
-                              <span className="text-[9px] font-bold text-gray-400">UPI</span>
-                              <span className="text-[9px] font-bold text-gray-400">CARDS</span>
-                              <span className="text-[9px] font-bold text-gray-400">NETBANKING</span>
+                            <div className="grid grid-cols-2 gap-3">
+                              <button
+                                onClick={() => setOrderId(null)}
+                                className="py-3 border border-gray-300 rounded-xl text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors"
+                              >
+                                Retry
+                              </button>
+                              <button
+                                onClick={() => handleVerifyCashfreePayment()}
+                                disabled={verifyLoading}
+                                className="py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-70"
+                              >
+                                {verifyLoading ? (
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  "Verify"
+                                )}
+                              </button>
                             </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-4">
-                          <div className="space-y-2">
-                            <p className="text-[13px] font-semibold text-gray-700">
-                              Upload Payment Screenshot
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => paymentInputRef.current?.click()}
-                              className="w-full py-3 px-4 border-2 border-dashed border-[#fa8112] rounded-2xl bg-orange-50/40 hover:bg-orange-50 transition-all flex items-center justify-center gap-2 text-[13px] font-semibold text-[#222222]"
-                            >
-                              <UploadCloud size={18} className="text-[#fa8112]" />
-                              {paymentScreenshot ? "Change Uploaded Image" : "Upload Payment Receipt Image"}
-                            </button>
-                            {paymentScreenshot && (
-                              <p className="text-[11px] text-green-600 font-medium">
-                                Payment screenshot attached.
-                              </p>
-                            )}
-                          </div>
+                        )}
 
-                          <button
-                            onClick={() => {
-                              if (!paymentScreenshot) {
-                                toastWarn("Please upload payment screenshot for cash mode.");
-                                return;
-                              }
-                              submitFinalApplication(null);
-                            }}
-                            disabled={submitting}
-                            className="w-full py-4 bg-[#2A3342] hover:bg-[#1E2530] text-white rounded-2xl font-black text-[16px] shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-70"
-                          >
-                            {submitting ? <Loader2 className="animate-spin" size={20} /> : <Check />}
-                            {submitting ? "Processing..." : "Confirm Cash Payment"}
-                          </button>
+                        <div className="pt-6 border-t border-gray-50 flex items-center justify-center gap-6 grayscale opacity-40">
+                          <img
+                            src="https://www.cashfree.com/wp-content/uploads/2022/10/cashfree-logo.png"
+                            className="h-4"
+                            alt="Cashfree"
+                          />
+                          <div className="h-4 w-px bg-gray-200" />
+                          <div className="flex gap-2">
+                            <span className="text-[9px] font-bold text-gray-400">
+                              UPI
+                            </span>
+                            <span className="text-[9px] font-bold text-gray-400">
+                              CARDS
+                            </span>
+                            <span className="text-[9px] font-bold text-gray-400">
+                              NETBANKING
+                            </span>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -2315,10 +2618,10 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                   className="flex items-center gap-2 bg-[#fa8112] hover:bg-[#e0720f] shadow-md active:scale-95 text-white font-medium pl-6 pr-2 py-2 rounded-full transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
                   {submitting
-                    ? 'Submitting...'
+                    ? "Submitting..."
                     : currentStep === 4
-                      ? 'Confirm Registration'
-                      : 'Continue'}
+                      ? "Confirm Registration"
+                      : "Continue"}
                   <span className="flex items-center justify-center bg-white rounded-full w-8 h-8 ml-2">
                     {submitting ? (
                       <div className="w-4 h-4 border-2 border-[#fa8112] border-t-transparent rounded-full animate-spin" />
@@ -2355,7 +2658,9 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                   <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-3">
                     <Check className="text-white w-6 h-6" strokeWidth={3} />
                   </div>
-                  <h2 className="text-white text-xl font-bold">Payment Successful</h2>
+                  <h2 className="text-white text-xl font-bold">
+                    Payment Successful
+                  </h2>
                   <p className="text-green-100 text-sm mt-1">
                     Application Reference: {applicationId || "Pending"}
                   </p>
@@ -2405,10 +2710,14 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                   <div className="pt-4 mt-4 border-t border-dashed border-gray-200">
                     <div className="bg-gray-50 rounded-lg p-3 flex items-start gap-3">
                       <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
-                        <span className="text-blue-600 text-[10px] font-bold">i</span>
+                        <span className="text-blue-600 text-[10px] font-bold">
+                          i
+                        </span>
                       </div>
                       <p className="text-[11px] text-gray-500 leading-relaxed text-left">
-                        Your application is under review. You will receive an SMS and Email notification once your Ayush Card is generated.
+                        Your application is under review. You will receive an
+                        SMS and Email notification once your Ayush Card is
+                        generated.
                       </p>
                     </div>
                   </div>
