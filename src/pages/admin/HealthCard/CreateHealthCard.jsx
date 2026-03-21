@@ -57,7 +57,11 @@ const CreateHealthCard = () => {
 
   // Family head photo
   const headImageInputRef = useRef(null);
+  const headCameraVideoRef = useRef(null);
+  const headCameraCanvasRef = useRef(null);
+  const headCameraStreamRef = useRef(null);
   const [headImage, setHeadImage] = useState("");
+  const [headCameraActive, setHeadCameraActive] = useState(false);
 
   // Store actual File objects for API upload
   const documentFrontFileRef = useRef(null);
@@ -134,8 +138,20 @@ const CreateHealthCard = () => {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
+      if (headCameraStreamRef.current) {
+        headCameraStreamRef.current
+          .getTracks()
+          .forEach((track) => track.stop());
+      }
     };
   }, []);
+
+  useEffect(() => {
+    if (currentStep !== 1) {
+      stopCamera();
+      stopHeadCamera();
+    }
+  }, [currentStep]);
 
   const handleChange = (e, field) => {
     let value = e.target.value;
@@ -270,6 +286,62 @@ const CreateHealthCard = () => {
     };
     reader.readAsDataURL(file);
   };
+
+  const startHeadCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "user",
+          width: { ideal: 720 },
+          height: { ideal: 720 },
+        },
+      });
+      headCameraStreamRef.current = stream;
+      setHeadCameraActive(true);
+    } catch (err) {
+      console.error("Head camera error:", err);
+      toastWarn("Could not access camera. Please use upload option.");
+    }
+  };
+
+  const stopHeadCamera = () => {
+    if (headCameraStreamRef.current) {
+      headCameraStreamRef.current.getTracks().forEach((track) => track.stop());
+      headCameraStreamRef.current = null;
+    }
+    if (headCameraVideoRef.current) headCameraVideoRef.current.srcObject = null;
+    setHeadCameraActive(false);
+  };
+
+  const captureHeadPhoto = () => {
+    if (!headCameraVideoRef.current || !headCameraCanvasRef.current) return;
+
+    const video = headCameraVideoRef.current;
+    const canvas = headCameraCanvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const base64 = canvas.toDataURL("image/jpeg", 0.8);
+    setHeadImage(base64);
+    stopHeadCamera();
+  };
+
+  useEffect(() => {
+    if (
+      headCameraActive &&
+      headCameraVideoRef.current &&
+      headCameraStreamRef.current
+    ) {
+      headCameraVideoRef.current.srcObject = headCameraStreamRef.current;
+      try {
+        headCameraVideoRef.current.play();
+      } catch (playErr) {
+        console.warn("Head camera video play error:", playErr);
+      }
+    }
+  }, [headCameraActive]);
 
   const handleRemoveImage = (side) => {
     if (side === "front") {
@@ -1436,26 +1508,63 @@ const CreateHealthCard = () => {
             </p>
 
             {!headImage ? (
-              <button
-                type="button"
-                onClick={() => headImageInputRef.current?.click()}
-                className="w-full border-2 border-dashed border-gray-200 rounded-lg p-4 flex flex-col items-center justify-center gap-2 hover:border-emerald-500 hover:bg-emerald-50/40 transition-all min-h-[140px]"
-              >
-                <div className="h-12 w-12 rounded-full bg-emerald-50 flex items-center justify-center mb-1">
-                  <User className="h-6 w-6 text-emerald-600" />
+              headCameraActive ? (
+                <div className="w-full border border-[#FBD7B0] bg-orange-50 rounded-lg p-3">
+                  <div className="relative aspect-square max-w-[260px] mx-auto rounded-lg overflow-hidden border border-[#F6B579] bg-black">
+                    <video
+                      ref={headCameraVideoRef}
+                      autoPlay
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      type="button"
+                      onClick={stopHeadCamera}
+                      className="flex-1 py-2 border border-gray-300 bg-white text-gray-700 rounded-lg font-semibold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={captureHeadPhoto}
+                      className="flex-1 py-2 bg-[#fa8112] text-white rounded-lg font-semibold flex items-center justify-center gap-2"
+                    >
+                      <Camera className="h-4 w-4" /> Capture
+                    </button>
+                  </div>
                 </div>
-                <span className="font-semibold text-gray-800 text-sm">
-                  Upload Family Head Photo
-                </span>
-                <span className="text-xs text-gray-500 text-center">
-                  Clear front-facing photo of the family head (JPG/PNG up to
-                  5MB)
-                </span>
-                <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">
-                  <Camera className="h-3 w-3" />
-                  Recommended: Use camera for best clarity
-                </span>
-              </button>
+              ) : (
+                <div className="w-full border-2 border-dashed border-gray-200 rounded-lg p-4 flex flex-col items-center justify-center gap-2 hover:border-emerald-500 hover:bg-emerald-50/40 transition-all min-h-[140px]">
+                  <div className="h-12 w-12 rounded-full bg-emerald-50 flex items-center justify-center mb-1">
+                    <User className="h-6 w-6 text-emerald-600" />
+                  </div>
+                  <span className="font-semibold text-gray-800 text-sm">
+                    Upload Family Head Photo
+                  </span>
+                  <span className="text-xs text-gray-500 text-center">
+                    Clear front-facing photo of the family head (JPG/PNG up to
+                    5MB)
+                  </span>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => headImageInputRef.current?.click()}
+                      className="px-3 py-1.5 text-xs font-semibold border border-[#fa8112] text-[#fa8112] rounded-lg hover:bg-orange-50"
+                    >
+                      Upload
+                    </button>
+                    <button
+                      type="button"
+                      onClick={startHeadCamera}
+                      className="px-3 py-1.5 text-xs font-semibold bg-[#fa8112] text-white rounded-lg hover:bg-[#e47510]"
+                    >
+                      Use Camera
+                    </button>
+                  </div>
+                </div>
+              )
             ) : (
               <div className="flex items-center gap-4 bg-emerald-50/60 border border-emerald-100 rounded-lg p-3">
                 <div className="h-14 w-14 rounded-full overflow-hidden border border-emerald-200 shrink-0">
@@ -1490,6 +1599,7 @@ const CreateHealthCard = () => {
               onChange={handleHeadImageUpload}
               className="hidden"
             />
+            <canvas ref={headCameraCanvasRef} className="hidden" />
           </div>
         </div>
       </div>

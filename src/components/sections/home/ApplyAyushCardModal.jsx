@@ -35,6 +35,9 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
   const docFrontInputRef = useRef(null);
   const docBackInputRef = useRef(null);
   const headImageInputRef = useRef(null);
+  const headCameraVideoRef = useRef(null);
+  const headCameraCanvasRef = useRef(null);
+  const headCameraStreamRef = useRef(null);
   const paymentInputRef = useRef(null);
 
   const [paymentScreenshot, setPaymentScreenshot] = useState(null);
@@ -94,6 +97,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
 
   // Step 2 State (Family Head)
   const [headImage, setHeadImage] = useState(null);
+  const [headCameraActive, setHeadCameraActive] = useState(false);
   const [familyHead, setFamilyHead] = useState({
     fullName: "",
     dob: "",
@@ -160,12 +164,18 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
+      if (headCameraStreamRef.current) {
+        headCameraStreamRef.current
+          .getTracks()
+          .forEach((track) => track.stop());
+      }
     };
   }, []);
 
   useEffect(() => {
     if (!isOpen || currentStep !== 1) {
       stopCamera();
+      stopHeadCamera();
     }
   }, [isOpen, currentStep]);
 
@@ -174,6 +184,16 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
       videoRef.current.srcObject = streamRef.current;
     }
   }, [cameraActive]);
+
+  useEffect(() => {
+    if (
+      headCameraActive &&
+      headCameraVideoRef.current &&
+      headCameraStreamRef.current
+    ) {
+      headCameraVideoRef.current.srcObject = headCameraStreamRef.current;
+    }
+  }, [headCameraActive]);
 
   useEffect(() => {
     if (
@@ -483,6 +503,55 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
         }
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const startHeadCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "user",
+          width: { ideal: 720 },
+          height: { ideal: 720 },
+        },
+      });
+      headCameraStreamRef.current = stream;
+      setHeadCameraActive(true);
+    } catch (err) {
+      console.error("Head camera error:", err);
+      toastWarn("Could not access camera. Please use upload option.");
+    }
+  };
+
+  const stopHeadCamera = () => {
+    if (headCameraStreamRef.current) {
+      headCameraStreamRef.current.getTracks().forEach((track) => track.stop());
+      headCameraStreamRef.current = null;
+    }
+    if (headCameraVideoRef.current) headCameraVideoRef.current.srcObject = null;
+    setHeadCameraActive(false);
+  };
+
+  const captureHeadPhoto = async () => {
+    if (!headCameraVideoRef.current || !headCameraCanvasRef.current) return;
+
+    const video = headCameraVideoRef.current;
+    const canvas = headCameraCanvasRef.current;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const base64 = canvas.toDataURL("image/jpeg", 0.8);
+    stopHeadCamera();
+
+    try {
+      const compressedBase64 = await compressBase64Image(base64, 800, 800, 0.7);
+      setHeadImage(compressedBase64);
+    } catch (err) {
+      console.error("Head camera compression failed", err);
+      setHeadImage(base64);
     }
   };
 
@@ -1392,25 +1461,62 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
 
                   <div className="flex flex-col items-center justify-center mt-6 mb-8 w-full max-w-md mx-auto">
                     {!headImage ? (
-                      <div
-                        className="border border-dashed border-gray-300 bg-white rounded-xl py-6 px-10 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50 transition-colors w-[200px]"
-                        onClick={() => headImageInputRef.current?.click()}
-                      >
-                        <UploadCloud
-                          className="text-[#a4a4a4] mb-2"
-                          size={24}
-                        />
-                        <p className="text-[13px] text-[#666666] leading-tight font-medium">
-                          Upload family
-                          <br />
-                          head image
-                        </p>
-                        <p className="text-[10px] text-[#A3A3A3] mt-2">
-                          Drag & Drop Or
-                          <br />
-                          Click To Browse
-                        </p>
-                      </div>
+                      headCameraActive ? (
+                        <div className="w-full max-w-[320px] border border-[#fa8112]/30 bg-white rounded-xl p-3">
+                          <div className="relative aspect-square rounded-lg overflow-hidden border border-[#F6B579]">
+                            <video
+                              ref={headCameraVideoRef}
+                              autoPlay
+                              playsInline
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="flex gap-2 mt-3">
+                            <button
+                              type="button"
+                              onClick={stopHeadCamera}
+                              className="flex-1 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-semibold"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={captureHeadPhoto}
+                              className="flex-1 py-2 bg-[#fa8112] text-white rounded-lg font-semibold flex items-center justify-center gap-2"
+                            >
+                              <Camera size={16} /> Capture
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="border border-dashed border-gray-300 bg-white rounded-xl py-6 px-10 flex flex-col items-center justify-center text-center w-[220px]">
+                          <UploadCloud
+                            className="text-[#a4a4a4] mb-2"
+                            size={24}
+                          />
+                          <p className="text-[13px] text-[#666666] leading-tight font-medium">
+                            Upload family
+                            <br />
+                            head image
+                          </p>
+                          <div className="flex gap-2 mt-3 w-full">
+                            <button
+                              type="button"
+                              onClick={() => headImageInputRef.current?.click()}
+                              className="flex-1 px-3 py-2 border border-[#fa8112] text-[#fa8112] rounded-lg text-[12px] font-semibold hover:bg-orange-50"
+                            >
+                              Upload
+                            </button>
+                            <button
+                              type="button"
+                              onClick={startHeadCamera}
+                              className="flex-1 px-3 py-2 bg-[#fa8112] text-white rounded-lg text-[12px] font-semibold"
+                            >
+                              Camera
+                            </button>
+                          </div>
+                        </div>
+                      )
                     ) : (
                       <div className="relative">
                         <img
@@ -1429,6 +1535,7 @@ const ApplyAyushCardModal = ({ isOpen, onClose }) => {
                     <p className="text-[13px] font-medium text-[#222222] mt-2">
                       Family Head Photo
                     </p>
+                    <canvas ref={headCameraCanvasRef} className="hidden" />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
