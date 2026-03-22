@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import DonationFormModal from "./DonationFormModal";
+import { useApplyAyushCardModal } from "../../../context/ApplyAyushCardModalContext";
 
 const HeroSection = () => {
-  const navigate = useNavigate();
+  const { openApplyAyushModal } = useApplyAyushCardModal();
   const [active, setActive] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const totalSlides = 3;
@@ -33,7 +33,7 @@ const HeroSection = () => {
             </h1>
 
             <p className="text-gray-100 md:text-gray-200 text-sm md:text-base leading-relaxed mb-8 max-w-lg">
-              Check your eligibility, register easily, and receive financial protection for hospital treatments across approved hospitals. 
+              Check your eligibility, register easily, and receive financial protection for hospital treatments across approved hospitals.
             </p>
 
             {/* Buttons */}
@@ -49,7 +49,8 @@ const HeroSection = () => {
               </button>
 
               <button
-                onClick={() => navigate("/ayush-card")}
+                type="button"
+                onClick={() => openApplyAyushModal()}
                 className="w-full sm:w-auto flex items-center justify-center gap-2 border border-white text-white font-medium px-8 py-3 rounded-full hover:bg-white hover:text-gray-800 transition-all text-sm md:text-base whitespace-nowrap"
               >
                 Apply for Ayush Card

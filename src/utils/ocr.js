@@ -1,4 +1,106 @@
-import Tesseract from 'tesseract.js';
+import Tesseract from "tesseract.js";
+
+/** Words / fragments that are almost never real name parts on Aadhaar OCR noise */
+const NAME_GARBAGE_PATTERNS =
+  /\b(eae|aye|iii|ith|teer|seer|las|rer|ore|ps|ry|oe|wm|aw|amer)\b/i;
+
+/** OCR often reads card headers as title-case; reject as full name */
+const NAME_STOPWORDS = new Set([
+  "government",
+  "india",
+  "identification",
+  "authority",
+  "unique",
+  "aadhaar",
+  "address",
+  "male",
+  "female",
+  "department",
+  "income",
+  "tax",
+  "enrolment",
+  "enrollment",
+  "vid",
+  "help",
+  "www",
+  "proof",
+  "citizenship",
+  "verification",
+]);
+
+/** Reject a string as a bogus "name" from bad OCR */
+function isLikelyGarbageName(s) {
+  if (!s || typeof s !== "string") return true;
+  const t = s.trim();
+  if (t.length < 4 || t.length > 80) return true;
+  const words = t.split(/\s+/).filter(Boolean);
+  if (words.length < 1 || words.length > 5) return true;
+  if (words.some((w) => NAME_STOPWORDS.has(w.replace(/[^a-z]/gi, "").toLowerCase())))
+    return true;
+
+  const letters = t.replace(/[^A-Za-z]/g, "");
+  const alphaRatio = t.length ? letters.length / t.length : 0;
+  if (alphaRatio < 0.55) return true;
+
+  // Too many very short tokens (OCR shards like "Th", "Aye")
+  const shortTokens = words.filter((w) => w.length <= 2).length;
+  if (words.length >= 2 && shortTokens >= words.length - 1) return true;
+
+  if (NAME_GARBAGE_PATTERNS.test(t)) return true;
+
+  // Real names usually have at least one word with 3+ letters
+  const longWords = words.filter((w) => /^[A-Za-z]{3,}$/.test(w)).length;
+  if (longWords === 0) return true;
+
+  return false;
+}
+
+/**
+ * Pull "Firstname Lastname" from a noisy line, e.g. "5 Gautam Kumar | § f¥er- 84722"
+ */
+function extractTitleCaseNameFromLine(line) {
+  if (!line) return "";
+  // Strip leading digit + spaces (row numbers on card)
+  let s = line.replace(/^\s*\d+\s+/, " ");
+  // Prefer: Capitalized words before | or junk
+  const pipe = s.split(/[|§]/)[0];
+  const m = pipe.match(
+    /([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,}){0,3})(?=\s*$|\s*\d|\s*[-–—])/,
+  );
+  if (m) return m[1].trim();
+  const m2 = pipe.match(/([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,}){1,3})/);
+  if (m2) return m2[1].trim();
+  return "";
+}
+
+function scoreNameCandidate(s) {
+  if (!s || isLikelyGarbageName(s)) return -1000;
+  const words = s.trim().split(/\s+/);
+  let score = 0;
+  for (const w of words) {
+    if (/^[A-Z][a-z]{2,14}$/.test(w)) score += 12;
+    else if (/^[A-Z][a-z]+$/.test(w)) score += 6;
+    else if (/^[A-Za-z]{3,}$/.test(w)) score += 4;
+    else if (/\d/.test(w)) score -= 25;
+    else score -= 3;
+  }
+  if (words.length >= 2) score += 8;
+  if (NAME_GARBAGE_PATTERNS.test(s)) score -= 40;
+  return score;
+}
+
+/**
+ * Find all "Firstname Lastname" patterns in full text (handles OCR splitting across lines)
+ */
+function findTitleCaseNamePatterns(text) {
+  const candidates = [];
+  const re = /\b([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,}){1,3})\b/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    candidates.push(m[1].trim());
+  }
+  return candidates;
+}
 
 /**
  * Extracts information from Aadhaar or PAN card images using OCR.
@@ -8,140 +110,213 @@ import Tesseract from 'tesseract.js';
  */
 export const performOCR = async (imageBase64, onProgress = () => {}) => {
   try {
-    const { data: { text } } = await Tesseract.recognize(
-      imageBase64,
-      'eng',
-      { 
-        logger: m => {
-          if (m.status === 'recognizing text' && onProgress) {
-            onProgress(Math.floor(m.progress * 100));
-          }
-          console.log(m);
-        },
-        workerBlobURL: true 
-      }
-    );
+    const {
+      data: { text },
+    } = await Tesseract.recognize(imageBase64, "eng", {
+      logger: (m) => {
+        if (m.status === "recognizing text" && onProgress) {
+          onProgress(Math.floor(m.progress * 100));
+        }
+      },
+      workerBlobURL: true,
+    });
 
     console.log("OCR Raw Text:", text);
-    
+
     const results = {
-      name: '',
-      dob: '',
-      gender: '',
-      pincode: '',
-      address: '',
-      docNumber: '',
-      email: '',
-      phone: '',
-      type: 'unknown'
+      name: "",
+      dob: "",
+      gender: "",
+      pincode: "",
+      address: "",
+      docNumber: "",
+      email: "",
+      phone: "",
+      type: "unknown",
     };
 
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
-    
+    const lines = text
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 1);
+
     // 1. Identify Document Type & Extract Number
     const aadhaarPattern = /(\d{4}\s?\d{4}\s?\d{4})/;
     const panPattern = /[A-Z]{5}\d{4}[A-Z]/;
-    
+
     const matches = text.match(aadhaarPattern);
     if (matches) {
-        results.type = 'aadhaar';
-        results.docNumber = matches[0].replace(/\s/g, '');
+      results.type = "aadhaar";
+      results.docNumber = matches[0].replace(/\s/g, "");
     } else if (text.match(panPattern)) {
-        results.type = 'pan';
-        results.docNumber = text.match(panPattern)[0];
+      results.type = "pan";
+      results.docNumber = text.match(panPattern)[0];
     } else {
-        // Find 12 digits, but ignore those that are likely part of a DOB (e.g. starting with 19 or 20)
-        // Usually Aadhaar is at the bottom, so we search from the end
-        const allDigits = text.replace(/[^0-9]/g, '');
-        const twelveDigitMatches = allDigits.match(/\d{12}/g);
-        if (twelveDigitMatches) {
-            // Take the last one as it's most likely the Aadhaar number
-            results.type = 'aadhaar';
-            results.docNumber = twelveDigitMatches[twelveDigitMatches.length - 1];
-        }
+      const allDigits = text.replace(/[^0-9]/g, "");
+      const twelveDigitMatches = allDigits.match(/\d{12}/g);
+      if (twelveDigitMatches) {
+        results.type = "aadhaar";
+        results.docNumber =
+          twelveDigitMatches[twelveDigitMatches.length - 1];
+      }
     }
 
     // 2. Extract DOB/YOB (Custom Pattern)
     const dobPattern = /(\d{2})[/-](\d{2})[/-](\d{4})/;
-    const yobPattern = /(?:Birth|DOB|Year|ores|YOB)[:\d\s]*(\d{4})/i;
     const compactDobPattern = /DOB[:\s]*(\d{2})(\d{2})(\d{4})/i;
-    
-    // Attempt to match the last 4 digits specifically for YOB from a long numeric string
+
     const matchYob = (str) => {
-        const found = str.match(/(?:Birth|DOB|Year|ores|YOB)[^\d]*(\d+)/i);
-        if (found && found[1].length >= 4) {
-             const digits = found[1];
-             return digits.substring(digits.length - 4);
-        }
-        return null;
+      const found = str.match(/(?:Birth|DOB|Year|ores|YOB)[^\d]*(\d+)/i);
+      if (found && found[1].length >= 4) {
+        const digits = found[1];
+        return digits.substring(digits.length - 4);
+      }
+      return null;
     };
-    
+
     if (text.match(dobPattern)) {
-        const match = text.match(dobPattern);
-        results.dob = `${match[3]}-${match[2]}-${match[1]}`;
+      const match = text.match(dobPattern);
+      results.dob = `${match[3]}-${match[2]}-${match[1]}`;
     } else if (text.match(compactDobPattern)) {
-        const match = text.match(compactDobPattern);
-        results.dob = `${match[3]}-${match[2]}-${match[1]}`;
+      const match = text.match(compactDobPattern);
+      results.dob = `${match[3]}-${match[2]}-${match[1]}`;
     } else {
-        const yobValue = matchYob(text);
-        if (yobValue) results.dob = `${yobValue}-01-01`;
+      const yobValue = matchYob(text);
+      if (yobValue) results.dob = `${yobValue}-01-01`;
     }
 
     // 3. Extract Gender
     const lowerText = text.toLowerCase();
-    if (lowerText.includes('female') || lowerText.includes('/ f')) results.gender = 'Female';
-    else if (lowerText.includes('male') || lowerText.includes('/ m')) results.gender = 'Male';
+    if (lowerText.includes("female") || lowerText.includes("/ f"))
+      results.gender = "Female";
+    else if (lowerText.includes("male") || lowerText.includes("/ m"))
+      results.gender = "Male";
 
-    // 4. Customized Name Extraction (Anchor Based)
-    if (results.type === 'aadhaar') {
-        let govtIndex = -1;
-        let dobIndex = -1;
-        
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].toUpperCase();
-            if (line.includes('GOVERNMENT') || line.includes('INDIA')) govtIndex = i;
-            if (line.includes('DOB') || line.includes('BIRTH') || line.match(dobPattern)) {
-                if (dobIndex === -1) dobIndex = i;
-            }
-        }
+    // 4. Name extraction — Aadhaar (robust against noisy OCR)
+    if (results.type === "aadhaar") {
+      let govtIndex = -1;
+      let dobIndex = -1;
 
-                // Name is usually 1 or 2 lines above DOB and below Government of India
-        if (dobIndex !== -1) {
-            // Search upwards from DOB for the first valid English name line
-            for (let j = dobIndex - 1; j > Math.max(govtIndex, -1); j--) {
-                const line = lines[j];
-                // Clean the line first to remove common noise
-                const tempClean = line.replace(/[|:;\[\]]/g, '').trim();
-                
-                // Name should not have many digits (some noise is okay at start/end)
-                const digitCount = (tempClean.match(/\d/g) || []).length;
-                if (digitCount < 3 && !/[&%=]/.test(tempClean) && tempClean.length > 3) {
-                    const cleanName = tempClean.replace(/[^A-Za-z\s.]/g, '').trim();
-                                        const partsCount = cleanName.split(/\s+/).filter(Boolean).length;
-                                        // Accept even single-word names like "Anita" (Aadhaar YOB format)
-                                        if (partsCount >= 1 && partsCount <= 4) {
-                        results.name = cleanName;
-                        break;
-                    }
-                }
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].toUpperCase();
+        if (line.includes("GOVERNMENT") || line.includes("INDIA"))
+          govtIndex = i;
+        if (
+          line.includes("DOB") ||
+          line.includes("BIRTH") ||
+          line.includes("YOB") ||
+          dobPattern.test(lines[i])
+        ) {
+          if (dobIndex === -1) dobIndex = i;
+        }
+      }
+
+      const candidates = [];
+
+      // 4a Title-case patterns across full text (often catches "Gautam Kumar")
+      for (const c of findTitleCaseNamePatterns(text)) {
+        if (!isLikelyGarbageName(c)) candidates.push({ s: c, score: scoreNameCandidate(c) });
+      }
+
+      // 4b Per-line extraction (digit prefix, pipes, etc.)
+      for (const line of lines) {
+        const extracted = extractTitleCaseNameFromLine(line);
+        if (extracted && !isLikelyGarbageName(extracted)) {
+          candidates.push({ s: extracted, score: scoreNameCandidate(extracted) });
+        }
+        const tempClean = line.replace(/[|:;\[\]'`]/g, " ").trim();
+        const digitCount = (tempClean.match(/\d/g) || []).length;
+        if (digitCount < 6 && tempClean.length > 4 && tempClean.length < 90) {
+          const cleanName = tempClean.replace(/[^A-Za-z\s.]/g, " ").replace(/\s+/g, " ").trim();
+          const parts = cleanName.split(/\s+/).filter(Boolean);
+          if (parts.length >= 1 && parts.length <= 5) {
+            const joined = parts.join(" ");
+            if (!isLikelyGarbageName(joined)) {
+              candidates.push({ s: joined, score: scoreNameCandidate(joined) });
             }
+          }
         }
-    } else if (results.type === 'pan') {
-        const taxIndex = lines.findIndex(l => l.toUpperCase().includes('TAX') || l.toUpperCase().includes('DEPT'));
-        if (taxIndex !== -1 && lines[taxIndex + 1]) {
-            results.name = lines[taxIndex + 1].replace(/[^A-Za-z\s.]/g, '').trim();
+      }
+
+      // 4c Lines above DOB: score each, pick best (not first match)
+      if (dobIndex !== -1) {
+        const low = Math.max(govtIndex, 0);
+        for (let j = dobIndex - 1; j > low; j--) {
+          const line = lines[j];
+          const extracted = extractTitleCaseNameFromLine(line);
+          if (extracted && !isLikelyGarbageName(extracted)) {
+            candidates.push({ s: extracted, score: scoreNameCandidate(extracted) + 5 });
+          }
+          const tempClean = line.replace(/[|:;\[\]]/g, "").trim();
+          const digitCount = (tempClean.match(/\d/g) || []).length;
+          if (digitCount < 4 && !/[&%=]{2,}/.test(tempClean) && tempClean.length > 3) {
+            const cleanName = tempClean.replace(/[^A-Za-z\s.]/g, "").trim();
+            const partsCount = cleanName.split(/\s+/).filter(Boolean).length;
+            if (partsCount >= 1 && partsCount <= 4) {
+              if (!isLikelyGarbageName(cleanName)) {
+                candidates.push({
+                  s: cleanName,
+                  score: scoreNameCandidate(cleanName) + 2,
+                });
+              }
+            }
+          }
         }
+      }
+
+      // Deduplicate by normalized string, keep max score + original text
+      const bestByName = new Map();
+      for (const { s, score } of candidates) {
+        const key = s.toLowerCase().replace(/\s+/g, " ");
+        const prev = bestByName.get(key);
+        if (!prev || prev.score < score) {
+          bestByName.set(key, { s, score });
+        }
+      }
+
+      let best = "";
+      let bestScore = -Infinity;
+      for (const { s, score } of bestByName.values()) {
+        if (score <= bestScore) continue;
+        const proper = s
+          .split(/\s+/)
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+          .join(" ");
+        if (proper.length > 2 && !isLikelyGarbageName(proper)) {
+          bestScore = score;
+          best = proper;
+        }
+      }
+
+      // Prefer multi-word names with good score
+      if (best && bestScore >= 8) {
+        results.name = best;
+      } else if (best) {
+        results.name = best;
+      }
+    } else if (results.type === "pan") {
+      const taxIndex = lines.findIndex(
+        (l) =>
+          l.toUpperCase().includes("TAX") || l.toUpperCase().includes("DEPT"),
+      );
+      if (taxIndex !== -1 && lines[taxIndex + 1]) {
+        const panName = lines[taxIndex + 1]
+          .replace(/[^A-Za-z\s.]/g, "")
+          .trim();
+        if (!isLikelyGarbageName(panName)) results.name = panName;
+      }
     }
 
     // 5. Fallback for Common Fields
     const pincodeMatch = text.match(/\b\d{6}\b/);
     if (pincodeMatch) results.pincode = pincodeMatch[0];
-    
-    const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+
+    const emailMatch = text.match(
+      /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/,
+    );
     if (emailMatch) results.email = emailMatch[0].toLowerCase();
 
-    // Final Cleaning
-    if (results.name === results.docNumber) results.name = '';
+    if (results.name === results.docNumber) results.name = "";
 
     return results;
   } catch (error) {

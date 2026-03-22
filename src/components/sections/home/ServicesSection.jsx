@@ -1,9 +1,9 @@
 import React from "react";
 import { ArrowRight } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useApplyAyushCardModal } from "../../../context/ApplyAyushCardModalContext";
 
 const ServicesSection = () => {
-  const navigate = useNavigate();
+  const { openApplyAyushModal } = useApplyAyushCardModal();
   const services = [
     {
       id: 1,
@@ -125,7 +125,8 @@ const ServicesSection = () => {
             <div className="flex flex-wrap gap-4 items-center">
               {/* Apply Now with lucide ArrowRight */}
               <button
-                onClick={() => navigate("/ayush-card")}
+                type="button"
+                onClick={() => openApplyAyushModal()}
                 className="flex items-center gap-2 bg-[#F68E5F] hover:bg-[#F68E5F] active:scale-95 text-white text-sm font-semibold pl-5 pr-1 py-1 rounded-full transition-all duration-200 shadow-md"
               >
                 Apply Now

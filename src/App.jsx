@@ -1,6 +1,7 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 
+import { ApplyAyushCardModalProvider } from "./context/ApplyAyushCardModalContext";
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
 import ScrollToTop from "./components/layout/ScrollToTop";
@@ -84,6 +85,7 @@ function App() {
   return (
     <Router>
       <ScrollToTop />
+      <ApplyAyushCardModalProvider>
       <Routes>
         {/* Auth routes */}
         <Route path="/login" element={<Login />} />
@@ -223,6 +225,7 @@ function App() {
           </Route>
         </Route>
       </Routes>
+      </ApplyAyushCardModalProvider>
     </Router>
   );
 }

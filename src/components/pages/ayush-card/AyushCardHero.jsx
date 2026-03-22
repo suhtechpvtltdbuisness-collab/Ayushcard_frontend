@@ -1,10 +1,8 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import ApplyAyushCardModal from "../../sections/home/ApplyAyushCardModal";
+import React from "react";
+import { useApplyAyushCardModal } from "../../../context/ApplyAyushCardModalContext";
 
 const AyushCardHero = () => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const navigate = useNavigate();
+  const { openApplyAyushModal } = useApplyAyushCardModal();
 
   return (
     <section className="bg-[#FFFCFB] py-14 md:py-24 px-4 sm:px-6 md:px-12 relative overflow-hidden">
@@ -37,7 +35,8 @@ const AyushCardHero = () => {
 
           <div className="flex flex-wrap items-center gap-4 w-full">
             <button
-              onClick={() => setIsModalOpen(true)}
+              type="button"
+              onClick={() => openApplyAyushModal()}
               className="w-full sm:w-auto bg-[#F68E5F] hover:bg-[#E57A4B] text-white px-8 py-3.5 rounded-full font-semibold text-[16px] transition-all duration-200 shadow-md whitespace-nowrap"
             >
               Apply for Ayush Card <span className="ml-1">›</span>
@@ -56,12 +55,6 @@ const AyushCardHero = () => {
           </div>
         </div>
       </div>
-
-      {/* Apply Modal */}
-      <ApplyAyushCardModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-      />
     </section>
   );
 };

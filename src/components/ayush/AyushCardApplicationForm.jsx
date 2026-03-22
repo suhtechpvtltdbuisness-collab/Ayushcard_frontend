@@ -1,0 +1,3721 @@
+import React, { useState, useRef, useEffect } from "react";
+import {
+  X,
+  ArrowRight,
+  ArrowLeft,
+  UploadCloud,
+  CheckCircle2,
+  User,
+  Plus,
+  X as CloseIcon,
+  Calendar,
+  Image as ImageIcon,
+  FileText,
+  Check,
+  ScanLine,
+  Printer,
+  Loader2,
+  Camera,
+  RefreshCw,
+  Banknote,
+} from "lucide-react";
+import { useToast } from "../ui/Toast";
+import apiService from "../../api/service";
+import { performOCR } from "../../utils/ocr";
+import { load } from "@cashfreepayments/cashfree-js";
+import AyushCardPreview from "../admin/AyushCardPreview";
+
+/** Fixed ₹160 for 1–4 people (head + members); each additional person +₹40. */
+const AYUSH_CARD_BASE_PACKAGE_RUPEES = 160;
+const AYUSH_CARD_INCLUDED_MEMBERS = 4;
+const AYUSH_CARD_EXTRA_MEMBER_RUPEES = 40;
+
+function computeAyushCardFeeRupees(totalMembersIncludingHead) {
+  const n = Math.max(1, Number(totalMembersIncludingHead) || 1);
+  if (n <= AYUSH_CARD_INCLUDED_MEMBERS) return AYUSH_CARD_BASE_PACKAGE_RUPEES;
+  return (
+    AYUSH_CARD_BASE_PACKAGE_RUPEES +
+    (n - AYUSH_CARD_INCLUDED_MEMBERS) * AYUSH_CARD_EXTRA_MEMBER_RUPEES
+  );
+}
+
+const generateApplicationId = () =>
+  `AC-${Math.floor(1000000 + Math.random() * 9000000)}`;
+
+/**
+ * Shared Ayush card application flow (same UI as public modal).
+ * @param {'modal'|'page'} variant
+ * @param {boolean} skipPayment — staff flow: no Cashfree step; submit from Review
+ * @param {function} onStaffSubmit — optional override `(payload) => Promise` for POST /api/cards
+ * @param {function} onBack — page variant: header back (e.g. navigate(-1))
+ * @param {boolean} staffPaymentFlow — admin/employee: payment step with offline (camera) + online (Cashfree, auth APIs)
+ */
+const AyushCardApplicationForm = ({
+  variant = "modal",
+  isOpen = true,
+  onClose = () => {},
+  skipPayment = false,
+  staffPaymentFlow = false,
+  onStaffSubmit,
+  onBack,
+}) => {
+  const [currentStep, setCurrentStep] = useState(1);
+  const [applicationId, setApplicationId] = useState(() =>
+    generateApplicationId(),
+  );
+  const { toastWarn, toastError, toastSuccess } = useToast();
+  const [submitting, setSubmitting] = useState(false);
+  // Step 1 State
+  const [docFront, setDocFront] = useState(null);
+  const [docBack, setDocBack] = useState(null);
+  /** File input for OCR (1st document) — camera gallery + review replace */
+  const ocrFileInputRef = useRef(null);
+  const docBackInputRef = useRef(null);
+  const headImageInputRef = useRef(null);
+  const headCameraVideoRef = useRef(null);
+  const headCameraCanvasRef = useRef(null);
+  const headCameraStreamRef = useRef(null);
+  const paymentInputRef = useRef(null);
+
+  const [paymentScreenshot, setPaymentScreenshot] = useState(null);
+  const [isEditingReview, setIsEditingReview] = useState(false);
+
+  // Payment States
+  const [paymentMethod, setPaymentMethod] = useState("online");
+  const [onlinePaymentLoading, setOnlinePaymentLoading] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [orderId, setOrderId] = useState(null);
+  const [txnId, setTxnId] = useState("");
+  const [saveError, setSaveError] = useState("");
+  /** Admin/employee: null | 'cash' | 'online' */
+  const [staffPaymentMode, setStaffPaymentMode] = useState(null);
+  const [staffCashReceiptImage, setStaffCashReceiptImage] = useState(null);
+  const staffCashVideoRef = useRef(null);
+  const staffCashCanvasRef = useRef(null);
+  const staffCashStreamRef = useRef(null);
+  const [staffCashCameraActive, setStaffCashCameraActive] = useState(false);
+  const [staffCashCameraLoading, setStaffCashCameraLoading] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState(0);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const [cameraActive, setCameraActive] = useState(false);
+
+  // Helper: compress a base64 image to reasonable dimensions/quality
+  const compressBase64Image = (
+    base64Src,
+    maxWidth = 1000,
+    maxHeight = 1000,
+    quality = 0.7,
+  ) => {
+    return new Promise((resolve, reject) => {
+      try {
+        const img = new Image();
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+
+          const ratio = Math.min(maxWidth / width, maxHeight / height, 1);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          // Fill background to avoid transparent areas turning black in JPEG
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+
+          const outputBase64 = canvas.toDataURL("image/jpeg", quality);
+          resolve(outputBase64);
+        };
+        img.onerror = (e) => reject(e);
+        img.src = base64Src;
+      } catch (e) {
+        reject(e);
+      }
+    });
+  };
+
+  // Step 2 State (Family Head)
+  const [headImage, setHeadImage] = useState(null);
+  const [headCameraActive, setHeadCameraActive] = useState(false);
+  const [headCameraPermissionDenied, setHeadCameraPermissionDenied] =
+    useState(false);
+  const [familyHead, setFamilyHead] = useState({
+    fullName: "",
+    dob: "",
+    gender: "",
+    contactNumber: "",
+    aadhaarNumber: "",
+    emailAddress: "",
+    relation: "",
+    relatedPerson: "",
+    address: "",
+    pincode: "",
+  });
+
+  const [members, setMembers] = useState([]);
+  const [activeMemberTab, setActiveMemberTab] = useState(0); // 0 is head, 1+ is members
+
+  // Member scanning state
+  const [memberScanningIndex, setMemberScanningIndex] = useState(null);
+  const [memberScanProgress, setMemberScanProgress] = useState(0);
+  const memberVideoRef = useRef(null);
+  const memberCanvasRef = useRef(null);
+  const memberStreamRef = useRef(null);
+  const [memberCameraActive, setMemberCameraActive] = useState(false);
+  const memberInputRef = useRef(null);
+  /** Step 2: scroll to bottom “Add Member” block after Continue from step 1 */
+  const addMemberScrollAnchorRef = useRef(null);
+
+  const successStep = skipPayment ? 4 : 5;
+  const totalMembersCount = 1 + members.length;
+  const estimatedFee = computeAyushCardFeeRupees(totalMembersCount);
+  const extraMembersBeyondIncluded = Math.max(
+    0,
+    totalMembersCount - AYUSH_CARD_INCLUDED_MEMBERS,
+  );
+  const stepperSteps = skipPayment
+    ? [
+        { num: 1, label: "Add Family Head" },
+        { num: 2, label: "Add Members" },
+        { num: 3, label: "Review" },
+      ]
+    : [
+        { num: 1, label: "Add Family Head" },
+        { num: 2, label: "Add Members" },
+        { num: 3, label: "Review" },
+        { num: 4, label: "Payment" },
+      ];
+  const stepperProgressPct =
+    stepperSteps.length > 1
+      ? ((Math.min(currentStep, stepperSteps.length) - 1) /
+          (stepperSteps.length - 1)) *
+        70
+      : 0;
+  const footerStepMax = skipPayment ? 3 : 4;
+
+  const stopStaffCashCamera = () => {
+    if (staffCashStreamRef.current) {
+      staffCashStreamRef.current.getTracks().forEach((t) => t.stop());
+      staffCashStreamRef.current = null;
+    }
+    if (staffCashVideoRef.current) staffCashVideoRef.current.srcObject = null;
+    setStaffCashCameraActive(false);
+    setStaffCashCameraLoading(false);
+  };
+
+  const resetForm = () => {
+    setCurrentStep(1);
+    setApplicationId(generateApplicationId());
+    setDocFront(null);
+    setDocBack(null);
+    setHeadImage(null);
+    setPaymentScreenshot(null);
+    setIsEditingReview(false);
+    setOnlinePaymentLoading(false);
+    setVerifyLoading(false);
+    setOrderId(null);
+    setTxnId("");
+    setSaveError("");
+    setPaymentMethod("online");
+    setStaffPaymentMode(null);
+    setStaffCashReceiptImage(null);
+    stopStaffCashCamera();
+    setFamilyHead({
+      fullName: "",
+      dob: "",
+      gender: "",
+      contactNumber: "",
+      aadhaarNumber: "",
+      emailAddress: "",
+      relation: "",
+      relatedPerson: "",
+      address: "",
+      pincode: "",
+    });
+    setMembers([]);
+    setActiveMemberTab(0);
+  };
+
+  const startStaffCashCamera = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toastError("Camera is not supported in this browser.");
+      return;
+    }
+    stopStaffCashCamera();
+    setStaffCashCameraLoading(true);
+    setSaveError("");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
+      staffCashStreamRef.current = stream;
+      setStaffCashCameraActive(true);
+    } catch (err) {
+      console.error("Staff cash camera:", err);
+      toastWarn(
+        err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError"
+          ? "Camera permission denied. Allow camera access to capture the receipt."
+          : "Could not open camera. Try again or use online payment.",
+      );
+    } finally {
+      setStaffCashCameraLoading(false);
+    }
+  };
+
+  const captureStaffCashReceipt = async () => {
+    if (!staffCashVideoRef.current || !staffCashCanvasRef.current) return;
+    const video = staffCashVideoRef.current;
+    const canvas = staffCashCanvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const raw = canvas.toDataURL("image/jpeg", 0.85);
+    stopStaffCashCamera();
+    try {
+      const compressed = await compressBase64Image(raw, 1200, 1200, 0.75);
+      setStaffCashReceiptImage(compressed);
+    } catch {
+      setStaffCashReceiptImage(raw);
+    }
+    toastSuccess("Cash receipt photo saved.");
+  };
+
+  const handleStaffChooseOfflineCash = async () => {
+    setStaffPaymentMode("cash");
+    setOrderId(null);
+    setTxnId("");
+    setStaffCashReceiptImage(null);
+    await startStaffCashCamera();
+  };
+
+  const handleStaffChooseOnline = () => {
+    stopStaffCashCamera();
+    setStaffPaymentMode("online");
+    setStaffCashReceiptImage(null);
+  };
+
+  useEffect(() => {
+    if (
+      staffCashCameraActive &&
+      staffCashVideoRef.current &&
+      staffCashStreamRef.current
+    ) {
+      staffCashVideoRef.current.srcObject = staffCashStreamRef.current;
+      staffCashVideoRef.current.play().catch(() => {});
+    }
+  }, [staffCashCameraActive]);
+
+  useEffect(() => {
+    if (variant === "modal" && isOpen) {
+      resetForm();
+    }
+  }, [isOpen, variant]);
+
+  useEffect(() => {
+    if (variant === "page") {
+      resetForm();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      if (headCameraStreamRef.current) {
+        headCameraStreamRef.current
+          .getTracks()
+          .forEach((track) => track.stop());
+      }
+      if (staffCashStreamRef.current) {
+        staffCashStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen || currentStep !== 1) {
+      stopCamera();
+      stopHeadCamera();
+    }
+  }, [isOpen, currentStep]);
+
+  useEffect(() => {
+    if (currentStep !== 2 || !addMemberScrollAnchorRef.current) return;
+    const t = window.setTimeout(() => {
+      addMemberScrollAnchorRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }, 150);
+    return () => window.clearTimeout(t);
+  }, [currentStep]);
+
+  useEffect(() => {
+    if (cameraActive && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [cameraActive]);
+
+  useEffect(() => {
+    if (
+      headCameraActive &&
+      headCameraVideoRef.current &&
+      headCameraStreamRef.current
+    ) {
+      headCameraVideoRef.current.srcObject = headCameraStreamRef.current;
+    }
+  }, [headCameraActive]);
+
+  useEffect(() => {
+    if (
+      memberCameraActive &&
+      memberVideoRef.current &&
+      memberStreamRef.current
+    ) {
+      memberVideoRef.current.srcObject = memberStreamRef.current;
+    }
+  }, [memberCameraActive]);
+
+  useEffect(() => {
+    return () => {
+      if (memberStreamRef.current) {
+        memberStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, []);
+
+  const startCamera = async () => {
+    try {
+      setOcrLoading(true);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
+      streamRef.current = stream;
+      setCameraActive(true);
+    } catch (err) {
+      console.error("Camera error:", err);
+      toastWarn("Could not access camera. Please use Gallery Upload.");
+    } finally {
+      setOcrLoading(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setCameraActive(false);
+  };
+
+  const capturePhoto = async () => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    setOcrLoading(true);
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const base64 = canvas.toDataURL("image/jpeg", 0.8);
+    stopCamera();
+
+    try {
+      const results = await performOCR(base64, (p) => setOcrProgress(p));
+      if (results) {
+        setFamilyHead((prev) => ({
+          ...prev,
+          fullName: results.name || results.fullName || prev.fullName || "",
+          gender: results.gender || prev.gender || "",
+          dob: results.dob || prev.dob || "",
+          pincode: results.pincode || prev.pincode || "",
+          address: results.address || prev.address || "",
+          aadhaarNumber:
+            (results.type === "aadhaar"
+              ? results.docNumber
+              : prev.aadhaarNumber) ||
+            prev.aadhaarNumber ||
+            "",
+        }));
+        setDocFront({
+          name: "captured_id.jpg",
+          size: "Live Capture",
+          url: base64,
+          base64: base64,
+        });
+        toastWarn("Details extracted successfully!");
+      }
+    } catch (err) {
+      console.error("Capture OCR Error:", err);
+      toastWarn("Could not extract details. Please enter manually.");
+      setDocFront({
+        name: "captured_id.jpg",
+        size: "Live Capture",
+        url: base64,
+        base64: base64,
+      });
+    } finally {
+      setOcrLoading(false);
+      setOcrProgress(0);
+    }
+  };
+
+  const parseAadhaarQR = (text) => {
+    try {
+      const isXML =
+        text.includes("<?xml") || text.includes("PrintLetterBarcodeData");
+      if (isXML) {
+        const uidMatch = text.match(/uid="([^"]+)"/i);
+        const nameMatch = text.match(/name="([^"]+)"/i);
+        const genderMatch = text.match(/gender="([^"]+)"/i);
+        const dobMatch = text.match(/dob="([^"]+)"/i);
+        const yobMatch = text.match(/yob="([^"]+)"/i);
+
+        let dobStr = dobMatch
+          ? dobMatch[1]
+          : yobMatch
+            ? `01/01/${yobMatch[1]}`
+            : "";
+        if (dobStr && dobStr.includes("/")) {
+          const parts = dobStr.split("/");
+          if (parts.length === 3)
+            dobStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        } else if (
+          dobStr &&
+          dobStr.includes("-") &&
+          dobStr.split("-")[0].length !== 4
+        ) {
+          const parts = dobStr.split("-");
+          if (parts.length === 3)
+            dobStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+
+        return {
+          uid: uidMatch ? uidMatch[1] : "",
+          name: nameMatch ? nameMatch[1] : "",
+          gender: genderMatch
+            ? genderMatch[1] === "M"
+              ? "Male"
+              : genderMatch[1] === "F"
+                ? "Female"
+                : "Other"
+            : "",
+          dob: dobStr,
+        };
+      }
+    } catch (e) {
+      console.error("Aadhaar parse error", e);
+    }
+    return null;
+  };
+
+  const handleScanImage = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toastWarn("Image size should be less than 5MB");
+        e.target.value = "";
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result;
+        setOcrLoading(true);
+        setOcrProgress(0);
+        toastWarn("Processing image... please wait.");
+
+        try {
+          const results = await performOCR(base64, (p) => setOcrProgress(p));
+          if (results) {
+            setFamilyHead((prev) => ({
+              ...prev,
+              fullName: results.name || results.fullName || prev.fullName || "",
+              aadhaarNumber:
+                (results.type === "aadhaar"
+                  ? results.docNumber
+                  : prev.aadhaarNumber) ||
+                prev.aadhaarNumber ||
+                "",
+              gender: results.gender || prev.gender || "",
+              dob: results.dob || prev.dob || "",
+              pincode: results.pincode || prev.pincode || "",
+              address: results.address || prev.address || "",
+            }));
+            // Compress scanned image before sending to backend
+            let compressedBase64 = base64;
+            try {
+              compressedBase64 = await compressBase64Image(base64);
+            } catch (err) {
+              console.warn(
+                "Compression failed, using original base64 for scanned image",
+                err,
+              );
+            }
+
+            setDocFront({
+              name: file.name,
+              size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
+              url: URL.createObjectURL(file),
+              base64: compressedBase64,
+            });
+
+            toastWarn("Details extracted and autofilled!");
+          } else {
+            toastError("Could not extract details. Please enter manually.");
+          }
+        } catch (err) {
+          console.error("OCR failed", err);
+          toastError("Scanning failed. Please try again or enter manually.");
+        } finally {
+          setOcrLoading(false);
+          setOcrProgress(0);
+          e.target.value = "";
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleHeadChange = (e) => {
+    let { name, value } = e.target;
+
+    // Validations
+    if (name === "fullName" || name === "relatedPerson")
+      value = value.replace(/[0-9]/g, "");
+    if (name === "contactNumber") value = value.replace(/\D/g, "").slice(0, 10);
+    if (name === "aadhaarNumber") value = value.replace(/\D/g, "").slice(0, 12);
+    if (name === "pincode") value = value.replace(/\D/g, "").slice(0, 6);
+
+    if (name === "dob") {
+      const selectedDate = new Date(value);
+      const today = new Date();
+      let age = today.getFullYear() - selectedDate.getFullYear();
+      const m = today.getMonth() - selectedDate.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < selectedDate.getDate())) {
+        age--;
+      }
+      if (age < 18) {
+        toastWarn("Family head must be at least 18 years old.");
+        return;
+      }
+    }
+
+    setFamilyHead((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleMemberChange = (index, e) => {
+    let { name, value } = e.target;
+
+    // Validations
+    if (name === "fullName") value = value.replace(/[0-9]/g, "");
+    if (name === "contactNumber") value = value.replace(/\D/g, "").slice(0, 10);
+    if (name === "aadhaarNumber" || name === "documentId")
+      value = value.replace(/\D/g, "").slice(0, 12);
+
+    const updatedMembers = [...members];
+    updatedMembers[index][name] = value;
+    setMembers(updatedMembers);
+  };
+
+  /** 2nd document only — no OCR; stored as `docBack` / aadhaar_back */
+  const handleDocumentUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toastWarn("Image size should be less than 5MB");
+        e.target.value = "";
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        try {
+          const compressedBase64 = await compressBase64Image(reader.result);
+          const fileData = {
+            name: file.name,
+            size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
+            url: URL.createObjectURL(file),
+            base64: compressedBase64,
+          };
+          setDocBack(fileData);
+        } catch (err) {
+          console.error("Document compression failed", err);
+          toastWarn("Could not process image. Please try another file.");
+        } finally {
+          e.target.value = "";
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleHeadImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toastWarn("Image size should be less than 5MB");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        try {
+          const compressedBase64 = await compressBase64Image(
+            reader.result,
+            800,
+            800,
+            0.7,
+          );
+          setHeadImage(compressedBase64);
+        } catch (err) {
+          console.error("Head image compression failed", err);
+          toastWarn("Could not process photo. Please try another file.");
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const startHeadCamera = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setHeadCameraPermissionDenied(false);
+      toastWarn("Camera is not supported in this browser.");
+      return;
+    }
+
+    try {
+      setHeadCameraPermissionDenied(false);
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: "user",
+            width: { ideal: 720 },
+            height: { ideal: 720 },
+          },
+        });
+      } catch (primaryErr) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+        });
+      }
+      headCameraStreamRef.current = stream;
+      setHeadCameraActive(true);
+    } catch (err) {
+      console.error("Head camera error:", err);
+      const denied =
+        err?.name === "NotAllowedError" ||
+        err?.name === "PermissionDeniedError";
+      setHeadCameraPermissionDenied(denied);
+      toastWarn(
+        denied
+          ? "Camera permission denied. Click Allow Camera and permit camera access."
+          : "Could not access camera. Please check camera availability.",
+      );
+    }
+  };
+
+  const stopHeadCamera = () => {
+    if (headCameraStreamRef.current) {
+      headCameraStreamRef.current.getTracks().forEach((track) => track.stop());
+      headCameraStreamRef.current = null;
+    }
+    if (headCameraVideoRef.current) headCameraVideoRef.current.srcObject = null;
+    setHeadCameraActive(false);
+  };
+
+  const captureHeadPhoto = async () => {
+    if (!headCameraVideoRef.current || !headCameraCanvasRef.current) return;
+
+    const video = headCameraVideoRef.current;
+    const canvas = headCameraCanvasRef.current;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const base64 = canvas.toDataURL("image/jpeg", 0.8);
+    stopHeadCamera();
+
+    try {
+      const compressedBase64 = await compressBase64Image(base64, 800, 800, 0.7);
+      setHeadImage(compressedBase64);
+      setHeadCameraPermissionDenied(false);
+    } catch (err) {
+      console.error("Head camera compression failed", err);
+      setHeadImage(base64);
+      setHeadCameraPermissionDenied(false);
+    }
+  };
+
+  const handlePaymentScreenshotUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toastWarn("Image size should be less than 5MB");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        try {
+          const compressedBase64 = await compressBase64Image(
+            reader.result,
+            800,
+            800,
+            0.7,
+          );
+          setPaymentScreenshot({
+            name: file.name,
+            size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
+            url: URL.createObjectURL(file),
+            base64: compressedBase64,
+          });
+        } catch (err) {
+          console.error("Payment screenshot compression failed", err);
+          toastWarn("Could not process screenshot. Please try another file.");
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const addMember = () => {
+    if (members.length + 1 >= 7) return; // Max 7 including head
+    setMembers([
+      ...members,
+      {
+        fullName: "",
+        relation: "",
+        age: "",
+        documentId: "",
+      },
+    ]);
+    setActiveMemberTab(members.length + 1); // Switch to newly created member
+  };
+
+  const removeMember = (indexToRemove) => {
+    // If we remove a member, we need to adjust the active tab
+    const updatedMembers = members.filter((_, i) => i !== indexToRemove);
+    setMembers(updatedMembers);
+
+    // If we closed the currently active member tab, switch back to head
+    if (activeMemberTab === indexToRemove + 1) {
+      setActiveMemberTab(0);
+    } else if (activeMemberTab > indexToRemove + 1) {
+      // Shift active tab left if we removed a tab before it
+      setActiveMemberTab(activeMemberTab - 1);
+    }
+  };
+
+  // Member Scanning Functions
+  const startMemberCamera = async (index) => {
+    try {
+      setMemberScanningIndex(index);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
+      memberStreamRef.current = stream;
+      setMemberCameraActive(true);
+    } catch (err) {
+      console.error("Member camera error:", err);
+      toastWarn("Could not access camera. Please use Gallery Upload.");
+    }
+  };
+
+  const stopMemberCamera = () => {
+    if (memberStreamRef.current) {
+      memberStreamRef.current.getTracks().forEach((track) => track.stop());
+      memberStreamRef.current = null;
+    }
+    if (memberVideoRef.current) memberVideoRef.current.srcObject = null;
+    setMemberCameraActive(false);
+    setMemberScanningIndex(null);
+  };
+
+  const calculateAge = (dobStr) => {
+    if (!dobStr) return "";
+    try {
+      const [year, month, day] = dobStr.split("-");
+      if (!year || !month || !day) return "";
+
+      const today = new Date();
+      const birthDate = new Date(
+        parseInt(year),
+        parseInt(month) - 1,
+        parseInt(day),
+      );
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+
+      if (
+        monthDiff < 0 ||
+        (monthDiff === 0 && today.getDate() < birthDate.getDate())
+      ) {
+        age--;
+      }
+
+      return age > 0 && age < 120 ? age.toString() : "";
+    } catch (e) {
+      return "";
+    }
+  };
+
+  const captureMemberPhoto = async () => {
+    if (
+      !memberVideoRef.current ||
+      !memberCanvasRef.current ||
+      memberScanningIndex === null
+    )
+      return;
+
+    const video = memberVideoRef.current;
+    const canvas = memberCanvasRef.current;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const base64 = canvas.toDataURL("image/jpeg", 0.8);
+    stopMemberCamera();
+
+    try {
+      const results = await performOCR(base64, (p) => setMemberScanProgress(p));
+      if (results) {
+        const age = calculateAge(results.dob);
+        const updatedMembers = [...members];
+        updatedMembers[memberScanningIndex] = {
+          ...updatedMembers[memberScanningIndex],
+          fullName: results.name || "",
+          age: age,
+          documentId: results.docNumber || "",
+          scannedImage: base64,
+        };
+        setMembers(updatedMembers);
+        toastWarn("Member details extracted successfully!");
+      }
+    } catch (err) {
+      console.error("Member capture OCR Error:", err);
+      toastWarn("Could not extract details. Please enter manually.");
+    } finally {
+      setMemberScanProgress(0);
+    }
+  };
+
+  const handleMemberScanImage = async (e, index) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const base64String = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.readAsDataURL(file);
+    });
+
+    setMemberScanningIndex(index);
+    setMemberScanProgress(0);
+
+    try {
+      const details = await performOCR(base64String, (p) =>
+        setMemberScanProgress(p),
+      );
+      if (details) {
+        const age = calculateAge(details.dob);
+        const updatedMembers = [...members];
+        updatedMembers[index] = {
+          ...updatedMembers[index],
+          fullName: details.name || "",
+          age: age,
+          documentId: details.docNumber || "",
+          scannedImage: base64String,
+        };
+        setMembers(updatedMembers);
+        toastWarn("Member details extracted successfully!");
+      }
+    } catch (err) {
+      console.error("Member OCR Error:", err);
+      toastWarn("Could not extract details. Please enter manually.");
+    } finally {
+      setMemberScanProgress(0);
+      setMemberScanningIndex(null);
+    }
+  };
+
+  const submitFinalApplication = async (resolvedTxnId = null) => {
+    const finalTxnId = resolvedTxnId || txnId || `MANUAL-${Date.now()}`;
+
+    // Build the API payload
+    const today = new Date().toISOString().split("T")[0];
+    const cardExpiry = new Date();
+    cardExpiry.setFullYear(cardExpiry.getFullYear() + 1);
+    const cardExpiryDate = cardExpiry.toISOString().split("T")[0];
+
+    // Split fullName into firstName / middleName / lastName
+    const nameParts = familyHead.fullName.trim().split(" ").filter(Boolean);
+    const firstName = nameParts[0] || "";
+    const lastName =
+      nameParts.length > 1 ? nameParts[nameParts.length - 1] : "";
+    const middleName =
+      nameParts.length > 2 ? nameParts.slice(1, -1).join(" ") : "";
+
+    const payload = {
+      applicationDate: today,
+      status: "pending",
+      firstName,
+      middleName,
+      lastName,
+      contact: familyHead.contactNumber,
+      alternateContact: "",
+      email: familyHead.emailAddress,
+      relation: familyHead.relation,
+      relatedPerson: familyHead.relatedPerson,
+      gender: familyHead.gender,
+      dob: familyHead.dob,
+      address: familyHead.address,
+      pincode: familyHead.pincode,
+      aadhaarNumber: familyHead.aadhaarNumber,
+      cardIssueDate: today,
+      cardExpiredDate: cardExpiryDate,
+      verificationDate: today,
+      totalMember: 1 + members.length,
+      totalAmount: estimatedFee,
+      documents: [
+        docFront && {
+          filename: docFront.name,
+          originalName: docFront.name,
+          path: docFront.base64 || docFront.url,
+          size: 0,
+          mimetype: "image/jpeg",
+          type: "aadhaar_front",
+          uploadedAt: new Date().toISOString(),
+        },
+        docBack && {
+          filename: docBack.name,
+          originalName: docBack.name,
+          path: docBack.base64 || docBack.url,
+          size: 0,
+          mimetype: "image/jpeg",
+          type: "aadhaar_back",
+          uploadedAt: new Date().toISOString(),
+        },
+        headImage && {
+          filename: "family_head_photo.jpg",
+          originalName: "family_head_photo.jpg",
+          path: headImage, // This is already base64 now
+          size: 0,
+          mimetype: "image/jpeg",
+          type: "profile_photo",
+          uploadedAt: new Date().toISOString(),
+        },
+        paymentScreenshot && {
+          filename: paymentScreenshot.name,
+          originalName: paymentScreenshot.name,
+          path: paymentScreenshot.base64 || paymentScreenshot.url,
+          size: 0,
+          mimetype: "image/jpeg",
+          type: "payment_screenshot",
+          uploadedAt: new Date().toISOString(),
+        },
+      ].filter(Boolean),
+      isPrint: false,
+      members: members.map((m) => {
+        return {
+          name: m.fullName,
+          relation: m.relation || "Family Member",
+          age: parseInt(m.age) || 0,
+          documentId: (m.documentId || "").replace(/\D/g, ""),
+        };
+      }),
+      payment: {
+        transactionId: finalTxnId,
+        method: "online",
+        totalAmount: estimatedFee,
+        date: new Date().toISOString(),
+        orderId: orderId || "",
+      },
+    };
+
+    try {
+      setSubmitting(true);
+      await apiService.submitCardApplication(payload);
+      setCurrentStep(successStep);
+    } catch (err) {
+      console.error("Card application submission error:", err);
+      const errMsg = err.response?.data?.message || err.message || "";
+
+      if (errMsg.toLowerCase().includes("already exists")) {
+        console.log(
+          "Card already exists (public modal), proceeding to success.",
+        );
+        // Try to recover appId if possible, though it's less critical here for the receipt view
+        setCurrentStep(successStep);
+        return;
+      }
+
+      toastError(errMsg || "Failed to submit application. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const buildStaffHealthCardPayload = () => {
+    const totalMembersCount = 1 + members.length;
+    const fee = computeAyushCardFeeRupees(totalMembersCount);
+    const today = new Date().toISOString().split("T")[0];
+    const cardExpiry = new Date();
+    cardExpiry.setFullYear(cardExpiry.getFullYear() + 1);
+    const cardExpiryDate = cardExpiry.toISOString().split("T")[0];
+
+    const nameParts = familyHead.fullName.trim().split(" ").filter(Boolean);
+    const firstName = nameParts[0] || "";
+    const lastName =
+      nameParts.length > 1 ? nameParts[nameParts.length - 1] : "";
+    const middleName =
+      nameParts.length > 2 ? nameParts.slice(1, -1).join(" ") : "";
+
+    const customerName = familyHead.fullName.trim();
+
+    return {
+      applicationId,
+      firstName,
+      middleName,
+      lastName,
+      email: familyHead.emailAddress?.trim() || "",
+      contact: familyHead.contactNumber.trim(),
+      alternateContact: "",
+      totalAmount: fee,
+      applicationDate: today,
+      gender: familyHead.gender || "",
+      dob: familyHead.dob || "",
+      relation: familyHead.relation || "",
+      relatedPerson: familyHead.relatedPerson || "",
+      address: familyHead.address || "",
+      pincode: familyHead.pincode || "",
+      aadhaarNumber: familyHead.aadhaarNumber?.replace(/\D/g, "") || "",
+      cardNo: `${Math.floor(100000000000 + Math.random() * 900000000000)}`,
+      cardIssueDate: today,
+      cardExpiredDate: cardExpiryDate,
+      verificationDate: today,
+      status: "pending",
+      totalMember: totalMembersCount,
+      members: members.map((m) => ({
+        name: m.fullName,
+        relation: m.relation || "Family Member",
+        age: parseInt(m.age, 10) || 0,
+        documentId: (m.documentId || "").replace(/\D/g, ""),
+      })),
+      documents: [
+        docFront && {
+          name: "documentFront",
+          path: docFront.base64 || docFront.url,
+          type: "image",
+        },
+        docBack && {
+          name: "documentBack",
+          path: docBack.base64 || docBack.url,
+          type: "image",
+        },
+        headImage && {
+          name: "family_head_photo.jpg",
+          path: headImage,
+          type: "profile_photo",
+        },
+        staffPaymentMode === "cash" &&
+          staffCashReceiptImage && {
+            name: "cashPaymentReceipt",
+            path: staffCashReceiptImage,
+            type: "payment_screenshot",
+          },
+      ].filter(Boolean),
+      payment: {
+        method: staffPaymentMode === "cash" ? "cash" : "online",
+        transactionId:
+          staffPaymentMode === "cash"
+            ? `CASH-${Date.now()}`
+            : txnId || `ONLINE-${Date.now()}`,
+        orderId: orderId || "",
+        amount: fee,
+        totalAmount: fee,
+        customerName,
+        customerEmail: familyHead.emailAddress?.trim() || "",
+        customerPhone: familyHead.contactNumber.trim(),
+        date: new Date().toISOString(),
+      },
+    };
+  };
+
+  const submitStaffApplication = async () => {
+    const payload = buildStaffHealthCardPayload();
+    try {
+      setSubmitting(true);
+      if (onStaffSubmit) {
+        await onStaffSubmit(payload);
+      } else {
+        await apiService.createHealthCard(payload);
+      }
+      setCurrentStep(successStep);
+      toastSuccess("Ayush card application submitted.");
+    } catch (err) {
+      console.error("Staff card create error:", err);
+      const errMsg = err.response?.data?.message || err.message || "";
+      if (errMsg.toLowerCase().includes("already exists")) {
+        setCurrentStep(successStep);
+        toastSuccess("Application recorded.");
+        return;
+      }
+      toastError(errMsg || "Failed to create Ayush card. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleInitiateCashfreePayment = async () => {
+    setOnlinePaymentLoading(true);
+    setSaveError("");
+    try {
+      const amount = computeAyushCardFeeRupees(1 + (members || []).length);
+      const payload = {
+        amount,
+        customerName: (familyHead.fullName || "").trim() || "Customer",
+        customerEmail:
+          (familyHead.emailAddress || "").trim() || "customer@example.com",
+        customerPhone:
+          (familyHead.contactNumber || "")
+            .trim()
+            .replace(/\D/g, "")
+            .slice(0, 10) || "9999999999",
+      };
+
+      const res = staffPaymentFlow
+        ? await apiService.createPaymentOrder(payload)
+        : await apiService.createPublicPaymentOrder(payload);
+
+      const possibleData = [
+        res,
+        res?.data,
+        res?.data?.data,
+        res?.order,
+        res?.data?.order,
+      ].filter(Boolean);
+      let sessionId = null;
+      let cOrderId = null;
+
+      for (const d of possibleData) {
+        sessionId =
+          sessionId ||
+          d.payment_session_id ||
+          d.paymentSessionId ||
+          d.cf_session_id ||
+          d.sessionId;
+        cOrderId = cOrderId || d.order_id || d.orderId || d.cf_order_id;
+      }
+
+      if (!sessionId) {
+        throw new Error("Payment session could not be created.");
+      }
+
+      setOrderId(cOrderId);
+
+      const cashfree = await load({ mode: "sandbox" });
+      cashfree
+        .checkout({
+          paymentSessionId: sessionId,
+          redirectTarget: "_modal",
+        })
+        .then(() => {
+          setTimeout(() => {
+            handleVerifyCashfreePayment(cOrderId);
+          }, 1500);
+        });
+    } catch (err) {
+      console.error("[Cashfree] Initiate failed:", err);
+      const errorMsg =
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        err.message ||
+        "Failed to initiate payment.";
+      setSaveError(errorMsg);
+      toastError(errorMsg);
+    } finally {
+      setOnlinePaymentLoading(false);
+    }
+  };
+
+  const handleVerifyCashfreePayment = async (forcedOrderId = null) => {
+    const activeOrderId = forcedOrderId || orderId;
+    if (!activeOrderId) return;
+
+    setVerifyLoading(true);
+    try {
+      const verifyData = {
+        amount: estimatedFee,
+        customerName: familyHead.fullName,
+        customerEmail: familyHead.emailAddress,
+        customerPhone: familyHead.contactNumber,
+      };
+
+      const verifyRes = staffPaymentFlow
+        ? await apiService.verifyPayment(activeOrderId, verifyData)
+        : await apiService.verifyPublicPayment(activeOrderId, verifyData);
+
+      const isSuccess =
+        verifyRes?.success === true ||
+        verifyRes?.data?.payment?.status === "SUCCESS" ||
+        verifyRes?.data?.gatewayOrder?.order_status === "PAID" ||
+        verifyRes?.payment_status === "SUCCESS" ||
+        verifyRes?.status === "SUCCESS";
+
+      if (isSuccess) {
+        const resolvedTxnId =
+          verifyRes?.data?.payment?.transactionId ||
+          verifyRes?.data?.gatewayOrder?.cf_order_id ||
+          verifyRes?.transactionId ||
+          `TXN${Date.now()}`;
+
+        // Store transaction ID and show success state in Step 4.
+        // User will click "Complete Registration" to submit, same as admin flow.
+        setTxnId(resolvedTxnId);
+      } else {
+        toastWarn(
+          "Payment verification pending or failed. Please check your bank or retry.",
+        );
+      }
+    } catch (err) {
+      console.error("Verification error:", err);
+      setSaveError("Verification failed.");
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
+  const handleNext = async () => {
+    // Step 1 validation: Must have uploaded an identity document AND filled basic details
+    if (currentStep === 1) {
+      // Require at least one identity document (from upload or scanner)
+      if (!docFront) {
+        toastWarn(
+          "Please complete OCR for the first document (camera or gallery in the middle column).",
+        );
+        return;
+      }
+      if (!docBack) {
+        toastWarn(
+          "Please upload the second identity document (right column — JPG/PNG).",
+        );
+        return;
+      }
+      if (!headImage) {
+        toastWarn("Please upload the family head photo.");
+        return;
+      }
+      const fg = familyHead;
+      const missingFields = [];
+      if (!fg.fullName) missingFields.push("Full Name");
+      if (!fg.dob) missingFields.push("Date of Birth");
+      if (!fg.gender) missingFields.push("Gender");
+      if (!fg.address?.trim()) missingFields.push("Address");
+      if (!fg.pincode) missingFields.push("Pincode");
+      if (!fg.contactNumber) missingFields.push("Contact Number");
+      if (!fg.aadhaarNumber) missingFields.push("Aadhaar Number");
+
+      if (missingFields.length > 0) {
+        toastWarn(
+          `Please fill missing family head details: ${missingFields.join(", ")}`,
+        );
+        return;
+      }
+
+      if (fg.contactNumber.replace(/\D/g, "").length < 10) {
+        toastWarn("Contact number must be 10 digits.");
+        return;
+      }
+      if (fg.aadhaarNumber.replace(/\D/g, "").length < 12) {
+        toastWarn("Aadhaar number must be 12 digits.");
+        return;
+      }
+      if (fg.pincode.replace(/\D/g, "").length < 6) {
+        toastWarn("Pincode must be 6 digits.");
+        return;
+      }
+
+      // Logic to auto redirect to Member 1 on Step 3 if we add a member
+      if (members.length > 0) {
+        setActiveMemberTab(1);
+      } else {
+        setActiveMemberTab(0);
+      }
+    }
+
+    // Step 2 validation: All members details if added
+    if (currentStep === 2) {
+      for (let i = 0; i < members.length; i++) {
+        const p = members[i];
+        if (!p.fullName || !p.relation || !p.age) {
+          toastWarn(`Please fill all details for Member ${i + 1}`);
+          return;
+        }
+        if ((p.documentId || "").replace(/\D/g, "").length < 12) {
+          toastWarn(
+            `Please enter a valid 12-digit document ID for Member ${i + 1}`,
+          );
+          return;
+        }
+      }
+    }
+
+    if (skipPayment && currentStep === 3) {
+      await submitStaffApplication();
+      return;
+    }
+
+    // Step 4: payment + submit
+    if (!skipPayment && currentStep === 4) {
+      if (staffPaymentFlow) {
+        if (!staffPaymentMode) {
+          toastWarn("Choose offline/cash or online payment.");
+          return;
+        }
+        if (staffPaymentMode === "cash") {
+          if (!staffCashReceiptImage) {
+            toastWarn("Capture a photo of the cash receipt to continue.");
+            return;
+          }
+          await submitStaffApplication();
+          return;
+        }
+        if (staffPaymentMode === "online") {
+          if (!txnId) {
+            toastWarn(
+              "Complete online payment and tap Verify, then continue.",
+            );
+            return;
+          }
+          await submitStaffApplication();
+          return;
+        }
+      } else {
+        if (!txnId) {
+          toastWarn(
+            "Please complete and verify online payment before continuing.",
+          );
+          return;
+        }
+        await submitFinalApplication();
+        return;
+      }
+    }
+
+    if (currentStep < successStep) {
+      const goingToMembersStep = currentStep === 1;
+      setCurrentStep(currentStep + 1);
+      if (!goingToMembersStep) {
+        document.querySelector(".custom-scrollbar")?.scrollTo(0, 0);
+      }
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 1) {
+      if (currentStep === 4 && staffPaymentFlow) stopStaffCashCamera();
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  if (variant === "modal" && !isOpen) return null;
+
+  const todayFormatted = new Date()
+    .toLocaleDateString("en-GB")
+    .replace(/\//g, "-");
+
+  const cardPreviewData = {
+    applicantFirstName: (familyHead.fullName || "").split(" ")[0] || "",
+    applicantLastName:
+      (familyHead.fullName || "").split(" ").slice(1).join(" ") || "",
+    dob: familyHead.dob || "",
+    phone: familyHead.contactNumber || "",
+    aadhaarNumber: familyHead.aadhaarNumber || "",
+    dateApplied: todayFormatted,
+    applicationDate: todayFormatted,
+    members: members.map((m) => ({
+      name: m.fullName,
+      relation: m.relation || "Family Member",
+      age: parseInt(m.age) || 0,
+      documentId: (m.documentId || "").replace(/\D/g, ""),
+    })),
+    documentFront: docFront?.base64 || docFront?.url || "",
+    profileImage: headImage || docFront?.base64 || docFront?.url || "",
+    payment: {
+      totalPaid: estimatedFee,
+    },
+  };
+
+  const thermalPaymentLabel = staffPaymentFlow
+    ? staffPaymentMode === "cash"
+      ? "Cash / offline"
+      : txnId
+        ? "Online (verified)"
+        : "Online"
+    : "UPI / Online";
+
+  const thermalPaymentRef = staffPaymentFlow
+    ? staffPaymentMode === "cash"
+      ? "Receipt on file"
+      : txnId || "—"
+    : txnId || "—";
+
+  const renderThermalReceipt = () => (
+    <div
+      id="public-thermal-receipt"
+      className="hidden print:block w-[2in] max-w-[2in] box-border bg-white p-2 font-sans text-black leading-tight"
+    >
+      <div className="text-center border-b border-dashed border-black pb-2 mb-2">
+        <h1 className="font-black text-[15px] uppercase tracking-tight leading-none">
+          BKBS
+        </h1>
+        <p className="text-[7px] font-semibold mt-1 uppercase tracking-wide">
+          Ayush Card · Receipt
+        </p>
+      </div>
+
+      <div className="text-[8px] space-y-0.5 mb-2 border-b border-dashed border-gray-400 pb-2">
+        <div className="flex justify-between gap-1">
+          <span className="font-bold shrink-0">App ID</span>
+          <span className="font-mono text-right break-all">{applicationId}</span>
+        </div>
+        <div className="flex justify-between gap-1">
+          <span className="font-bold shrink-0">Date</span>
+          <span className="text-right">
+            {new Date().toLocaleString("en-IN", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
+        </div>
+      </div>
+
+      <div className="text-[8px] mb-2 border-b border-dashed border-gray-400 pb-2">
+        <p className="font-bold uppercase mb-1">Family head</p>
+        <p className="font-bold text-[9px] uppercase break-words">
+          {familyHead.fullName || "—"}
+        </p>
+        <p className="mt-0.5">Ph: {familyHead.contactNumber || "—"}</p>
+        <p className="break-all">
+          Aadhaar:{" "}
+          {(familyHead.aadhaarNumber || "").replace(/\D/g, "").length >= 4
+            ? `****${(familyHead.aadhaarNumber || "").replace(/\D/g, "").slice(-4)}`
+            : "—"}
+        </p>
+        <p className="break-words mt-0.5">
+          {familyHead.address ? `${familyHead.address.slice(0, 80)}${familyHead.address.length > 80 ? "…" : ""}` : "—"}
+        </p>
+        <p>Pin: {familyHead.pincode || "—"}</p>
+      </div>
+
+      <div className="text-[8px] mb-2 border-b border-dashed border-gray-400 pb-2">
+        <p className="font-bold uppercase mb-1">
+          Members ({members.length})
+        </p>
+        {members.length === 0 ? (
+          <p className="text-gray-600">None</p>
+        ) : (
+          <ul className="space-y-1 list-none p-0 m-0">
+            {members.map((m, idx) => (
+              <li
+                key={idx}
+                className="border-b border-dotted border-gray-300 pb-1 last:border-0"
+              >
+                <span className="font-bold">{idx + 1}.</span>{" "}
+                <span className="font-semibold uppercase">
+                  {m.fullName || "—"}
+                </span>
+                <br />
+                <span className="text-[7px]">
+                  {m.relation || "—"} · Age {m.age || "—"}
+                </span>
+                <br />
+                <span className="font-mono text-[7px] break-all">
+                  Doc:{" "}
+                  {(m.documentId || "").replace(/\D/g, "").length >= 4
+                    ? `****${(m.documentId || "").replace(/\D/g, "").slice(-4)}`
+                    : "—"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="text-[8px] space-y-0.5 mb-2">
+        {extraMembersBeyondIncluded === 0 ? (
+          <div className="flex justify-between">
+            <span>Up to 4 members</span>
+            <span className="font-semibold">₹{AYUSH_CARD_BASE_PACKAGE_RUPEES}.00</span>
+          </div>
+        ) : (
+          <>
+            <div className="flex justify-between">
+              <span>Base (up to 4)</span>
+              <span>₹{AYUSH_CARD_BASE_PACKAGE_RUPEES}.00</span>
+            </div>
+            <div className="flex justify-between">
+              <span>
+                Extra {extraMembersBeyondIncluded}×₹
+                {AYUSH_CARD_EXTRA_MEMBER_RUPEES}
+              </span>
+              <span>
+                ₹
+                {extraMembersBeyondIncluded * AYUSH_CARD_EXTRA_MEMBER_RUPEES}.00
+              </span>
+            </div>
+          </>
+        )}
+        <div className="flex justify-between font-black text-[10px] border-t-2 border-black pt-1 mt-1">
+          <span>TOTAL</span>
+          <span>₹{estimatedFee}.00</span>
+        </div>
+      </div>
+
+      <div className="text-[7px] font-semibold space-y-0.5 border-t border-dashed border-gray-400 pt-2 uppercase">
+        <p>Pay: {thermalPaymentLabel}</p>
+        <p className="break-all">Ref: {thermalPaymentRef}</p>
+        <p className="text-center mt-2 font-black normal-case tracking-wide border border-black py-0.5">
+          Submitted
+        </p>
+      </div>
+    </div>
+  );
+
+  return (
+    <div
+      className={
+        variant === "modal"
+          ? "fixed inset-0 z-100 flex items-center justify-center bg-black/60 px-4"
+          : "min-h-screen bg-[#f0f0f0] py-8 px-4"
+      }
+      style={{ fontFamily: "Quicksand, sans-serif" }}
+    >
+      <div
+        className={
+          variant === "page"
+            ? "max-w-4xl mx-auto w-full flex flex-col gap-4"
+            : "w-full flex justify-center items-stretch"
+        }
+      >
+        {variant === "page" && (
+          <div className="flex flex-wrap items-center gap-3 px-1">
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="inline-flex items-center gap-2 text-[#222222] font-semibold hover:text-[#fa8112] transition-colors"
+              >
+                <ArrowLeft size={20} />
+                Back
+              </button>
+            )}
+            <h1 className="text-xl font-bold text-[#222222] tracking-tight">
+              Create Ayush Card
+            </h1>
+          </div>
+        )}
+        <div
+          className="bg-white w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300 relative rounded-xl shadow-xl"
+          style={{ fontFamily: "'Quicksand', sans-serif" }}
+        >
+        {/* Header Section */}
+        <div className="flex justify-between items-center px-3 py-2 bg-[#F5F5F5] shrink-0">
+          <div className="flex items-center gap-4 w-full">
+            <div className="flex items-center justify-center shrink-0">
+              <img
+                src="/logo_whitebg.svg"
+                alt="BKBS Trust"
+                className="h-20 w-20"
+              />
+            </div>
+            <div className="flex-1 text-left">
+              <h3 className="text-[14px] font-semibold text-[#222222]">
+                {variant === "page"
+                  ? "New card registration"
+                  : "Apply for Ayush Card"}
+              </h3>
+            </div>
+            {variant === "modal" ? (
+              <button
+                onClick={onClose}
+                className="p-1 hover:bg-gray-200 rounded-full transition-colors text-[#222222] shrink-0 border border-[#222222]"
+              >
+                <X size={16} />
+              </button>
+            ) : (
+              <div className="w-8 shrink-0" aria-hidden />
+            )}
+          </div>
+        </div>
+
+        {/* Hidden File Inputs — 2nd document upload only (no OCR here) */}
+        <input
+          type="file"
+          accept=".jpg,.jpeg,.png"
+          ref={docBackInputRef}
+          className="hidden"
+          onChange={handleDocumentUpload}
+        />
+        <input
+          type="file"
+          accept="image/*"
+          ref={headImageInputRef}
+          className="hidden"
+          onChange={handleHeadImageUpload}
+        />
+        <input
+          type="file"
+          accept=".jpg,.jpeg,.png"
+          ref={paymentInputRef}
+          className="hidden"
+          onChange={handlePaymentScreenshotUpload}
+        />
+
+        {currentStep < successStep ? (
+          <>
+            {/* <div className="text-center py-4 relative bg-white shrink-0">
+              <h2 className="text-2xl font-semibold text-[#222222] inline-block relative pb-2">
+                New Card Registration
+                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-24 h-1 bg-[#fa8112] rounded-full"></span>
+              </h2>
+            </div> */}
+
+            {/* Stepper */}
+            <div className="px-4 sm:px-8 py-2 flex justify-center bg-white shrink-0">
+              <div className="flex items-center max-w-xl w-full justify-between relative py-1">
+                {/* Step lines background */}
+                <div className="absolute top-[38%] left-[15%] w-[70%] h-[1.5px] bg-[#f7e5bc] -z-10"></div>
+                <div
+                  className="absolute top-[38%] left-[15%] h-[1.5px] bg-[#fa8112] -z-10 transition-all duration-500"
+                  style={{ width: `${stepperProgressPct}%` }}
+                ></div>
+
+                {stepperSteps.map((step) => (
+                  <div
+                    key={step.num}
+                    className="flex flex-col items-center bg-white relative z-10 w-[72px] sm:w-[80px]"
+                  >
+                    <div
+                      className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[11px] sm:text-[12px] font-bold mb-1 transition-colors ${
+                        currentStep === step.num
+                          ? "bg-[#fa8112] text-white"
+                          : currentStep > step.num
+                            ? "bg-[#fa8112] text-white"
+                            : "border border-[#f7e5bc] text-[#222222] bg-white"
+                      }`}
+                    >
+                      {currentStep > step.num ? (
+                        <Check size={13} strokeWidth={3} />
+                      ) : (
+                        step.num
+                      )}
+                    </div>
+                    <span
+                      className={`text-[9px] sm:text-[10px] md:text-[11px] text-center max-w-[68px] sm:max-w-none leading-tight md:whitespace-nowrap ${
+                        currentStep === step.num
+                          ? "font-bold text-[#222222]"
+                          : "font-semibold text-[#666666]"
+                      }`}
+                    >
+                      {step.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Main Content Area */}
+            <div className="flex-1 overflow-y-auto px-8 pb-24 pt-2 custom-scrollbar">
+              {/* STEP 1: ADD FAMILY HEAD */}
+              {currentStep === 1 && (
+                <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                  <div className="bg-[#FAF3E1] rounded-lg p-3 px-4 flex items-center gap-3 border-l-4 border-[#FA8112] mb-5">
+                    <User size={20} className="text-[#222222]" />
+                    <h3 className="font-medium text-[12px] text-[#222222]">
+                      Family Head Details
+                    </h3>
+                  </div>
+
+              
+
+                  <div className="flex flex-col md:flex-row gap-3 md:gap-4 mb-6 relative w-full items-stretch md:items-stretch">
+                    {/* Family Head Photo — first on mobile, left column on desktop */}
+                    <div className="w-full md:flex-1 md:min-w-0 border-2 border-[#fa8112] bg-[#faf3e1] p-3 sm:p-4 rounded-xl min-h-0 flex flex-col items-center justify-center">
+                      <h4 className="w-full text-[11px] sm:text-[12px] font-bold text-[#222222] mb-2 text-center">
+                        Upload head photo
+                      </h4>
+                      {!headImage ? (
+                        headCameraActive ? (
+                          <div className="w-full max-w-[260px] border border-[#fa8112]/30 bg-white rounded-lg p-2">
+                            <div className="relative aspect-square w-full max-w-[180px] mx-auto rounded-lg overflow-hidden border border-[#F6B579]">
+                              <video
+                                ref={headCameraVideoRef}
+                                autoPlay
+                                playsInline
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <div className="flex gap-2 mt-3">
+                              <button
+                                type="button"
+                                onClick={captureHeadPhoto}
+                                className="flex-1 py-2 bg-[#fa8112] text-white rounded-lg font-semibold flex items-center justify-center gap-2"
+                              >
+                                <Camera size={16} /> Capture
+                              </button>
+                              <button
+                                type="button"
+                                onClick={stopHeadCamera}
+                                className="flex-1 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-semibold"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="border border-dashed border-gray-300 bg-white rounded-lg py-4 px-4 flex flex-col items-center justify-center text-center w-full max-w-[260px]">
+                            <UploadCloud
+                              className="text-[#a4a4a4] mb-1.5"
+                              size={20}
+                            />
+                            <div className="flex gap-2 mt-2 w-full">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  headImageInputRef.current?.click()
+                                }
+                                className="flex-1 px-2 py-1.5 border border-[#fa8112] text-[#fa8112] rounded-lg text-[11px] font-semibold hover:bg-orange-50"
+                              >
+                                Upload
+                              </button>
+                              <button
+                                type="button"
+                                onClick={startHeadCamera}
+                                className="flex-1 px-2 py-1.5 bg-[#fa8112] text-white rounded-lg text-[11px] font-semibold"
+                              >
+                                {headCameraPermissionDenied
+                                  ? "Allow Camera"
+                                  : "Camera"}
+                              </button>
+                            </div>
+                            {headCameraPermissionDenied && (
+                              <p className="text-[11px] text-red-500 mt-2 text-center">
+                                Camera access is blocked, please allow camera access in browser settings.
+                              </p>
+                            )}
+                          </div>
+                        )
+                      ) : (
+                        <div className="relative">
+                          <img
+                            src={headImage}
+                            alt="Head"
+                            className="w-20 h-20 rounded-full object-cover border-2 border-[#faf3e1]"
+                          />
+                          <button
+                            className="absolute -top-2 -right-2 bg-white border border-gray-200 text-gray-600 rounded-full p-1 shadow-sm hover:bg-gray-100"
+                            onClick={() => setHeadImage(null)}
+                          >
+                            <CloseIcon size={14} />
+                          </button>
+                        </div>
+                      )}
+                      <canvas ref={headCameraCanvasRef} className="hidden" />
+                    </div>
+
+                    {/* 1st document: OCR only — middle column */}
+                    <div className="w-full md:flex-1 md:min-w-0 flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl border border-[#fa8112]/30 bg-[#faf3e1] min-h-0">
+                      <h4 className="w-full text-[11px] sm:text-[12px] font-bold text-[#222222] mb-1 text-center">
+                        1st document — OCR scan
+                      </h4>
+                     
+                      {cameraActive ? (
+                        <div className="w-full max-w-sm space-y-2 animate-in fade-in zoom-in-95">
+                          <div className="relative aspect-[4/3] max-h-[200px] sm:max-h-[220px] bg-black rounded-lg overflow-hidden shadow border border-white">
+                            <video
+                              ref={videoRef}
+                              autoPlay
+                              playsInline
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 border-2 border-white/50 border-dashed aspect-[1.6/1] rounded-lg"></div>
+                            {ocrLoading && (
+                              <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center p-6 transition-all animate-in fade-in">
+                                <div className="w-full max-w-[160px] h-1.5 bg-white/20 rounded-full overflow-hidden mb-3 relative">
+                                  <div
+                                    className="h-full bg-[#fa8112] transition-all duration-300"
+                                    style={{ width: `${ocrProgress}%` }}
+                                  ></div>
+                                </div>
+                                <p className="text-white text-[12px] font-bold animate-pulse">
+                                  Scanning... {ocrProgress}%
+                                </p>
+                                <div className="absolute left-0 right-0 h-0.5 bg-[#fa8112] shadow-[0_0_10px_#fa8112] blur-[1px] animate-[scan_2s_infinite]"></div>
+                              </div>
+                            )}
+                          </div>
+                          <style>{`
+                              @keyframes scan {
+                                0% { top: 20%; }
+                                50% { top: 80%; }
+                                100% { top: 20%; }
+                              }
+                            `}</style>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={stopCamera}
+                              className="flex-1 py-2 text-[12px] bg-white border border-gray-200 text-gray-600 rounded-lg font-semibold transition-all"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={capturePhoto}
+                              disabled={ocrLoading}
+                              className="flex-[2] py-2 text-[12px] bg-[#fa8112] text-white rounded-lg font-semibold shadow flex items-center justify-center gap-1.5 active:scale-95"
+                            >
+                              {ocrLoading ? (
+                                <Loader2 className="animate-spin" size={16} />
+                              ) : (
+                                <Camera size={16} />
+                              )}
+                              {ocrLoading ? "Scanning..." : "Capture & Scan"}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center group w-full">
+                          <div
+                            className="w-14 h-14 bg-white rounded-xl flex items-center justify-center shadow mb-3 cursor-pointer hover:scale-105 transition-all border border-orange-100 group-hover:border-[#fa8112]"
+                            onClick={startCamera}
+                          >
+                            {ocrLoading ? (
+                              <Loader2
+                                className="animate-spin text-[#fa8112]"
+                                size={24}
+                              />
+                            ) : (
+                              <Camera size={24} className="text-[#fa8112]" />
+                            )}
+                          </div>
+                          <p className="text-[11px] text-gray-500 text-center mb-3 px-1">
+                            Camera or gallery to scan the front side.
+                          </p>
+                          <div className="flex gap-2 w-full text-[12px] justify-center flex-wrap">
+                            <button
+                              onClick={startCamera}
+                              className="px-3 py-2 bg-[#fa8112] text-white rounded-lg font-semibold flex items-center justify-center gap-1.5 shadow-sm hover:bg-[#e47510] transition-all"
+                            >
+                              <Camera size={13} /> Camera
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                ocrFileInputRef.current?.click()
+                              }
+                              className="px-3 py-2 bg-white border border-[#fa8112] text-[#fa8112] rounded-lg font-semibold flex items-center justify-center gap-1.5 hover:bg-orange-50 transition-all"
+                            >
+                              <UploadCloud size={13} /> Gallery
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      <canvas ref={canvasRef} className="hidden" />
+                      <input
+                        ref={ocrFileInputRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={handleScanImage}
+                      />
+                    </div>
+
+                    {/* 2nd document: file upload only — no OCR */}
+                    <div className="w-full md:flex-1 md:min-w-0 border-2 border-[#fa8112] bg-[#faf3e1] p-3 sm:p-4 rounded-xl min-h-0 flex flex-col">
+                      <h4 className="font-bold text-[11px] sm:text-[12px] text-[#222222] mb-1 text-center">
+                        2nd document — upload only
+                      </h4>
+                     
+                      <div className="flex flex-1 items-center justify-center py-1 min-h-[100px]">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            docBackInputRef.current?.click();
+                          }}
+                          className={`w-full flex flex-col items-center justify-center py-4 px-4 rounded-lg transition-all shadow-sm ${
+                            docBack
+                              ? "bg-white border-2 border-green-500"
+                              : "bg-white border hover:border-[#fa8112]"
+                          }`}
+                        >
+                          <div
+                            className={`w-10 h-10 ${docBack ? "bg-green-500" : "bg-[#fa8112]"} rounded-full flex items-center justify-center text-white mb-3`}
+                          >
+                            {docBack ? (
+                              <Check size={20} className="text-white" />
+                            ) : (
+                              <UploadCloud size={20} />
+                            )}
+                          </div>
+                          <span className="text-[14px] font-semibold text-[#222222]">
+                            {docBack ? "2nd document added" : "Upload 2nd document"}
+                          </span>
+                          <span className="text-[12px] text-gray-500 truncate w-full px-1 text-center max-w-[200px] mt-1">
+                            {docBack ? docBack.name : "JPG / PNG only"}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+                    <div>
+                      <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
+                        Full Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="fullName"
+                        value={familyHead.fullName}
+                        onChange={handleHeadChange}
+                        placeholder="As per identity document"
+                        style={{ fontFamily: "'Inter', sans-serif" }}
+                        className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
+                        Date of Birth <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="date"
+                          name="dob"
+                          value={familyHead.dob}
+                          onChange={handleHeadChange}
+                          style={{ fontFamily: "'Inter', sans-serif" }}
+                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
+                        />
+                      </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
+                        Gender <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        name="gender"
+                        value={familyHead.gender}
+                        onChange={handleHeadChange}
+                        style={{ fontFamily: "'Inter', sans-serif" }}
+                        className="w-full md:max-w-md border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors appearance-none bg-white"
+                      >
+                        <option value="">Select gender</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
+                        Address <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        name="address"
+                        value={familyHead.address}
+                        onChange={handleHeadChange}
+                        placeholder="House no., street, district, state"
+                        rows={2}
+                        style={{ fontFamily: "'Inter', sans-serif" }}
+                        className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors resize-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
+                        Pincode <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="pincode"
+                        value={familyHead.pincode}
+                        onChange={handleHeadChange}
+                        placeholder="6-digit pincode"
+                        style={{ fontFamily: "'Inter', sans-serif" }}
+                        className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
+                        Contact Number <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="tel"
+                        name="contactNumber"
+                        value={familyHead.contactNumber}
+                        onChange={handleHeadChange}
+                        placeholder="10-digit mobile number"
+                        style={{ fontFamily: "'Inter', sans-serif" }}
+                        className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
+                        Aadhaar Number <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="aadhaarNumber"
+                        value={familyHead.aadhaarNumber}
+                        onChange={handleHeadChange}
+                        placeholder="12-digit Aadhaar number"
+                        style={{ fontFamily: "'Inter', sans-serif" }}
+                        className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
+                        Email
+                      </label>
+                      <input
+                        type="email"
+                        name="emailAddress"
+                        value={familyHead.emailAddress}
+                        onChange={handleHeadChange}
+                        placeholder="Email address"
+                        style={{ fontFamily: "'Inter', sans-serif" }}
+                        className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2: MEMBERS */}
+              {currentStep === 2 && (
+                <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                  <p className="text-[14px] text-gray-500 mb-4">
+                    Family Head + Additional Members{" "}
+                    <span className="font-bold text-[#222222]">
+                      {totalMembersCount}/7
+                    </span>{" "}
+              
+                  </p>
+
+                  {/* Tabs — Family Head + added members only (Add Member is below the form) */}
+                  <div className="flex flex-wrap gap-3 mb-5">
+                    <button
+                      type="button"
+                      onClick={() => setActiveMemberTab(0)}
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-full border transition-all text-[15px] font-medium ${
+                        activeMemberTab === 0
+                          ? "border-gray-300 text-gray-800 bg-gray-50"
+                          : "border-gray-200 text-[#666666] hover:bg-gray-50 bg-white"
+                      }`}
+                    >
+                      Family Head
+                    </button>
+
+                    {members.map((member, idx) => (
+                      <button
+                        type="button"
+                        key={idx}
+                        onClick={() => setActiveMemberTab(idx + 1)}
+                        className={`group flex items-center gap-2 px-5 py-2.5 rounded-full border transition-all text-[15px] font-medium relative ${
+                          activeMemberTab === idx + 1
+                            ? "border-[#FA8112] text-[#FA8112] bg-[#FA8112]/5"
+                            : "border-gray-200 text-[#FA8112] hover:bg-[#FA8112]/5"
+                        }`}
+                      >
+                        <User size={18} />
+                        {member.fullName || `Member ${idx + 1}`}
+
+                        {/* Cut Icon always visible as per design */}
+                        <div
+                          className={`ml-1 flex items-center justify-center rounded-full p-0.5 transition-colors ${
+                            activeMemberTab === idx + 1
+                              ? "bg-red-50 text-red-500 border border-red-200 hover:bg-red-100"
+                              : "text-[#A0AAB4] hover:text-red-500"
+                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeMember(idx);
+                          }}
+                        >
+                          <CloseIcon size={14} strokeWidth={2.5} />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Form Content Based on Tab */}
+                  <div className="bg-[#FAF3E1] rounded-lg p-3 px-4 flex items-center gap-3 border-l-4 border-[#FA8112] mb-5">
+                    <User size={20} className="text-[#222222]" />
+                    <h3 className="font-semibold text-[#222222]">
+                      {activeMemberTab === 0
+                        ? "Family Head Details"
+                        : `Member ${activeMemberTab} Details`}
+                    </h3>
+                  </div>
+
+                  {activeMemberTab === 0 ? (
+                    /* Display Head Details inside Step 3 (Editable or just reflecting) */
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 opacity-90">
+                      <div>
+                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                          Full Name
+                        </label>
+                        <input
+                          type="text"
+                          name="fullName"
+                          value={familyHead.fullName}
+                          onChange={handleHeadChange}
+                          placeholder="As per identity document"
+                          style={{ fontFamily: "'Inter', sans-serif" }}
+                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                          Date of Birth
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="date"
+                            name="dob"
+                            value={familyHead.dob}
+                            onChange={handleHeadChange}
+                            style={{ fontFamily: "'Inter', sans-serif" }}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                          />
+                        </div>
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                          Gender
+                        </label>
+                        <select
+                          name="gender"
+                          value={familyHead.gender}
+                          onChange={handleHeadChange}
+                          style={{ fontFamily: "'Inter', sans-serif" }}
+                          className="w-full md:max-w-md border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] appearance-none bg-white"
+                        >
+                          <option value="">Select gender</option>
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                          Address
+                        </label>
+                        <textarea
+                          name="address"
+                          value={familyHead.address}
+                          onChange={handleHeadChange}
+                          placeholder="House no., street, district, state"
+                          rows={2}
+                          style={{ fontFamily: "'Inter', sans-serif" }}
+                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] resize-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                          Pincode
+                        </label>
+                        <input
+                          type="text"
+                          name="pincode"
+                          value={familyHead.pincode}
+                          onChange={handleHeadChange}
+                          placeholder="6-digit pincode"
+                          style={{ fontFamily: "'Inter', sans-serif" }}
+                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                          Contact Number
+                        </label>
+                        <input
+                          type="tel"
+                          name="contactNumber"
+                          value={familyHead.contactNumber}
+                          onChange={handleHeadChange}
+                          placeholder="10-digit mobile number"
+                          style={{ fontFamily: "'Inter', sans-serif" }}
+                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                          Aadhaar Number
+                        </label>
+                        <input
+                          type="text"
+                          name="aadhaarNumber"
+                          value={familyHead.aadhaarNumber}
+                          onChange={handleHeadChange}
+                          placeholder="12-digit Aadhaar number"
+                          style={{ fontFamily: "'Inter', sans-serif" }}
+                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                          Email
+                        </label>
+                        <input
+                          type="email"
+                          name="emailAddress"
+                          value={familyHead.emailAddress}
+                          onChange={handleHeadChange}
+                          placeholder="Email address"
+                          style={{ fontFamily: "'Inter', sans-serif" }}
+                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    /* Display Active Member Fields */
+                    <div
+                      className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3"
+                      key={`member-${activeMemberTab}`}
+                    >
+                      {/* Member Scanning UI */}
+                      {memberScanningIndex === activeMemberTab - 1 && (
+                        <div className="md:col-span-2 bg-orange-50 border border-[#FBD7B0] rounded-lg p-3 mb-3">
+                          {memberCameraActive ? (
+                            <div className="space-y-3">
+                              <video
+                                ref={memberVideoRef}
+                                autoPlay
+                                playsInline
+                                className="w-full rounded-lg border border-[#F6B579] max-h-64"
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={captureMemberPhoto}
+                                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#FA8112] text-white rounded-lg hover:bg-[#E47510] font-semibold"
+                                >
+                                  <Check size={18} /> Capture
+                                </button>
+                                <button
+                                  onClick={stopMemberCamera}
+                                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-100 font-semibold"
+                                >
+                                  <X size={18} /> Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {memberScanProgress > 0 && (
+                                <div>
+                                  <div className="w-full bg-gray-200 rounded-full h-2">
+                                    <div
+                                      className="bg-[#FA8112] h-2 rounded-full transition-all"
+                                      style={{
+                                        width: `${memberScanProgress}%`,
+                                      }}
+                                    />
+                                  </div>
+                                  <p className="text-xs text-gray-600 mt-1">
+                                    Scanning: {memberScanProgress}%
+                                  </p>
+                                </div>
+                              )}
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() =>
+                                    startMemberCamera(activeMemberTab - 1)
+                                  }
+                                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#FA8112] text-white rounded-lg hover:bg-[#E47510] font-semibold"
+                                >
+                                  <Camera size={18} /> Use Camera
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    memberInputRef.current?.click()
+                                  }
+                                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#FA8112] text-white rounded-lg hover:bg-[#E47510] font-semibold"
+                                >
+                                  <UploadCloud size={18} /> Upload Photo
+                                </button>
+                              </div>
+                              <input
+                                ref={memberInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) =>
+                                  handleMemberScanImage(e, activeMemberTab - 1)
+                                }
+                                style={{ display: "none" }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                          Full Name
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            name="fullName"
+                            value={members[activeMemberTab - 1].fullName}
+                            onChange={(e) =>
+                              handleMemberChange(activeMemberTab - 1, e)
+                            }
+                            placeholder="Full Name"
+                            style={{ fontFamily: "'Inter', sans-serif" }}
+                            className="flex-1 border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                          />
+                          {memberScanningIndex !== activeMemberTab - 1 && (
+                            <button
+                              onClick={() => {
+                                stopMemberCamera();
+                                setMemberScanProgress(0);
+                                setMemberScanningIndex(activeMemberTab - 1);
+                              }}
+                              className="px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors"
+                              title="Scan member ID"
+                            >
+                              <ScanLine size={18} className="text-[#fa8112]" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                          Relation
+                        </label>
+                        <select
+                          name="relation"
+                          value={members[activeMemberTab - 1].relation}
+                          onChange={(e) =>
+                            handleMemberChange(activeMemberTab - 1, e)
+                          }
+                          style={{ fontFamily: "'Inter', sans-serif" }}
+                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] appearance-none bg-white"
+                        >
+                          <option value="">Select Relation</option>
+                          <option value="Spouse">Spouse</option>
+                          <option value="Son">Son</option>
+                          <option value="Daughter">Daughter</option>
+                          <option value="Father">Father</option>
+                          <option value="Mother">Mother</option>
+                          <option value="Brother">Brother</option>
+                          <option value="Sister">Sister</option>
+                          <option value="Grandfather">Grandfather</option>
+                          <option value="Grandmother">Grandmother</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                          Age
+                        </label>
+                        <input
+                          type="number"
+                          name="age"
+                          value={members[activeMemberTab - 1].age}
+                          onChange={(e) => {
+                            const val = e.target.value
+                              .replace(/\D/g, "")
+                              .slice(0, 3);
+                            handleMemberChange(activeMemberTab - 1, {
+                              target: { name: "age", value: val },
+                            });
+                          }}
+                          placeholder="Age"
+                          style={{ fontFamily: "'Inter', sans-serif" }}
+                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                          Document ID (Aadhaar)
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          name="documentId"
+                          value={
+                            members[activeMemberTab - 1]?.documentId ?? ""
+                          }
+                          onChange={(e) =>
+                            handleMemberChange(activeMemberTab - 1, e)
+                          }
+                          placeholder="12-digit document number"
+                          maxLength={12}
+                          style={{ fontFamily: "'Inter', sans-serif" }}
+                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {totalMembersCount < 8 && (
+                    <div
+                      ref={addMemberScrollAnchorRef}
+                      className="mt-8 pt-5 border-t border-[#fa8112]/25 flex flex-col items-center gap-3 pb-4"
+                    >
+                      <p className="text-[13px] text-[#666666] text-center max-w-md">
+                        Optional: add parents, spouse, or children on the same
+                        card.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={addMember}
+                        className="flex items-center justify-center gap-2 w-full max-w-sm px-6 py-3.5 rounded-full border-2 border-dashed border-[#FA8112] text-[#FA8112] bg-[#FA8112]/5 hover:bg-[#FA8112]/10 transition-all text-[15px] font-semibold shadow-sm"
+                      >
+                        <Plus size={20} />
+                        Add Member
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Member scanning canvas - hidden */}
+              <canvas ref={memberCanvasRef} style={{ display: "none" }} />
+
+              {/* STEP 3: REVIEW */}
+              {currentStep === 3 && (
+                <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                  {/* Card Preview Section */}
+                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-6">
+                    <div className="flex justify-between items-center p-4 bg-gray-50 border-b border-gray-200">
+                      <h4 className="font-bold text-[#222222] text-[15px]">
+                        Card Preview
+                      </h4>
+                    </div>
+                    <div className="p-4 sm:p-6 flex items-center justify-center bg-[#fcfcfc]">
+                      <div className="w-full max-w-[480px]">
+                        <AyushCardPreview data={cardPreviewData} side="front" />
+                      </div>
+                    </div>
+                    <div className="p-4 border-t border-gray-100 grid grid-cols-2 md:grid-cols-5 gap-4 bg-white">
+                      <div>
+                        <p className="text-[11px] font-bold text-gray-400 uppercase">
+                          Head Name
+                        </p>
+                        <p className="text-[14px] font-bold text-[#222222] truncate">
+                          {familyHead.fullName || "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold text-gray-400 uppercase">
+                          Aadhaar No
+                        </p>
+                        <p className="text-[14px] font-bold text-[#222222] truncate">
+                          {familyHead.aadhaarNumber || "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold text-gray-400 uppercase">
+                          Contact
+                        </p>
+                        <p className="text-[14px] font-bold text-[#222222] truncate">
+                          {familyHead.contactNumber || "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold text-gray-400 uppercase">
+                          Members
+                        </p>
+                        <p className="text-[14px] font-bold text-[#222222]">
+                          {totalMembersCount}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[11px] font-bold text-gray-400 uppercase">
+                          Amount
+                        </p>
+                        <p className="text-[14px] font-bold text-[#fa8112]">
+                          ₹{estimatedFee}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#FAF3E1] rounded-lg p-3 px-4 flex items-center gap-3 border-l-4 border-[#FA8112] mb-2">
+                    <User size={20} className="text-[#222222]" />
+                    <h3 className="font-semibold text-[#222222]">
+                      Review Your Application
+                    </h3>
+                  </div>
+                  <p className="text-[14px] text-gray-500 mb-6">
+                    Please verify all details before final submission
+                  </p>
+
+                  <div className="space-y-4">
+                    {/* Head Review Card */}
+                    <div className="bg-white p-5 rounded-xl border border-gray-100">
+                      <div className="flex justify-between items-center mb-4">
+                        <div className="flex items-center gap-3">
+                          <User size={20} className="text-[#222222]" />
+                          <h4 className="text-[16px] font-bold text-[#222222]">
+                            Family Head Details
+                          </h4>
+                        </div>
+                        <button
+                          onClick={() => setIsEditingReview(!isEditingReview)}
+                          className={`text-[14px] font-semibold underline underline-offset-2 transition-colors ${isEditingReview ? "text-green-600 decoration-green-600" : "text-[#222222] decoration-[#222222] hover:text-[#FA8112] hover:decoration-[#FA8112]"}`}
+                        >
+                          {isEditingReview ? "Done" : "Edit"}
+                        </button>
+                      </div>
+
+                      <div className="flex flex-col md:flex-row gap-4 mb-6 md:overflow-x-auto md:pb-2 md:custom-scrollbar">
+                        {/* 1. Family head photo */}
+                        <div className="shrink-0 flex flex-col gap-2">
+                          <div className="w-full md:w-[240px] h-[150px] bg-gray-200 rounded-lg flex items-center justify-center relative overflow-hidden group">
+                            {headImage ? (
+                              <>
+                                <div className="relative w-full h-full group">
+                                  <img
+                                    src={headImage}
+                                    alt="Head"
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const win = window.open();
+                                        win.document.write(
+                                          `<img src="${headImage}" />`,
+                                        );
+                                      }}
+                                      className="bg-white/90 hover:bg-white text-[#222222] p-1.5 rounded-full shadow-lg transition-all"
+                                      title="View Photo"
+                                    >
+                                      <ScanLine size={16} />
+                                    </button>
+                                  </div>
+                                </div>
+                                {isEditingReview && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setHeadImage(null)}
+                                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors"
+                                  >
+                                    <CloseIcon size={14} />
+                                  </button>
+                                )}
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  headImageInputRef.current?.click()
+                                }
+                                className="w-full h-full flex flex-col items-center justify-center text-gray-400 hover:bg-gray-50 transition-colors"
+                              >
+                                <UploadCloud size={24} className="mb-2" />
+                                <span className="text-xs">Upload Photo</span>
+                              </button>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-[14px] font-semibold text-[#222222]">
+                              Family Head Photo
+                            </p>
+                            <p className="text-[12px] text-gray-500">&nbsp;</p>
+                          </div>
+                        </div>
+
+                        {/* 2. First document (OCR) */}
+                        <div className="shrink-0 flex flex-col gap-2">
+                          <div className="w-full md:w-[240px] h-[150px] bg-gray-200 rounded-lg flex items-center justify-center relative overflow-hidden group">
+                            {docFront ? (
+                              <>
+                                {docFront.url ? (
+                                  <div className="relative w-full h-full group">
+                                    <img
+                                      src={docFront.url}
+                                      className="w-full h-full object-cover"
+                                      alt="Document"
+                                    />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          window.open(docFront.url, "_blank");
+                                        }}
+                                        className="bg-white/90 hover:bg-white text-[#222222] p-1.5 rounded-full shadow-lg transition-all"
+                                        title="View Document"
+                                      >
+                                        <ScanLine size={16} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="text-gray-500 flex flex-col items-center">
+                                    <FileText size={32} className="mb-2" />
+                                    <span className="text-xs truncate w-[140px] text-center">
+                                      {docFront.name}
+                                    </span>
+                                  </div>
+                                )}
+                                {isEditingReview && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setDocFront(null)}
+                                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors"
+                                  >
+                                    <CloseIcon size={14} />
+                                  </button>
+                                )}
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  ocrFileInputRef.current?.click()
+                                }
+                                className="w-full h-full flex flex-col items-center justify-center text-gray-400 hover:bg-gray-50 transition-colors"
+                              >
+                                <UploadCloud size={24} className="mb-2" />
+                                <span className="text-xs">OCR scan</span>
+                              </button>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-[14px] font-semibold text-[#222222]">
+                              1st document (OCR)
+                            </p>
+                            <p className="text-[12px] text-gray-500">
+                              Scan or gallery — auto-fills form
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* 3. Second document (upload) */}
+                        <div className="shrink-0 flex flex-col gap-2">
+                          <div className="w-full md:w-[240px] h-[150px] bg-gray-200 rounded-lg flex items-center justify-center relative overflow-hidden group">
+                            {docBack ? (
+                              <>
+                                {docBack.url ? (
+                                  <div className="relative w-full h-full group">
+                                    <img
+                                      src={docBack.url}
+                                      className="w-full h-full object-cover"
+                                      alt="Second document"
+                                    />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          window.open(docBack.url, "_blank");
+                                        }}
+                                        className="bg-white/90 hover:bg-white text-[#222222] p-1.5 rounded-full shadow-lg transition-all"
+                                        title="View Document"
+                                      >
+                                        <ScanLine size={16} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="text-gray-500 flex flex-col items-center">
+                                    <FileText size={32} className="mb-2" />
+                                    <span className="text-xs truncate w-[140px] text-center">
+                                      {docBack.name}
+                                    </span>
+                                  </div>
+                                )}
+                                {isEditingReview && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setDocBack(null)}
+                                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors"
+                                  >
+                                    <CloseIcon size={14} />
+                                  </button>
+                                )}
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  docBackInputRef.current?.click()
+                                }
+                                className="w-full h-full flex flex-col items-center justify-center text-gray-400 hover:bg-gray-50 transition-colors"
+                              >
+                                <UploadCloud size={24} className="mb-2" />
+                                <span className="text-xs">Upload file</span>
+                              </button>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-[14px] font-semibold text-[#222222]">
+                              2nd document (upload)
+                            </p>
+                            <p className="text-[12px] text-gray-500">
+                              JPG/PNG — no OCR
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-6">
+                        <div>
+                          <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                            Full Name
+                          </p>
+                          {isEditingReview ? (
+                            <input
+                              type="text"
+                              name="fullName"
+                              value={familyHead.fullName}
+                              onChange={handleHeadChange}
+                              className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                            />
+                          ) : (
+                            <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                              {familyHead.fullName || "—"}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                            Date of Birth
+                          </p>
+                          {isEditingReview ? (
+                            <input
+                              type="date"
+                              name="dob"
+                              value={familyHead.dob}
+                              onChange={handleHeadChange}
+                              className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                            />
+                          ) : (
+                            <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                              {familyHead.dob || "YYYY-MM-DD"}
+                            </p>
+                          )}
+                        </div>
+                        <div className="sm:col-span-2">
+                          <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                            Gender
+                          </p>
+                          {isEditingReview ? (
+                            <select
+                              name="gender"
+                              value={familyHead.gender}
+                              onChange={handleHeadChange}
+                              className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                            >
+                              <option value="">Select Gender</option>
+                              <option value="Male">Male</option>
+                              <option value="Female">Female</option>
+                              <option value="Other">Other</option>
+                            </select>
+                          ) : (
+                            <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                              {familyHead.gender || "—"}
+                            </p>
+                          )}
+                        </div>
+                        <div className="sm:col-span-2">
+                          <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                            Address
+                          </p>
+                          {isEditingReview ? (
+                            <textarea
+                              name="address"
+                              value={familyHead.address}
+                              onChange={handleHeadChange}
+                              rows={2}
+                              className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222] resize-none"
+                            />
+                          ) : (
+                            <p className="text-[14px] font-semibold text-[#222222] w-full pr-2 line-clamp-3">
+                              {familyHead.address || "—"}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                            Pincode
+                          </p>
+                          {isEditingReview ? (
+                            <input
+                              type="text"
+                              name="pincode"
+                              value={familyHead.pincode}
+                              onChange={handleHeadChange}
+                              className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                            />
+                          ) : (
+                            <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                              {familyHead.pincode || "—"}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                            Contact
+                          </p>
+                          {isEditingReview ? (
+                            <input
+                              type="tel"
+                              name="contactNumber"
+                              value={familyHead.contactNumber}
+                              onChange={handleHeadChange}
+                              className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                            />
+                          ) : (
+                            <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                              {familyHead.contactNumber || "—"}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                            Aadhaar Number
+                          </p>
+                          {isEditingReview ? (
+                            <input
+                              type="text"
+                              name="aadhaarNumber"
+                              value={familyHead.aadhaarNumber}
+                              onChange={handleHeadChange}
+                              className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                            />
+                          ) : (
+                            <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                              {familyHead.aadhaarNumber || "—"}
+                            </p>
+                          )}
+                        </div>
+                        <div className="sm:col-span-2">
+                          <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                            Email
+                          </p>
+                          {isEditingReview ? (
+                            <input
+                              type="email"
+                              name="emailAddress"
+                              value={familyHead.emailAddress}
+                              onChange={handleHeadChange}
+                              className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                            />
+                          ) : (
+                            <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                              {familyHead.emailAddress || "—"}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {isEditingReview && (
+                        <div className="mt-8 flex justify-center">
+                          <button
+                            onClick={() => setIsEditingReview(false)}
+                            className="bg-[#fa8112] text-white px-8 py-2 rounded-lg font-bold hover:bg-[#e0700d] transition-colors shadow-md"
+                          >
+                            Save Changes
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Add Member details in Review */}
+                    {members.length > 0 && (
+                      <div className="bg-white p-5 rounded-xl border border-gray-100 mt-6">
+                        <div className="flex justify-between items-center mb-4">
+                          <div className="flex items-center gap-3">
+                            <User size={20} className="text-[#222222]" />
+                            <h4 className="text-[16px] font-bold text-[#222222]">
+                              Members ({members.length})
+                            </h4>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          {members.map((member, idx) => (
+                            <div
+                              key={idx}
+                              className="bg-white p-4 rounded-xl border border-gray-200"
+                            >
+                              <h4 className="font-bold text-[#222222] mb-4 pb-2 border-b border-gray-100 uppercase tracking-wider text-[11px]">
+                                Member {idx + 1}
+                              </h4>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                <div>
+                                  <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                                    Member Name
+                                  </p>
+                                  {isEditingReview ? (
+                                    <input
+                                      type="text"
+                                      name="fullName"
+                                      value={member.fullName}
+                                      onChange={(e) =>
+                                        handleMemberChange(idx, e)
+                                      }
+                                      className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                                    />
+                                  ) : (
+                                    <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                                      {member.fullName || "—"}
+                                    </p>
+                                  )}
+                                </div>
+                                <div>
+                                  <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                                    Relation
+                                  </p>
+                                  {isEditingReview ? (
+                                    <select
+                                      name="relation"
+                                      value={member.relation}
+                                      onChange={(e) =>
+                                        handleMemberChange(idx, e)
+                                      }
+                                      className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222] bg-white"
+                                    >
+                                      <option value="">Select Relation</option>
+                                      <option value="Spouse">Spouse</option>
+                                      <option value="Son">Son</option>
+                                      <option value="Daughter">Daughter</option>
+                                      <option value="Father">Father</option>
+                                      <option value="Mother">Mother</option>
+                                      <option value="Brother">Brother</option>
+                                      <option value="Sister">Sister</option>
+                                      <option value="Grandfather">
+                                        Grandfather
+                                      </option>
+                                      <option value="Grandmother">
+                                        Grandmother
+                                      </option>
+                                      <option value="Other">Other</option>
+                                    </select>
+                                  ) : (
+                                    <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                                      {member.relation || "—"}
+                                    </p>
+                                  )}
+                                </div>
+                                <div>
+                                  <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                                    Age
+                                  </p>
+                                  {isEditingReview ? (
+                                    <input
+                                      type="number"
+                                      name="age"
+                                      value={member.age}
+                                      onChange={(e) => {
+                                        const val = e.target.value
+                                          .replace(/\D/g, "")
+                                          .slice(0, 3);
+                                        handleMemberChange(idx, {
+                                          target: { name: "age", value: val },
+                                        });
+                                      }}
+                                      className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                                    />
+                                  ) : (
+                                    <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                                      {member.age || "—"}
+                                    </p>
+                                  )}
+                                </div>
+                                <div>
+                                  <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                                    Document ID
+                                  </p>
+                                  {isEditingReview ? (
+                                    <input
+                                      type="text"
+                                      name="documentId"
+                                      inputMode="numeric"
+                                      maxLength={12}
+                                      value={member.documentId ?? ""}
+                                      onChange={(e) =>
+                                        handleMemberChange(idx, e)
+                                      }
+                                      className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                                    />
+                                  ) : (
+                                    <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                                      {member.documentId?.replace(
+                                        /(\d{4})(?=\d)/g,
+                                        "$1 ",
+                                      ) || "—"}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="mt-6 p-4 bg-white rounded-xl border border-gray-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-5 h-5 rounded-full border border-gray-400 flex items-center justify-center text-gray-500 text-xs">
+                          i
+                        </div>
+                        <h4 className="text-[15px] font-semibold text-[#222222]">
+                          Note
+                        </h4>
+                      </div>
+                      <p className="text-[12px] text-gray-500">
+                        Card fee is a fixed ₹{AYUSH_CARD_BASE_PACKAGE_RUPEES} for 1
+                        to {AYUSH_CARD_INCLUDED_MEMBERS} members (including family
+                        head). Each additional member adds ₹
+                        {AYUSH_CARD_EXTRA_MEMBER_RUPEES}.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {/* STEP 4: PAYMENT — admin/employee: offline (camera) + online */}
+              {!skipPayment && currentStep === 4 && staffPaymentFlow && (
+                <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                  <canvas
+                    ref={staffCashCanvasRef}
+                    className="hidden"
+                    aria-hidden
+                  />
+                  <div className="text-center mb-6">
+                    <h3 className="font-black text-[22px] md:text-[24px] text-[#22333B] uppercase tracking-tight mb-2">
+                      Payment
+                    </h3>
+                    <p className="text-[13px] text-gray-500">
+                      Total payable:{" "}
+                      <span className="font-bold text-[#fa8112]">
+                        ₹{Number(estimatedFee).toFixed(2)}
+                      </span>
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto mb-8">
+                    <button
+                      type="button"
+                      onClick={handleStaffChooseOfflineCash}
+                      disabled={staffCashCameraLoading}
+                      className={`flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 transition-all shadow-sm disabled:opacity-60 ${
+                        staffPaymentMode === "cash"
+                          ? "border-[#fa8112] bg-orange-50 ring-2 ring-[#fa8112]/30"
+                          : "border-gray-200 bg-white hover:border-[#fa8112]/50"
+                      }`}
+                    >
+                      <Banknote className="w-10 h-10 text-[#fa8112]" />
+                      <span className="font-bold text-[#22333B]">
+                        Offline / Cash
+                      </span>
+                      <span className="text-[11px] text-gray-500 text-center leading-snug">
+                        Opens your camera to capture the cash receipt
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleStaffChooseOnline}
+                      className={`flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 transition-all shadow-sm ${
+                        staffPaymentMode === "online"
+                          ? "border-[#fa8112] bg-orange-50 ring-2 ring-[#fa8112]/30"
+                          : "border-gray-200 bg-white hover:border-[#fa8112]/50"
+                      }`}
+                    >
+                      <span className="text-3xl" aria-hidden>
+                        💳
+                      </span>
+                      <span className="font-bold text-[#22333B]">Online</span>
+                      <span className="text-[11px] text-gray-500 text-center leading-snug">
+                        Pay with Cashfree (UPI / card)
+                      </span>
+                    </button>
+                  </div>
+
+                  {staffCashCameraActive && (
+                    <div className="max-w-lg mx-auto mb-8 space-y-3">
+                      <video
+                        ref={staffCashVideoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="w-full rounded-xl border-2 border-[#fa8112] bg-black max-h-72 object-cover"
+                      />
+                      <div className="flex flex-wrap gap-2 justify-center">
+                        <button
+                          type="button"
+                          onClick={captureStaffCashReceipt}
+                          className="flex-1 min-w-[140px] bg-[#fa8112] text-white font-bold py-3 rounded-xl hover:bg-[#e0720f]"
+                        >
+                          Capture receipt
+                        </button>
+                        <button
+                          type="button"
+                          onClick={stopStaffCashCamera}
+                          className="px-6 py-3 border border-gray-300 rounded-xl font-semibold text-gray-700 hover:bg-gray-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {staffPaymentMode === "cash" &&
+                    staffCashReceiptImage &&
+                    !staffCashCameraActive && (
+                      <div className="max-w-md mx-auto mb-8 space-y-3">
+                        <p className="text-sm font-semibold text-center text-green-700">
+                          Cash receipt photo attached
+                        </p>
+                        <img
+                          src={staffCashReceiptImage}
+                          alt="Cash receipt"
+                          className="w-full rounded-xl border border-gray-200"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleStaffChooseOfflineCash}
+                          className="w-full text-[#fa8112] font-semibold text-sm py-2"
+                        >
+                          Retake photo
+                        </button>
+                      </div>
+                    )}
+
+                  {staffPaymentMode === "online" && (
+                    <div className="max-w-xl mx-auto">
+                      {saveError && (
+                        <div className="bg-red-50 text-red-600 text-xs p-3 rounded-lg mb-4 border border-red-100 w-full text-center">
+                          {saveError}
+                        </div>
+                      )}
+
+                      {txnId ? (
+                        <div className="w-full flex flex-col gap-4 animate-in fade-in zoom-in duration-500">
+                          <div className="border rounded-2xl p-6 flex flex-col items-center gap-3 bg-green-50 border-green-200">
+                            <div className="w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg mb-1 bg-green-500">
+                              <Check size={28} strokeWidth={3} />
+                            </div>
+                            <h3 className="text-lg font-bold text-green-700">
+                              Payment verified
+                            </h3>
+                            <p className="text-[11px] text-center font-medium text-green-600">
+                              Ref:{" "}
+                              <span className="font-mono font-bold uppercase select-all tracking-wider">
+                                {txnId}
+                              </span>
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => submitStaffApplication()}
+                            disabled={submitting}
+                            className="w-full bg-[#fa8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:active:scale-100"
+                          >
+                            {submitting ? (
+                              <Loader2 className="animate-spin" size={24} />
+                            ) : (
+                              <>
+                                <CheckCircle2 size={24} />
+                                Submit application
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="w-full space-y-4">
+                          {!orderId ? (
+                            <button
+                              type="button"
+                              onClick={handleInitiateCashfreePayment}
+                              disabled={onlinePaymentLoading}
+                              className="w-full bg-[#fa8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:active:scale-100"
+                            >
+                              {onlinePaymentLoading ? (
+                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <span className="text-xl">💳</span>
+                              )}
+                              {onlinePaymentLoading
+                                ? "Preparing gateway..."
+                                : "Pay with Cashfree"}
+                            </button>
+                          ) : (
+                            <div className="w-full space-y-4">
+                              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex flex-col items-center gap-2">
+                                <div className="flex items-center gap-2 text-[#fa8112] font-bold text-sm">
+                                  <span className="w-2 h-2 rounded-full bg-[#fa8112] animate-pulse" />
+                                  Awaiting payment…
+                                </div>
+                                <p className="text-[10px] text-gray-500 text-center font-mono">
+                                  OrderId: {orderId}
+                                </p>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => setOrderId(null)}
+                                  className="py-3 border border-gray-300 rounded-xl text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors"
+                                >
+                                  Retry
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleVerifyCashfreePayment()}
+                                  disabled={verifyLoading}
+                                  className="py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-70"
+                                >
+                                  {verifyLoading ? (
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    "Verify"
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="pt-6 border-t border-gray-50 flex items-center justify-center gap-6 grayscale opacity-40">
+                            <img
+                              src="https://www.cashfree.com/wp-content/uploads/2022/10/cashfree-logo.png"
+                              className="h-4"
+                              alt="Cashfree"
+                            />
+                            <div className="h-4 w-px bg-gray-200" />
+                            <div className="flex gap-2">
+                              <span className="text-[9px] font-bold text-gray-400">
+                                UPI
+                              </span>
+                              <span className="text-[9px] font-bold text-gray-400">
+                                CARDS
+                              </span>
+                              <span className="text-[9px] font-bold text-gray-400">
+                                NETBANKING
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* STEP 4: PAYMENT — public (online only) */}
+              {!skipPayment && currentStep === 4 && !staffPaymentFlow && (
+                <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                  <div className="text-center mb-8">
+                    <h3 className="font-black text-[22px] md:text-[24px] text-[#22333B] uppercase tracking-tight mb-2">
+                      Complete Online Payment
+                    </h3>
+                    <p className="text-[13px] text-gray-500">
+                      Total Payable Amount:{" "}
+                      <span className="font-bold text-[#fa8112]">
+                        ₹{Number(estimatedFee).toFixed(2)}
+                      </span>
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-6 mb-8 max-w-2xl mx-auto">
+                    <div className="group border-2 rounded-[32px] p-6 sm:p-8 bg-white transition-all flex flex-col sm:flex-row items-center gap-6 border-[#fa8112] shadow-2xl">
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-orange-50 rounded-3xl flex items-center justify-center text-[#fa8112] group-hover:bg-[#fa8112] group-hover:text-white transition-all shadow-inner shrink-0">
+                        <span className="text-2xl">💳</span>
+                      </div>
+                      <div className="flex-1 text-center sm:text-left">
+                        <h4 className="font-bold text-[#22333B] text-[18px] sm:text-[20px] mb-1">
+                          Online Payment
+                        </h4>
+                        <p className="text-gray-500 text-[13px] sm:text-[14px] leading-relaxed">
+                          UPI, GPay, or Cards.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="max-w-xl mx-auto">
+                    {saveError && (
+                      <div className="bg-red-50 text-red-600 text-xs p-3 rounded-lg mb-4 border border-red-100 w-full text-center">
+                        {saveError}
+                      </div>
+                    )}
+
+                    {txnId ? (
+                      <div className="w-full flex flex-col gap-4 animate-in fade-in zoom-in duration-500">
+                        <div
+                          className={`border rounded-2xl p-6 flex flex-col items-center gap-3 ${
+                            txnId
+                              ? "bg-green-50 border-green-200"
+                              : "bg-orange-50 border-orange-200"
+                          }`}
+                        >
+                          <div
+                            className={`w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg mb-1 ${
+                              txnId ? "bg-green-500" : "bg-orange-500"
+                            }`}
+                          >
+                            <Check size={28} strokeWidth={3} />
+                          </div>
+                          <h3
+                            className={`text-lg font-bold ${
+                              txnId ? "text-green-700" : "text-orange-700"
+                            }`}
+                          >
+                            Payment Verified!
+                          </h3>
+                          <p className="text-[11px] text-center font-medium text-green-600">
+                            Ref:{" "}
+                            <span className="font-mono font-bold uppercase select-all tracking-wider">
+                              {txnId}
+                            </span>
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => submitFinalApplication(txnId)}
+                          disabled={submitting}
+                          className="w-full bg-[#fa8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:active:scale-100"
+                        >
+                          {submitting ? (
+                            <Loader2 className="animate-spin" size={24} />
+                          ) : (
+                            <>
+                              <CheckCircle2 size={24} />
+                              Complete Registration
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-full space-y-4">
+                        {!orderId ? (
+                          <button
+                            type="button"
+                            onClick={handleInitiateCashfreePayment}
+                            disabled={onlinePaymentLoading}
+                            className="w-full bg-[#fa8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:active:scale-100"
+                          >
+                            {onlinePaymentLoading ? (
+                              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <span className="text-xl">💳</span>
+                            )}
+                            {onlinePaymentLoading
+                              ? "Preparing Gateway..."
+                              : "Pay with Cashfree"}
+                          </button>
+                        ) : (
+                          <div className="w-full space-y-4">
+                            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex flex-col items-center gap-2">
+                              <div className="flex items-center gap-2 text-[#fa8112] font-bold text-sm">
+                                <span className="w-2 h-2 rounded-full bg-[#fa8112] animate-pulse"></span>
+                                Awaiting Payment...
+                              </div>
+                              <p className="text-[10px] text-gray-500 text-center font-mono">
+                                OrderId: {orderId}
+                              </p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <button
+                                type="button"
+                                onClick={() => setOrderId(null)}
+                                className="py-3 border border-gray-300 rounded-xl text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors"
+                              >
+                                Retry
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleVerifyCashfreePayment()}
+                                disabled={verifyLoading}
+                                className="py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-70"
+                              >
+                                {verifyLoading ? (
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  "Verify"
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="pt-6 border-t border-gray-50 flex items-center justify-center gap-6 grayscale opacity-40">
+                          <img
+                            src="https://www.cashfree.com/wp-content/uploads/2022/10/cashfree-logo.png"
+                            className="h-4"
+                            alt="Cashfree"
+                          />
+                          <div className="h-4 w-px bg-gray-200" />
+                          <div className="flex gap-2">
+                            <span className="text-[9px] font-bold text-gray-400">
+                              UPI
+                            </span>
+                            <span className="text-[9px] font-bold text-gray-400">
+                              CARDS
+                            </span>
+                            <span className="text-[9px] font-bold text-gray-400">
+                              NETBANKING
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="bg-[#F5F5F5] p-4 border-t border-gray-100 flex items-center justify-between px-8 shrink-0">
+              <div className="flex-1 flex justify-start">
+                {currentStep > 1 ? (
+                  <button
+                    onClick={handleBack}
+                    className="flex items-center gap-2 bg-white border border-[#FA8112] text-[#FA8112] active:scale-95 font-medium px-6 py-2 rounded-full transition-all duration-300 hover:bg-[#FA8112]/5"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                    Back
+                  </button>
+                ) : (
+                  <p className="text-[15px] font-medium text-[#222222]">
+                    Step {currentStep} of {footerStepMax}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex-1 justify-center hidden md:flex">
+                {currentStep > 1 && (
+                  <p className="text-[14px] text-gray-500">
+                    Step {currentStep} of {footerStepMax}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex-1 flex justify-end">
+                <button
+                  onClick={handleNext}
+                  disabled={submitting}
+                  className="flex items-center gap-2 bg-[#fa8112] hover:bg-[#e0720f] shadow-md active:scale-95 text-white font-medium pl-6 pr-2 py-2 rounded-full transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  {submitting
+                    ? "Submitting..."
+                    : skipPayment && currentStep === 3
+                      ? "Submit"
+                      : currentStep === 4
+                        ? "Confirm"
+                        : "Continue"}
+                  <span className="flex items-center justify-center bg-white rounded-full w-8 h-8 ml-2">
+                    {submitting ? (
+                      <div className="w-4 h-4 border-2 border-[#fa8112] border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <ArrowRight className="w-5 h-5 text-[#fa8112]" />
+                    )}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          /* STEP 5: SUCCESS / RECEIPT */
+          <div className="flex-1 overflow-y-auto px-8 py-8 animate-in zoom-in-95 duration-500 bg-[#F9FAFB] custom-scrollbar">
+            <style>{`
+              @media print {
+                @page { size: 2in auto; margin: 0; }
+                body * { visibility: hidden !important; }
+                #public-thermal-receipt, #public-thermal-receipt * { visibility: visible !important; }
+                #public-thermal-receipt {
+                  position: fixed !important;
+                  left: 0 !important;
+                  top: 0 !important;
+                  width: 2in !important;
+                  max-width: 2in !important;
+                  margin: 0 !important;
+                  padding: 6px !important;
+                  display: block !important;
+                  box-sizing: border-box !important;
+                }
+                .no-print-public { display: none !important; }
+              }
+            `}</style>
+
+            {renderThermalReceipt()}
+
+            <div
+              id="public-application-receipt"
+              className="max-w-md mx-auto bg-transparent no-print-public"
+            >
+              {/* Receipt Header */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+                <div className="bg-green-500 p-6 flex flex-col items-center">
+                  <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-3">
+                    <Check className="text-white w-6 h-6" strokeWidth={3} />
+                  </div>
+                  <h2 className="text-white text-xl font-bold">
+                    {skipPayment || staffPaymentFlow
+                      ? "Application Submitted"
+                      : "Payment Successful"}
+                  </h2>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  {!skipPayment && !staffPaymentFlow && (
+                    <div className="flex justify-between items-center pb-4 border-b border-gray-50">
+                      <span className="text-gray-500 text-sm">Amount Paid</span>
+                      <span className="text-xl font-bold text-[#222222]">
+                        ₹{estimatedFee}.00
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">
+                        {skipPayment || staffPaymentFlow
+                          ? "Application ID"
+                          : "Transaction ID"}
+                      </span>
+                      <span className="font-semibold text-[#222222] uppercase">
+                        {skipPayment || staffPaymentFlow
+                          ? applicationId
+                          : txnId || "N/A"}
+                      </span>
+                    </div>
+                    {staffPaymentFlow && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Payment</span>
+                        <span className="font-semibold text-[#222222]">
+                          {staffPaymentMode === "cash"
+                            ? "Cash (receipt attached)"
+                            : txnId
+                              ? `Online · ${txnId}`
+                              : "Online"}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">
+                        {skipPayment || staffPaymentFlow
+                          ? "Submitted"
+                          : "Payment Date"}
+                      </span>
+                      <span className="font-semibold text-[#222222]">
+                        {new Date().toLocaleDateString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Family Head</span>
+                      <span className="font-semibold text-[#222222]">
+                        {familyHead.fullName}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Total Members</span>
+                      <span className="font-semibold text-[#222222]">
+                        {totalMembersCount}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 mt-4 border-t border-dashed border-gray-200">
+                    <div className="bg-gray-50 rounded-lg p-3 flex items-start gap-3">
+                      <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                        <span className="text-blue-600 text-[10px] font-bold">
+                          i
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 leading-relaxed text-left">
+                        Your application is under review. You will receive an
+                        SMS and Email notification once your Ayush Card is
+                        generated.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col gap-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="flex items-center justify-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-3.5 px-6 rounded-xl transition-all shadow-sm"
+                  >
+                    <Printer size={18} />
+                    Print receipt (2&quot;)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="flex items-center justify-center gap-2 bg-white border border-[#fa8112] text-[#fa8112] hover:bg-orange-50 font-bold py-3.5 px-6 rounded-xl transition-all shadow-sm"
+                  >
+                    <Plus size={18} />
+                    Create another
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={variant === "page" && onBack ? onBack : onClose}
+                  className="w-full flex items-center justify-center gap-2 bg-[#FA8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-md mt-1"
+                >
+                  <ArrowLeft size={18} />
+                  {variant === "page" ? "Back to list" : "Return to Home"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default AyushCardApplicationForm;

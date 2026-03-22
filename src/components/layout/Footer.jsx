@@ -2,10 +2,12 @@ import React, { useState } from "react";
 import { Phone, MessageCircle, Mail, MapPin } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import DonationFormModal from "../sections/home/DonationFormModal";
+import { useApplyAyushCardModal } from "../../context/ApplyAyushCardModalContext";
 
 const Footer = () => {
   const [isDonationModalOpen, setIsDonationModalOpen] = useState(false);
   const navigate = useNavigate();
+  const { openApplyAyushModal } = useApplyAyushCardModal();
 
   return (
     <footer style={{ backgroundColor: "#1e2a35" }} className="text-gray-400">
@@ -76,12 +78,13 @@ const Footer = () => {
                   </button>
                 </li>
                 <li>
-                  <Link
-                    to="/ayush-card"
-                    className="hover:text-orange-400 transition-colors"
+                  <button
+                    type="button"
+                    onClick={() => openApplyAyushModal()}
+                    className="hover:text-orange-400 transition-colors text-left w-full"
                   >
                     Apply for Ayush Card
-                  </Link>
+                  </button>
                 </li>
                 <li>
                   <button
