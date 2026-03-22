@@ -60,6 +60,43 @@ const HEAD_DUPLICATE_INITIAL = {
   error: null,
 };
 
+/** Pull created card record from POST response: `{ success, data }` or flat body */
+function extractCreatedCardRecord(res) {
+  if (res == null || typeof res !== "object") return null;
+  if (
+    res.data != null &&
+    typeof res.data === "object" &&
+    !Array.isArray(res.data) &&
+    (res.data.applicationId != null ||
+      res.data._id != null ||
+      res.data.contact != null)
+  ) {
+    return res.data;
+  }
+  if (res.applicationId != null || res._id != null) return res;
+  return null;
+}
+
+function fullNameFromCardRecord(rec) {
+  if (!rec) return "";
+  const parts = [rec.firstName, rec.middleName, rec.lastName].filter(
+    (p) => p != null && String(p).trim() !== "",
+  );
+  return parts.join(" ").trim();
+}
+
+function thermalMemberLabel(m) {
+  if (!m) return "—";
+  if (m.fullName) return m.fullName;
+  if (m.name) return m.name;
+  return "—";
+}
+
+function thermalMemberDocId(m) {
+  const raw = m?.documentId ?? m?.docId ?? "";
+  return String(raw).replace(/\D/g, "");
+}
+
 const generateApplicationId = () =>
   `AC-${Math.floor(1000000 + Math.random() * 9000000)}`;
 
@@ -84,6 +121,8 @@ const AyushCardApplicationForm = ({
   const [applicationId, setApplicationId] = useState(() =>
     generateApplicationId(),
   );
+  /** Server `data` from last successful card create — drives receipt / print */
+  const [submissionReceipt, setSubmissionReceipt] = useState(null);
   const { toastWarn, toastError, toastSuccess } = useToast();
   const [submitting, setSubmitting] = useState(false);
   // Step 1 State
@@ -243,6 +282,7 @@ const AyushCardApplicationForm = ({
   const resetForm = () => {
     setCurrentStep(1);
     setApplicationId(generateApplicationId());
+    setSubmissionReceipt(null);
     setDocFront(null);
     setDocBack(null);
     setHeadImage(null);
@@ -1226,7 +1266,12 @@ const AyushCardApplicationForm = ({
 
     try {
       setSubmitting(true);
-      await apiService.submitCardApplication(payload);
+      const apiRes = await apiService.submitCardApplication(payload);
+      const created = extractCreatedCardRecord(apiRes);
+      setSubmissionReceipt(created);
+      if (created?.applicationId) {
+        setApplicationId(String(created.applicationId));
+      }
       setCurrentStep(successStep);
     } catch (err) {
       console.error("Card application submission error:", err);
@@ -1236,7 +1281,11 @@ const AyushCardApplicationForm = ({
         console.log(
           "Card already exists (public modal), proceeding to success.",
         );
-        // Try to recover appId if possible, though it's less critical here for the receipt view
+        const errData = extractCreatedCardRecord(err.response?.data);
+        setSubmissionReceipt(errData);
+        if (errData?.applicationId) {
+          setApplicationId(String(errData.applicationId));
+        }
         setCurrentStep(successStep);
         return;
       }
@@ -1334,10 +1383,16 @@ const AyushCardApplicationForm = ({
     const payload = buildStaffHealthCardPayload();
     try {
       setSubmitting(true);
+      let apiRes;
       if (onStaffSubmit) {
-        await onStaffSubmit(payload);
+        apiRes = await onStaffSubmit(payload);
       } else {
-        await apiService.createHealthCard(payload);
+        apiRes = await apiService.createHealthCard(payload);
+      }
+      const created = extractCreatedCardRecord(apiRes);
+      setSubmissionReceipt(created);
+      if (created?.applicationId) {
+        setApplicationId(String(created.applicationId));
       }
       setCurrentStep(successStep);
       toastSuccess("Ayush card application submitted.");
@@ -1345,6 +1400,11 @@ const AyushCardApplicationForm = ({
       console.error("Staff card create error:", err);
       const errMsg = err.response?.data?.message || err.message || "";
       if (errMsg.toLowerCase().includes("already exists")) {
+        const errData = extractCreatedCardRecord(err.response?.data);
+        setSubmissionReceipt(errData);
+        if (errData?.applicationId) {
+          setApplicationId(String(errData.applicationId));
+        }
         setCurrentStep(successStep);
         toastSuccess("Application recorded.");
         return;
@@ -1673,7 +1733,36 @@ const AyushCardApplicationForm = ({
       : txnId || "—"
     : txnId || "—";
 
-  const renderThermalReceipt = () => (
+  const renderThermalReceipt = () => {
+    const rec = submissionReceipt;
+    const displayAppId =
+      rec?.applicationId != null ? String(rec.applicationId) : applicationId;
+    const displayName =
+      fullNameFromCardRecord(rec) || familyHead.fullName || "—";
+    const displayPhone = rec?.contact ?? familyHead.contactNumber ?? "—";
+    const displayAadhaarRaw = String(
+      rec?.aadhaarNumber ?? familyHead.aadhaarNumber ?? "",
+    ).replace(/\D/g, "");
+    const displayAddress = rec?.address ?? familyHead.address ?? "";
+    const displayPin = rec?.pincode ?? familyHead.pincode ?? "—";
+    const receiptTotal =
+      rec?.totalAmount != null && !Number.isNaN(Number(rec.totalAmount))
+        ? Number(rec.totalAmount)
+        : estimatedFee;
+    const listMembers =
+      Array.isArray(rec?.members) && rec.members.length > 0
+        ? rec.members
+        : members;
+    const receiptDate =
+      rec?.applicationDate != null && String(rec.applicationDate).trim() !== ""
+        ? new Date(
+            String(rec.applicationDate).length <= 10
+              ? `${rec.applicationDate}T12:00:00`
+              : rec.applicationDate,
+          )
+        : new Date();
+
+    return (
     <div
       id="public-thermal-receipt"
       className="hidden print:block w-[2in] max-w-[2in] box-border bg-white p-2 font-sans text-black leading-tight"
@@ -1690,12 +1779,20 @@ const AyushCardApplicationForm = ({
       <div className="text-[8px] space-y-0.5 mb-2 border-b border-dashed border-gray-400 pb-2">
         <div className="flex justify-between gap-1">
           <span className="font-bold shrink-0">App ID</span>
-          <span className="font-mono text-right break-all">{applicationId}</span>
+          <span className="font-mono text-right break-all">{displayAppId}</span>
         </div>
+        {rec?.cardNo ? (
+          <div className="flex justify-between gap-1">
+            <span className="font-bold shrink-0">Card No</span>
+            <span className="font-mono text-right break-all text-[7px]">
+              {String(rec.cardNo)}
+            </span>
+          </div>
+        ) : null}
         <div className="flex justify-between gap-1">
           <span className="font-bold shrink-0">Date</span>
           <span className="text-right">
-            {new Date().toLocaleString("en-IN", {
+            {receiptDate.toLocaleString("en-IN", {
               day: "2-digit",
               month: "short",
               year: "numeric",
@@ -1709,47 +1806,49 @@ const AyushCardApplicationForm = ({
       <div className="text-[8px] mb-2 border-b border-dashed border-gray-400 pb-2">
         <p className="font-bold uppercase mb-1">Family head</p>
         <p className="font-bold text-[9px] uppercase break-words">
-          {familyHead.fullName || "—"}
+          {displayName}
         </p>
-        <p className="mt-0.5">Ph: {familyHead.contactNumber || "—"}</p>
+        <p className="mt-0.5">Ph: {displayPhone || "—"}</p>
         <p className="break-all">
           Aadhaar:{" "}
-          {(familyHead.aadhaarNumber || "").replace(/\D/g, "").length >= 4
-            ? `****${(familyHead.aadhaarNumber || "").replace(/\D/g, "").slice(-4)}`
+          {displayAadhaarRaw.length >= 4
+            ? `****${displayAadhaarRaw.slice(-4)}`
             : "—"}
         </p>
         <p className="break-words mt-0.5">
-          {familyHead.address ? `${familyHead.address.slice(0, 80)}${familyHead.address.length > 80 ? "…" : ""}` : "—"}
+          {displayAddress
+            ? `${displayAddress.slice(0, 80)}${displayAddress.length > 80 ? "…" : ""}`
+            : "—"}
         </p>
-        <p>Pin: {familyHead.pincode || "—"}</p>
+        <p>Pin: {displayPin || "—"}</p>
       </div>
 
       <div className="text-[8px] mb-2 border-b border-dashed border-gray-400 pb-2">
         <p className="font-bold uppercase mb-1">
-          Members ({members.length})
+          Members ({listMembers.length})
         </p>
-        {members.length === 0 ? (
+        {listMembers.length === 0 ? (
           <p className="text-gray-600">None</p>
         ) : (
           <ul className="space-y-1 list-none p-0 m-0">
-            {members.map((m, idx) => (
+            {listMembers.map((m, idx) => (
               <li
                 key={idx}
                 className="border-b border-dotted border-gray-300 pb-1 last:border-0"
               >
                 <span className="font-bold">{idx + 1}.</span>{" "}
                 <span className="font-semibold uppercase">
-                  {m.fullName || "—"}
+                  {thermalMemberLabel(m)}
                 </span>
                 <br />
                 <span className="text-[7px]">
-                  {m.relation || "—"} · Age {m.age || "—"}
+                  {m.relation || "—"} · Age {m.age ?? "—"}
                 </span>
                 <br />
                 <span className="font-mono text-[7px] break-all">
                   Doc:{" "}
-                  {(m.documentId || "").replace(/\D/g, "").length >= 4
-                    ? `****${(m.documentId || "").replace(/\D/g, "").slice(-4)}`
+                  {thermalMemberDocId(m).length >= 4
+                    ? `****${thermalMemberDocId(m).slice(-4)}`
                     : "—"}
                 </span>
               </li>
@@ -1784,7 +1883,7 @@ const AyushCardApplicationForm = ({
         )}
         <div className="flex justify-between font-black text-[10px] border-t-2 border-black pt-1 mt-1">
           <span>TOTAL</span>
-          <span>₹{estimatedFee}.00</span>
+          <span>₹{receiptTotal}.00</span>
         </div>
       </div>
 
@@ -1796,7 +1895,8 @@ const AyushCardApplicationForm = ({
         </p>
       </div>
     </div>
-  );
+    );
+  };
 
   return (
     <div
@@ -3815,7 +3915,12 @@ const AyushCardApplicationForm = ({
                     <div className="flex justify-between items-center pb-4 border-b border-gray-50">
                       <span className="text-gray-500 text-sm">Amount Paid</span>
                       <span className="text-xl font-bold text-[#222222]">
-                        ₹{estimatedFee}.00
+                        ₹
+                        {submissionReceipt?.totalAmount != null &&
+                        !Number.isNaN(Number(submissionReceipt.totalAmount))
+                          ? Number(submissionReceipt.totalAmount)
+                          : estimatedFee}
+                        .00
                       </span>
                     </div>
                   )}
@@ -3829,7 +3934,9 @@ const AyushCardApplicationForm = ({
                       </span>
                       <span className="font-semibold text-[#222222] uppercase">
                         {skipPayment || staffPaymentFlow
-                          ? applicationId
+                          ? submissionReceipt?.applicationId != null
+                            ? String(submissionReceipt.applicationId)
+                            : applicationId
                           : txnId || "N/A"}
                       </span>
                     </div>
@@ -3852,7 +3959,17 @@ const AyushCardApplicationForm = ({
                           : "Payment Date"}
                       </span>
                       <span className="font-semibold text-[#222222]">
-                        {new Date().toLocaleDateString("en-IN", {
+                        {(submissionReceipt?.applicationDate != null &&
+                        String(submissionReceipt.applicationDate).trim() !== ""
+                          ? new Date(
+                              String(
+                                submissionReceipt.applicationDate,
+                              ).length <= 10
+                                ? `${submissionReceipt.applicationDate}T12:00:00`
+                                : submissionReceipt.applicationDate,
+                            )
+                          : new Date()
+                        ).toLocaleDateString("en-IN", {
                           day: "2-digit",
                           month: "short",
                           year: "numeric",
@@ -3864,13 +3981,16 @@ const AyushCardApplicationForm = ({
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Family Head</span>
                       <span className="font-semibold text-[#222222]">
-                        {familyHead.fullName}
+                        {fullNameFromCardRecord(submissionReceipt) ||
+                          familyHead.fullName}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Total Members</span>
                       <span className="font-semibold text-[#222222]">
-                        {totalMembersCount}
+                        {submissionReceipt?.totalMember != null
+                          ? Number(submissionReceipt.totalMember)
+                          : totalMembersCount}
                       </span>
                     </div>
                   </div>
