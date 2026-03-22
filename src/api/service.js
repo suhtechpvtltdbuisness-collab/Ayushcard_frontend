@@ -16,6 +16,32 @@ const publicApi = axios.create({
     timeout: 15000,
 });
 
+// Duplicate-check GETs: in dev, always use same-origin `/api` so Vite’s proxy runs.
+// Direct calls to VITE_API_BASE_URL from localhost:5173 are blocked when the API
+// only allows Origin http://localhost:3000 (CORS).
+const cardCheckApi = axios.create({
+    baseURL: import.meta.env.DEV ? '' : import.meta.env.VITE_API_BASE_URL || '',
+    headers: { 'Content-Type': 'application/json' },
+    timeout: 15000,
+});
+
+/** Normalize GET /api/cards/check/* envelope: { data: { exists, cardId } } or flat { exists } */
+function normalizeCardCheckResponse(body) {
+    if (!body || typeof body !== 'object') return null;
+    const inner =
+        body.data != null && typeof body.data === 'object' && !Array.isArray(body.data)
+            ? body.data
+            : body;
+    const raw = inner.exists ?? inner.exist;
+    if (raw === true || raw === 'true' || raw === 1 || raw === '1') {
+        return { exists: true, cardId: inner.cardId ?? inner.card_id ?? null };
+    }
+    if (raw === false || raw === 'false' || raw === 0 || raw === '0') {
+        return { exists: false, cardId: inner.cardId ?? inner.card_id ?? null };
+    }
+    return null;
+}
+
 // ─── STORAGE HELPERS ───────────────────────────────────────────────────────
 
 const storage = {
@@ -408,19 +434,32 @@ const apiService = {
         return response.data;
     },
 
-    // Check if phone number is already registered
-    checkPhoneRegistration: async (phone) => {
-        // Try to lookup by contact via public API if available
-        // Usually, these are registered via card-users or cards
-        // We'll use a generic check endpoint if it exists, or fallback to a query
-        try {
-            const response = await publicApi.get(`/api/cards/card-users/check/${phone}`);
-            return response.data;
-        } catch (err) {
-            // If check-phone doesn't exist, we might try a search-like lookup
-            // For now, assume a dedicated check endpoint or a predictable failure
-            throw err;
-        }
+    /** GET /api/cards/check/phone?contact= — returns { exists, cardId } | null */
+    checkCardPhoneExists: async (contact) => {
+        const response = await cardCheckApi.get('/api/cards/check/phone', {
+            params: { contact: String(contact).replace(/\D/g, '') },
+        });
+        return normalizeCardCheckResponse(response.data);
+    },
+
+    /** GET /api/cards/check/aadhaar?aadhaarNumber= */
+    checkCardAadhaarExists: async (aadhaarNumber) => {
+        const response = await cardCheckApi.get('/api/cards/check/aadhaar', {
+            params: { aadhaarNumber: String(aadhaarNumber).replace(/\D/g, '') },
+        });
+        return normalizeCardCheckResponse(response.data);
+    },
+
+    /** GET /api/cards/check/name?firstName=&middleName=&lastName= */
+    checkCardNameExists: async ({ firstName = '', middleName = '', lastName = '' } = {}) => {
+        const response = await cardCheckApi.get('/api/cards/check/name', {
+            params: {
+                firstName: firstName || '',
+                middleName: middleName || '',
+                lastName: lastName || '',
+            },
+        });
+        return normalizeCardCheckResponse(response.data);
     },
 
     // ─── PUBLIC DONATION (home page) ──────────────────────────────

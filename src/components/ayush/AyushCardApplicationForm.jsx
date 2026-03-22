@@ -39,6 +39,27 @@ function computeAyushCardFeeRupees(totalMembersIncludingHead) {
   );
 }
 
+/** Same splitting as submit payload: first / middle / last from full name string */
+function splitFamilyHeadNameParts(fullName) {
+  const nameParts = String(fullName || "")
+    .trim()
+    .split(" ")
+    .filter(Boolean);
+  const firstName = nameParts[0] || "";
+  const lastName =
+    nameParts.length > 1 ? nameParts[nameParts.length - 1] : "";
+  const middleName =
+    nameParts.length > 2 ? nameParts.slice(1, -1).join(" ") : "";
+  return { firstName, middleName, lastName };
+}
+
+const HEAD_DUPLICATE_INITIAL = {
+  loading: false,
+  exists: null,
+  cardId: null,
+  error: null,
+};
+
 const generateApplicationId = () =>
   `AC-${Math.floor(1000000 + Math.random() * 9000000)}`;
 
@@ -157,6 +178,16 @@ const AyushCardApplicationForm = ({
     address: "",
     pincode: "",
   });
+
+  const [headPhoneDuplicate, setHeadPhoneDuplicate] = useState(
+    HEAD_DUPLICATE_INITIAL,
+  );
+  const [headAadhaarDuplicate, setHeadAadhaarDuplicate] = useState(
+    HEAD_DUPLICATE_INITIAL,
+  );
+  const [headNameDuplicate, setHeadNameDuplicate] = useState(
+    HEAD_DUPLICATE_INITIAL,
+  );
 
   const [members, setMembers] = useState([]);
   const [activeMemberTab, setActiveMemberTab] = useState(0); // 0 is head, 1+ is members
@@ -625,6 +656,143 @@ const AyushCardApplicationForm = ({
     setFamilyHead((prev) => ({ ...prev, [name]: value }));
   };
 
+  useEffect(() => {
+    const digits = familyHead.contactNumber.replace(/\D/g, "");
+    if (digits.length !== 10) {
+      setHeadPhoneDuplicate(HEAD_DUPLICATE_INITIAL);
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(() => {
+      setHeadPhoneDuplicate((p) => ({ ...p, loading: true, error: null }));
+      apiService
+        .checkCardPhoneExists(digits)
+        .then((parsed) => {
+          if (cancelled) return;
+          if (parsed == null) {
+            setHeadPhoneDuplicate({
+              loading: false,
+              exists: null,
+              cardId: null,
+              error: "Could not read registration check. Please try again.",
+            });
+            return;
+          }
+          setHeadPhoneDuplicate({
+            loading: false,
+            exists: parsed.exists,
+            cardId: parsed.cardId,
+            error: null,
+          });
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setHeadPhoneDuplicate({
+            loading: false,
+            exists: null,
+            cardId: null,
+            error: "Could not verify this number.",
+          });
+        });
+    }, 550);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [familyHead.contactNumber]);
+
+  useEffect(() => {
+    const digits = familyHead.aadhaarNumber.replace(/\D/g, "");
+    if (digits.length !== 12) {
+      setHeadAadhaarDuplicate(HEAD_DUPLICATE_INITIAL);
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(() => {
+      setHeadAadhaarDuplicate((p) => ({ ...p, loading: true, error: null }));
+      apiService
+        .checkCardAadhaarExists(digits)
+        .then((parsed) => {
+          if (cancelled) return;
+          if (parsed == null) {
+            setHeadAadhaarDuplicate({
+              loading: false,
+              exists: null,
+              cardId: null,
+              error: "Could not read registration check. Please try again.",
+            });
+            return;
+          }
+          setHeadAadhaarDuplicate({
+            loading: false,
+            exists: parsed.exists,
+            cardId: parsed.cardId,
+            error: null,
+          });
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setHeadAadhaarDuplicate({
+            loading: false,
+            exists: null,
+            cardId: null,
+            error: "Could not verify this Aadhaar number.",
+          });
+        });
+    }, 550);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [familyHead.aadhaarNumber]);
+
+  useEffect(() => {
+    const { firstName, middleName, lastName } = splitFamilyHeadNameParts(
+      familyHead.fullName,
+    );
+    if (!firstName.trim()) {
+      setHeadNameDuplicate(HEAD_DUPLICATE_INITIAL);
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(() => {
+      setHeadNameDuplicate((p) => ({ ...p, loading: true, error: null }));
+      apiService
+        .checkCardNameExists({ firstName, middleName, lastName })
+        .then((parsed) => {
+          if (cancelled) return;
+          if (parsed == null) {
+            setHeadNameDuplicate({
+              loading: false,
+              exists: null,
+              cardId: null,
+              error: "Could not read registration check. Please try again.",
+            });
+            return;
+          }
+          setHeadNameDuplicate({
+            loading: false,
+            exists: parsed.exists,
+            cardId: parsed.cardId,
+            error: null,
+          });
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setHeadNameDuplicate({
+            loading: false,
+            exists: null,
+            cardId: null,
+            error: "Could not verify this name.",
+          });
+        });
+    }, 550);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [familyHead.fullName]);
+
   const handleMemberChange = (index, e) => {
     let { name, value } = e.target;
 
@@ -975,13 +1143,9 @@ const AyushCardApplicationForm = ({
     cardExpiry.setFullYear(cardExpiry.getFullYear() + 1);
     const cardExpiryDate = cardExpiry.toISOString().split("T")[0];
 
-    // Split fullName into firstName / middleName / lastName
-    const nameParts = familyHead.fullName.trim().split(" ").filter(Boolean);
-    const firstName = nameParts[0] || "";
-    const lastName =
-      nameParts.length > 1 ? nameParts[nameParts.length - 1] : "";
-    const middleName =
-      nameParts.length > 2 ? nameParts.slice(1, -1).join(" ") : "";
+    const { firstName, middleName, lastName } = splitFamilyHeadNameParts(
+      familyHead.fullName,
+    );
 
     const payload = {
       applicationDate: today,
@@ -1091,12 +1255,9 @@ const AyushCardApplicationForm = ({
     cardExpiry.setFullYear(cardExpiry.getFullYear() + 1);
     const cardExpiryDate = cardExpiry.toISOString().split("T")[0];
 
-    const nameParts = familyHead.fullName.trim().split(" ").filter(Boolean);
-    const firstName = nameParts[0] || "";
-    const lastName =
-      nameParts.length > 1 ? nameParts[nameParts.length - 1] : "";
-    const middleName =
-      nameParts.length > 2 ? nameParts.slice(1, -1).join(" ") : "";
+    const { firstName, middleName, lastName } = splitFamilyHeadNameParts(
+      familyHead.fullName,
+    );
 
     const customerName = familyHead.fullName.trim();
 
@@ -1472,6 +1633,30 @@ const AyushCardApplicationForm = ({
     payment: {
       totalPaid: estimatedFee,
     },
+  };
+
+  const renderHeadDuplicateHint = (check, kind) => {
+    if (check.error)
+      return <p className="text-[12px] text-red-600 mt-1">{check.error}</p>;
+    if (check.loading)
+      return (
+        <p className="text-[12px] text-gray-500 mt-1 flex items-center gap-1">
+          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+          Checking registration…
+        </p>
+      );
+    if (check.exists === null) return null;
+    if (check.exists)
+      return (
+        <p className="text-[12px] text-amber-800 mt-1 leading-snug">
+          A card is already registered with this {kind}.
+        </p>
+      );
+    return (
+      <p className="text-[12px] text-green-700 mt-1">
+        No existing card found for this {kind}.
+      </p>
+    );
   };
 
   const thermalPaymentLabel = staffPaymentFlow
@@ -2015,6 +2200,7 @@ const AyushCardApplicationForm = ({
                         style={{ fontFamily: "'Inter', sans-serif" }}
                         className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
                       />
+                      {renderHeadDuplicateHint(headNameDuplicate, "name")}
                     </div>
                     <div>
                       <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
@@ -2089,6 +2275,10 @@ const AyushCardApplicationForm = ({
                         style={{ fontFamily: "'Inter', sans-serif" }}
                         className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
                       />
+                      {renderHeadDuplicateHint(
+                        headPhoneDuplicate,
+                        "phone number",
+                      )}
                     </div>
                     <div>
                       <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
@@ -2103,6 +2293,10 @@ const AyushCardApplicationForm = ({
                         style={{ fontFamily: "'Inter', sans-serif" }}
                         className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
                       />
+                      {renderHeadDuplicateHint(
+                        headAadhaarDuplicate,
+                        "Aadhaar number",
+                      )}
                     </div>
                     <div>
                       <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
@@ -2205,6 +2399,7 @@ const AyushCardApplicationForm = ({
                           style={{ fontFamily: "'Inter', sans-serif" }}
                           className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
                         />
+                        {renderHeadDuplicateHint(headNameDuplicate, "name")}
                       </div>
                       <div>
                         <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
@@ -2279,6 +2474,10 @@ const AyushCardApplicationForm = ({
                           style={{ fontFamily: "'Inter', sans-serif" }}
                           className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
                         />
+                        {renderHeadDuplicateHint(
+                          headPhoneDuplicate,
+                          "phone number",
+                        )}
                       </div>
                       <div>
                         <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
@@ -2293,6 +2492,10 @@ const AyushCardApplicationForm = ({
                           style={{ fontFamily: "'Inter', sans-serif" }}
                           className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
                         />
+                        {renderHeadDuplicateHint(
+                          headAadhaarDuplicate,
+                          "Aadhaar number",
+                        )}
                       </div>
                       <div>
                         <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
@@ -2816,6 +3019,7 @@ const AyushCardApplicationForm = ({
                               {familyHead.fullName || "—"}
                             </p>
                           )}
+                          {renderHeadDuplicateHint(headNameDuplicate, "name")}
                         </div>
                         <div>
                           <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
@@ -2910,6 +3114,10 @@ const AyushCardApplicationForm = ({
                               {familyHead.contactNumber || "—"}
                             </p>
                           )}
+                          {renderHeadDuplicateHint(
+                            headPhoneDuplicate,
+                            "phone number",
+                          )}
                         </div>
                         <div>
                           <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
@@ -2927,6 +3135,10 @@ const AyushCardApplicationForm = ({
                             <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
                               {familyHead.aadhaarNumber || "—"}
                             </p>
+                          )}
+                          {renderHeadDuplicateHint(
+                            headAadhaarDuplicate,
+                            "Aadhaar number",
                           )}
                         </div>
                         <div className="sm:col-span-2">
