@@ -160,13 +160,14 @@ const AyushCardApplicationForm = ({
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const [cameraActive, setCameraActive] = useState(false);
+  const [ocrCameraResolution, setOcrCameraResolution] = useState("");
 
   // Helper: compress a base64 image to reasonable dimensions/quality
   const compressBase64Image = (
     base64Src,
     maxWidth = 1000,
     maxHeight = 1000,
-    quality = 0.7,
+    quality = 0.85,
   ) => {
     return new Promise((resolve, reject) => {
       try {
@@ -238,6 +239,7 @@ const AyushCardApplicationForm = ({
   const memberCanvasRef = useRef(null);
   const memberStreamRef = useRef(null);
   const [memberCameraActive, setMemberCameraActive] = useState(false);
+  const [memberCameraResolution, setMemberCameraResolution] = useState("");
   const memberInputRef = useRef(null);
   /** Step 2: scroll to bottom “Add Member” block after Continue from step 1 */
   const addMemberScrollAnchorRef = useRef(null);
@@ -468,17 +470,51 @@ const AyushCardApplicationForm = ({
     };
   }, []);
 
+  const getBestRearCameraStream = async () => {
+    const profiles = [
+      { width: { ideal: 3840 }, height: { ideal: 2160 } },
+      { width: { ideal: 2560 }, height: { ideal: 1440 } },
+      { width: { ideal: 1920 }, height: { ideal: 1080 } },
+      { width: { ideal: 1280 }, height: { ideal: 720 } },
+    ];
+
+    for (const p of profiles) {
+      try {
+        return await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: "environment" },
+            ...p,
+          },
+        });
+      } catch (e) {
+        // Try next profile
+      }
+    }
+
+    return navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" } },
+    });
+  };
+
+  const getStreamResolutionLabel = (stream) => {
+    try {
+      const track = stream?.getVideoTracks?.()[0];
+      const settings = track?.getSettings?.() || {};
+      const width = Number(settings.width) || 0;
+      const height = Number(settings.height) || 0;
+      if (width > 0 && height > 0) return `${width}x${height}`;
+    } catch (e) {
+      // ignore
+    }
+    return "Unknown";
+  };
+
   const startCamera = async () => {
     try {
       setOcrLoading(true);
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "environment",
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-      });
+      const stream = await getBestRearCameraStream();
       streamRef.current = stream;
+      setOcrCameraResolution(getStreamResolutionLabel(stream));
       setCameraActive(true);
     } catch (err) {
       console.error("Camera error:", err);
@@ -495,6 +531,7 @@ const AyushCardApplicationForm = ({
     }
     if (videoRef.current) videoRef.current.srcObject = null;
     setCameraActive(false);
+    setOcrCameraResolution("");
   };
 
   const capturePhoto = async () => {
@@ -509,7 +546,7 @@ const AyushCardApplicationForm = ({
     const ctx = canvas.getContext("2d");
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    const base64 = canvas.toDataURL("image/jpeg", 0.8);
+    const base64 = canvas.toDataURL("image/jpeg", 0.92);
     stopCamera();
 
     try {
@@ -519,7 +556,7 @@ const AyushCardApplicationForm = ({
 
       let fullCompressed = base64;
       try {
-        fullCompressed = await compressBase64Image(base64, 1200, 1200, 0.75);
+        fullCompressed = await compressBase64Image(base64, 1200, 1200, 0.85);
       } catch (e) {
         fullCompressed = base64;
       }
@@ -537,6 +574,13 @@ const AyushCardApplicationForm = ({
       }
 
       if (results) {
+        const extractedAadhaar =
+          results.type === "aadhaar"
+            ? String(results.docNumber || "")
+                .replace(/\D/g, "")
+                .slice(0, 12)
+            : "";
+
         setFamilyHead((prev) => ({
           ...prev,
           fullName: results.name || results.fullName || prev.fullName || "",
@@ -545,11 +589,7 @@ const AyushCardApplicationForm = ({
           pincode: results.pincode || prev.pincode || "",
           address: results.address || prev.address || "",
           aadhaarNumber:
-            (results.type === "aadhaar" || results.type === "vid"
-              ? results.docNumber
-              : prev.aadhaarNumber) ||
-            prev.aadhaarNumber ||
-            "",
+            extractedAadhaar !== "" ? extractedAadhaar : prev.aadhaarNumber,
         }));
         setDocFront({
           name: "captured_id.jpg",
@@ -640,17 +680,44 @@ const AyushCardApplicationForm = ({
         toastWarn("Processing image... please wait.");
 
         try {
-          const results = await performOCR(base64, (p) => setOcrProgress(p));
+          let processedBase64 = base64;
+          try {
+            processedBase64 = await compressBase64Image(
+              base64,
+              1200,
+              1200,
+              0.85,
+            );
+          } catch (e) {
+            processedBase64 = base64;
+          }
+
+          let results = await performOCR(processedBase64, (p) =>
+            setOcrProgress(p),
+          );
+
+          if (!results?.docNumber) {
+            try {
+              const cropped = await preprocessMemberImageForOCR(base64);
+              results = await performOCR(cropped, (p) => setOcrProgress(p));
+            } catch (e) {
+              // keep first results
+            }
+          }
+
           if (results) {
+            const extractedAadhaar =
+              results.type === "aadhaar"
+                ? String(results.docNumber || "")
+                    .replace(/\D/g, "")
+                    .slice(0, 12)
+                : "";
+
             setFamilyHead((prev) => ({
               ...prev,
               fullName: results.name || results.fullName || prev.fullName || "",
               aadhaarNumber:
-                (results.type === "aadhaar" || results.type === "vid"
-                  ? results.docNumber
-                  : prev.aadhaarNumber) ||
-                prev.aadhaarNumber ||
-                "",
+                extractedAadhaar !== "" ? extractedAadhaar : prev.aadhaarNumber,
               gender: results.gender || prev.gender || "",
               dob: results.dob || prev.dob || "",
               pincode: results.pincode || prev.pincode || "",
@@ -1073,14 +1140,9 @@ const AyushCardApplicationForm = ({
   const startMemberCamera = async (index) => {
     try {
       setMemberScanningIndex(index);
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "environment",
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-      });
+      const stream = await getBestRearCameraStream();
       memberStreamRef.current = stream;
+      setMemberCameraResolution(getStreamResolutionLabel(stream));
       setMemberCameraActive(true);
     } catch (err) {
       console.error("Member camera error:", err);
@@ -1095,6 +1157,7 @@ const AyushCardApplicationForm = ({
     }
     if (memberVideoRef.current) memberVideoRef.current.srcObject = null;
     setMemberCameraActive(false);
+    setMemberCameraResolution("");
     if (resetScanningIndex) setMemberScanningIndex(null);
   };
 
@@ -1133,7 +1196,7 @@ const AyushCardApplicationForm = ({
     const words = t.split(/\s+/).filter(Boolean);
     if (words.length < 1) return false;
     // Require at least one "real" word token.
-    return words.some((w) => /^[A-Za-z]{3,}$/.test(w));
+    return words.some((w) => /^[A-Za-z\u0900-\u097F]{3,}$/.test(w));
   };
 
   const isLikelyMemberDocId = (docNumber) => {
@@ -1149,7 +1212,7 @@ const AyushCardApplicationForm = ({
     // 1) Reduce size so Tesseract runs faster + with less noise.
     let working = base64Src;
     try {
-      working = await compressBase64Image(base64Src, 1200, 1200, 0.75);
+      working = await compressBase64Image(base64Src, 1200, 1200, 0.85);
     } catch (e) {
       // Keep original if compression fails.
       working = base64Src;
@@ -1172,10 +1235,8 @@ const AyushCardApplicationForm = ({
         const cropW = Math.max(260, Math.round(w * cropScale));
         const cropH = Math.max(260, Math.round(h * cropScale));
         const sx = Math.round((w - cropW) / 2);
-        // Bias crop slightly toward the lower half (aadhaar number usually sits lower).
-        const baseSy = (h - cropH) / 2;
-        const bias = Math.round(h * 0.06);
-        const sy = Math.max(0, Math.min(Math.round(baseSy + bias), h - cropH));
+        // Keep centered crop so top lines (name/gender) are not cut on tilted captures.
+        const sy = Math.round((h - cropH) / 2);
 
         const canvas = document.createElement("canvas");
         canvas.width = cropW;
@@ -1216,7 +1277,7 @@ const AyushCardApplicationForm = ({
             base64Src,
             1200,
             1200,
-            0.75,
+            0.85,
           );
         } catch (e) {
           fullCompressed = base64Src;
@@ -1302,7 +1363,7 @@ const AyushCardApplicationForm = ({
     const ctx = canvas.getContext("2d");
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    const base64 = canvas.toDataURL("image/jpeg", 0.8);
+    const base64 = canvas.toDataURL("image/jpeg", 0.92);
     // Stop camera but keep `memberScanningIndex` so the UI can show progress.
     stopMemberCamera({ resetScanningIndex: false });
     await scanAndFillMember({ base64Src: base64, index: targetIndex });
@@ -2369,6 +2430,10 @@ const AyushCardApplicationForm = ({
                                 100% { top: 20%; }
                               }
                             `}</style>
+                            <p className="text-[10px] text-gray-600 text-center">
+                              Camera quality:{" "}
+                              {ocrCameraResolution || "Detecting..."}
+                            </p>
                             <div className="flex gap-2">
                               <button
                                 onClick={stopCamera}
@@ -2822,6 +2887,10 @@ const AyushCardApplicationForm = ({
                                   />
                                   <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 border-2 border-white/50 border-dashed aspect-[1.6/1] w-[70%] rounded-lg pointer-events-none" />
                                 </div>
+                                <p className="text-[10px] text-gray-600 text-center">
+                                  Camera quality:{" "}
+                                  {memberCameraResolution || "Detecting..."}
+                                </p>
                                 <div className="flex flex-col sm:flex-row gap-2">
                                   <button
                                     onClick={captureMemberPhoto}

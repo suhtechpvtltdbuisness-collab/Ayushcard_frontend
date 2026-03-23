@@ -8,7 +8,6 @@ import {
   PlusCircle,
   ArrowUpDown,
   Loader2,
-  RotateCw,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { exportToCSV } from "../../../utils/exportUtils";
@@ -92,33 +91,8 @@ const StatusBadge = ({ status }) => {
 };
 
 const ActionButtons = ({ item, navigate }) => {
-  const isExpired = (item.status || "").toLowerCase().includes("expir");
   return (
     <div className="flex items-center gap-4">
-      <button
-        onClick={() =>
-          navigate(`/employee/health-card/${item._id || item.id}`, {
-            state: { editMode: true },
-          })
-        }
-        className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-          isExpired
-            ? "bg-[#F68E5F] text-white hover:bg-[#ff7535]"
-            : "bg-[#2C2C2C] text-[#FFFCFB] hover:bg-[#1F2937]"
-        }`}
-      >
-        {isExpired ? "Renew" : "Edit"}
-        {isExpired ? (
-          <RotateCw size={14} />
-        ) : (
-          <img
-            src="/admin_images/Edit 3.svg"
-            alt="edit"
-            className="w-3.5 h-3.5"
-          />
-        )}
-      </button>
-
       <div className="flex items-center gap-2">
         <button
           onClick={() =>

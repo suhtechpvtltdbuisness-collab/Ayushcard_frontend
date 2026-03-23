@@ -70,25 +70,7 @@ const ActionButtons = ({ item, navigate }) => {
   return (
     <div className="flex items-center gap-4">
       <button
-        onClick={() =>
-          navigate(`/employee/health-card/${item._id || item.id}`, {
-            state: { editMode: true },
-          })
-        }
-        className="flex items-center justify-center gap-1.5 px-3 py-1 bg-[#2C2C2C] text-[#FFFCFB] rounded-lg text-sm font-normal hover:bg-[#1F2937]"
-      >
-        Edit
-        <img
-          src="/admin_images/Edit 3.svg"
-          alt="edit"
-          className="w-3.5 h-3.5"
-        />
-      </button>
-
-      <button
-        onClick={() =>
-          navigate(`/employee/health-card/${item._id || item.id}`)
-        }
+        onClick={() => navigate(`/employee/health-card/${item._id || item.id}`)}
         className="text-[#F68E5F] hover:text-[#ff6e2b] cursor-pointer transition-colors p-1.5"
       >
         <Eye size={20} />
@@ -245,10 +227,7 @@ export default function VerifiedCards() {
                         <StatusBadge status={row.status} />
                       </td>
                       <td className="py-3 px-4">
-                        <ActionButtons
-                          item={row}
-                          navigate={navigate}
-                        />
+                        <ActionButtons item={row} navigate={navigate} />
                       </td>
                     </tr>
                   );
