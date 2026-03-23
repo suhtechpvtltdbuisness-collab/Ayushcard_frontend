@@ -514,7 +514,29 @@ const AyushCardApplicationForm = ({
     stopCamera();
 
     try {
-      const results = await performOCR(base64, (p) => setOcrProgress(p));
+      // Camera frames can be noisier than uploaded images. OCR succeeds more
+      // reliably after compressing the full frame and retrying with a focused crop.
+      let results = null;
+
+      let fullCompressed = base64;
+      try {
+        fullCompressed = await compressBase64Image(base64, 1200, 1200, 0.75);
+      } catch (e) {
+        fullCompressed = base64;
+      }
+
+      results = await performOCR(fullCompressed, (p) => setOcrProgress(p));
+
+      // Retry if Aadhaar/VID was not detected.
+      if (!results?.docNumber) {
+        try {
+          const cropped = await preprocessMemberImageForOCR(base64);
+          results = await performOCR(cropped, (p) => setOcrProgress(p));
+        } catch (e) {
+          // keep first results
+        }
+      }
+
       if (results) {
         setFamilyHead((prev) => ({
           ...prev,
@@ -524,7 +546,7 @@ const AyushCardApplicationForm = ({
           pincode: results.pincode || prev.pincode || "",
           address: results.address || prev.address || "",
           aadhaarNumber:
-            (results.type === "aadhaar"
+            (results.type === "aadhaar" || results.type === "vid"
               ? results.docNumber
               : prev.aadhaarNumber) ||
             prev.aadhaarNumber ||
@@ -625,7 +647,7 @@ const AyushCardApplicationForm = ({
               ...prev,
               fullName: results.name || results.fullName || prev.fullName || "",
               aadhaarNumber:
-                (results.type === "aadhaar"
+                (results.type === "aadhaar" || results.type === "vid"
                   ? results.docNumber
                   : prev.aadhaarNumber) ||
                 prev.aadhaarNumber ||
@@ -918,8 +940,9 @@ const AyushCardApplicationForm = ({
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: "user",
-            width: { ideal: 720 },
+            // Use back camera for better OCR of ID cards.
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
             height: { ideal: 720 },
           },
         });
@@ -1134,7 +1157,9 @@ const AyushCardApplicationForm = ({
           return;
         }
 
-        const cropScale = 0.78;
+        // Keep more of the card in-frame for OCR. Too-tight crops can
+        // cause Aadhaar digits to be partially read (e.g., only 8 digits).
+        const cropScale = 0.9;
         const cropW = Math.max(260, Math.round(w * cropScale));
         const cropH = Math.max(260, Math.round(h * cropScale));
         const sx = Math.round((w - cropW) / 2);
@@ -1166,9 +1191,35 @@ const AyushCardApplicationForm = ({
     setMemberScanProgress(0);
     try {
       const processedBase64 = await preprocessMemberImageForOCR(base64Src);
-      const details = await performOCR(processedBase64, (p) =>
+
+      // Try OCR on the crop first, then retry on a compressed full frame
+      // if Aadhaar/VID wasn't confidently detected.
+      let details = await performOCR(processedBase64, (p) =>
         setMemberScanProgress(p),
       );
+
+      const docAccepted =
+        details?.type === "aadhaar" && isLikelyMemberDocId(details?.docNumber);
+      if (!details || !docAccepted) {
+        let fullCompressed = base64Src;
+        try {
+          fullCompressed = await compressBase64Image(base64Src, 1200, 1200, 0.75);
+        } catch (e) {
+          fullCompressed = base64Src;
+        }
+        try {
+          const details2 = await performOCR(fullCompressed, (p) =>
+            setMemberScanProgress(p),
+          );
+          const docAccepted2 =
+            details2?.type === "aadhaar" &&
+            isLikelyMemberDocId(details2?.docNumber);
+          if (docAccepted2) details = details2;
+        } catch (e) {
+          // keep first details
+        }
+      }
+
       if (!details) {
         toastWarn("Could not extract member details. Please enter manually.");
         return;
@@ -1178,9 +1229,7 @@ const AyushCardApplicationForm = ({
       // For members, accept only real Aadhaar numbers.
       // VID is 12 digits too, but we must not auto-fill it into Aadhaar/documentId.
       const nextDocId =
-        details?.type === "aadhaar"
-          ? isLikelyMemberDocId(details.docNumber)
-          : "";
+        details?.type === "aadhaar" ? isLikelyMemberDocId(details.docNumber) : "";
       const nextAge = calculateAge(details.dob);
 
       // Only accept Aadhaar/docId when DOB/age was also extracted confidently.
@@ -1993,6 +2042,7 @@ const AyushCardApplicationForm = ({
 
   return (
     <div
+      id="ayushcard-application-form-root"
       className={
         variant === "modal"
           ? "fixed inset-0 z-100 flex items-center justify-center bg-black/60 px-4"
@@ -2000,6 +2050,17 @@ const AyushCardApplicationForm = ({
       }
       style={{ fontFamily: "Quicksand, sans-serif" }}
     >
+      {variant === "page" && (
+        <style>{`
+          /* Mobile (page variant only): make all text 12px */
+          @media (max-width: 640px) {
+            #ayushcard-application-form-root,
+            #ayushcard-application-form-root * {
+              font-size: 12px !important;
+            }
+          }
+        `}</style>
+      )}
       <div
         className={
           variant === "page"

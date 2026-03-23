@@ -141,7 +141,12 @@ export const performOCR = async (imageBase64, onProgress = () => {}) => {
       .filter((l) => l.length > 1);
 
     // 1. Identify Document Type & Extract Number
-    const aadhaarPattern = /(\d{4}\s?\d{4}\s?\d{4})/;
+    // Aadhaar/UID digits are often split by OCR noise: allow non-digits between the 4-4-4 groups.
+    // Example matches:
+    // - 9178 4240 7307
+    // - 9178-4240-7307
+    // - 9178 4240 ; 7307
+    const aadhaarPattern = /(\d{4}\D{0,10}\d{4}\D{0,10}\d{4})/;
     const panPattern = /[A-Z]{5}\d{4}[A-Z]/;
 
     const matches = text.match(aadhaarPattern);
