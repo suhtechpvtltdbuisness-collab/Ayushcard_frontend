@@ -939,16 +939,26 @@ const AyushCardApplicationForm = ({
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            // Use back camera for better OCR of ID cards.
-            facingMode: { ideal: "environment" },
+            // Prefer front camera for family head photo capture.
+            facingMode: { exact: "user" },
             width: { ideal: 1280 },
             height: { ideal: 720 },
           },
         });
       } catch (primaryErr) {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-        });
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: { ideal: "user" },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
+          });
+        } catch (secondaryErr) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+          });
+        }
       }
       headCameraStreamRef.current = stream;
       setHeadCameraActive(true);
