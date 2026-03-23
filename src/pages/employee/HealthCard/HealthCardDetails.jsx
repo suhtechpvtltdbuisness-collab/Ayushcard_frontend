@@ -1,35 +1,19 @@
-import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, Plus } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
+import {
+  ArrowLeft,
+  ChevronDown,
+  Loader2,
+  FileText,
+  UploadCloud,
+  Trash2,
+  Plus,
+} from "lucide-react";
 import AyushCardPreview from "../../../components/admin/AyushCardPreview";
 import apiService from "../../../api/service";
 
-const getDocumentPath = (card, side) => {
-  const docs = Array.isArray(card?.documents) ? card.documents : [];
-  const sideKeywords =
-    side === "front"
-      ? ["documentfront", "front", "aadhaarfront", "idfront"]
-      : ["documentback", "back", "aadhaarback", "idback"];
-
-  const matched = docs.find((d) => {
-    const key = String(d?.name || d?.type || d?.label || "").toLowerCase();
-    return sideKeywords.some((k) => key.includes(k));
-  });
-
-  if (matched?.path || matched?.url) return matched.path || matched.url;
-  if (side === "front" && docs[0]) return docs[0].path || docs[0].url || "";
-  if (side === "back" && docs[1]) return docs[1].path || docs[1].url || "";
-  return "";
-};
-
 // Map API response fields → form fields
 const apiToForm = (card) => ({
-  allDocuments: (Array.isArray(card?.documents) ? card.documents : [])
-    .map((doc, index) => ({
-      name: doc?.name || doc?.label || doc?.type || `Document ${index + 1}`,
-      path: doc?.path || doc?.url || "",
-    }))
-    .filter((doc) => Boolean(doc.path)),
   // IDs
   _id: card._id || "",
   id: card.applicationId || card._id || "",
@@ -66,8 +50,8 @@ const apiToForm = (card) => ({
   gender: card.gender || "",
   dob: card.dob || "",
   aadhaarNumber: card.aadhaarNumber || "",
-  documentFront: card.documentFront || getDocumentPath(card, "front"),
-  documentBack: card.documentBack || getDocumentPath(card, "back"),
+  documentFront: card.documentFront || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentFront")?.path : "") || "",
+  documentBack: card.documentBack || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentBack")?.path : "") || "",
   // On employee details page, also use documents[1] as the card photo
   profileImage:
     card.profileImage ||
@@ -82,23 +66,47 @@ const apiToForm = (card) => ({
   ngoEmail: card.ngoEmail || "baijnaathkesarbaisewatrust9625@gmail.com",
 });
 
+// Map form fields → API payload
+const formToApi = (f) => ({
+  applicationDate: f.dateApplied,
+  status: f.status,
+  firstName: f.applicantFirstName,
+  middleName: f.applicantMiddleName,
+  lastName: f.applicantLastName,
+  contact: f.phone,
+  alternateContact: f.altPhone,
+  email: f.email,
+  cardNo: f.cardNumber,
+  cardIssueDate: f.issueDate,
+  cardExpiredDate: f.expiryDate,
+  verificationDate: f.verificationDate,
+  totalMember: Number(f.totalMembers) || 0,
+  totalAmount: Number(f.payment?.totalPaid) || 0,
+  address: f.address,
+  gender: f.gender,
+  dob: f.dob,
+  aadhaarNumber: f.aadhaarNumber,
+  documentFront: f.documentFront,
+  documentBack: f.documentBack,
+});
+
 const HealthCardDetails = () => {
   const { id } = useParams(); // MongoDB _id (from HealthCard list navigation)
   const navigate = useNavigate();
+  const location = useLocation();
+  const fileInputFrontRef = useRef(null);
+  const fileInputBackRef = useRef(null);
 
-  const [isEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(location.state?.editMode || false);
   const [formData, setFormData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [fetchErr, setFetchErr] = useState("");
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const resolveUrl = (path) => {
     if (!path) return "";
-    if (
-      path.startsWith("http") ||
-      path.startsWith("data:") ||
-      path.startsWith("blob:")
-    )
-      return path;
+    if (path.startsWith("http") || path.startsWith("data:") || path.startsWith("blob:")) return path;
 
     let baseUrl = import.meta.env.VITE_API_BASE_URL || "";
     if (!baseUrl && window.location.hostname === "localhost") {
@@ -108,9 +116,10 @@ const HealthCardDetails = () => {
     const fileBase = baseUrl.replace(/\/api$/, "");
     const cleanBase = fileBase.endsWith("/") ? fileBase.slice(0, -1) : fileBase;
     const cleanPath = path.startsWith("/") ? path : `/${path}`;
-
+    
     return `${cleanBase}${cleanPath}`;
   };
+  const [pendingFile, setPendingFile] = useState(null); // file to send with Save
   const [cardSide, setCardSide] = useState("front");
 
   // ── Fetch card + members on mount ────────────────────────────────────────
@@ -124,15 +133,14 @@ const HealthCardDetails = () => {
           res = await apiService.getHealthCardById(id);
         } catch (err) {
           if (err?.response?.status === 404) {
-            res = await apiService.getHealthCardByCardNo(id);
+             res = await apiService.getHealthCardByCardNo(id);
           } else {
-            throw err;
+             throw err;
           }
         }
-
+        
         const rawArray = Array.isArray(res?.data?.data) ? res.data.data : [];
-        const raw =
-          rawArray[0] || res?.data?.card || res?.data?.data || res?.data || res;
+        const raw = rawArray[0] || res?.data?.card || res?.data?.data || res?.data || res;
         const mapped = apiToForm(raw);
         setFormData(mapped);
 
@@ -140,19 +148,13 @@ const HealthCardDetails = () => {
         const mongoId = raw._id || id;
         try {
           const mRes = await apiService.getCardMembers(mongoId);
-          const mRaw = Array.isArray(mRes.data?.data)
-            ? mRes.data.data
-            : Array.isArray(mRes.data?.data?.members)
-              ? mRes.data.data.members
-              : Array.isArray(mRes.data)
-                ? mRes.data
-                : Array.isArray(mRes?.data)
-                  ? mRes.data
-                  : Array.isArray(mRes?.data?.members)
-                    ? mRes.data.members
-                    : Array.isArray(mRes)
-                      ? mRes
-                      : [];
+          const mRaw =
+            Array.isArray(mRes.data?.data) ? mRes.data.data :
+            Array.isArray(mRes.data?.data?.members) ? mRes.data.data.members :
+            Array.isArray(mRes.data) ? mRes.data :
+            Array.isArray(mRes?.data) ? mRes.data :
+            Array.isArray(mRes?.data?.members) ? mRes.data.members :
+            Array.isArray(mRes) ? mRes : [];
           if (mRaw.length > 0) {
             setFormData((prev) => ({ ...prev, members: mRaw }));
           }
@@ -242,6 +244,48 @@ const HealthCardDetails = () => {
     }));
   };
 
+  // Document file selected → store as base64 in state
+  const handleImageUpload = (e, side) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData((prev) => ({
+          ...prev,
+          [side === "front" ? "documentFront" : "documentBack"]: reader.result,
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = (side) => {
+    setFormData((prev) => ({
+      ...prev,
+      [side === "front" ? "documentFront" : "documentBack"]: "",
+    }));
+  };
+
+  // Save changes via API
+  const handleSave = async () => {
+    setSaveLoading(true);
+    setSaveError("");
+    try {
+      const payload = formToApi(formData);
+      
+      const mongoId = formData._id || formData.id || id;
+      await apiService.updateHealthCard(mongoId, payload, pendingFile);
+
+      setIsEditing(false);
+      navigate(".", { replace: true, state: { editMode: false } });
+    } catch (err) {
+      console.error("[HealthCardDetails] save failed:", err);
+      setSaveError("Failed to update health card.");
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
   // ── Render states ────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -285,7 +329,51 @@ const HealthCardDetails = () => {
             Application Details
           </h2>
         </div>
+        <div className="flex gap-3">
+          {isEditing ? (
+            <>
+              <button
+                onClick={() => {
+                  setIsEditing(false);
+                  setSaveError("");
+                }}
+                disabled={saveLoading}
+                className="px-4 py-1.5 border border-gray-200 rounded-lg text-[15px] font-medium text-[#374151] hover:bg-gray-50 bg-white disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saveLoading}
+                className="px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff702d] transition-colors flex items-center gap-2 disabled:opacity-60"
+              >
+                {saveLoading && <Loader2 size={14} className="animate-spin" />}
+                {saveLoading ? "Saving…" : "Save Changes"}
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setIsEditing(true)}
+              className="px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff6e2b] flex items-center gap-2 transition-colors"
+            >
+              Edit
+              <img
+                src="/admin_images/Edit 3.svg"
+                alt=""
+                className="w-3.5 h-3.5"
+              />
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* API save error banner */}
+      {saveError && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-[13px]">
+          {saveError}
+        </div>
+      )}
+
       <div className="space-y-6">
         {/* Application Details Section */}
         <div className="border border-[#E2E8F0] rounded-xl p-6 bg-white">
@@ -521,51 +609,126 @@ const HealthCardDetails = () => {
           {/* Image Upload */}
           <div className="border border-[#E2E8F0] rounded-xl p-6 bg-white flex flex-col shadow-xs h-full">
             <h3 className="font-bold text-[15px] text-[#22333B] mb-1">
-              Uploaded Documents
+              Image Upload
             </h3>
             <p className="text-[12px] text-[#6D6D6D] mb-5">
-              All uploaded documents preview.
+              Add your documents here.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
-              {Array.from({ length: 4 }).map((_, index) => {
-                const doc = formData.allDocuments?.[index];
-                const docLabel = doc?.name || `Document ${index + 1}`;
-
-                return (
-                  <div
-                    key={index}
-                    className="border border-dashed border-[#1849D6]/40 rounded-xl flex flex-col items-center justify-center p-3 bg-white transition-colors relative h-44"
-                  >
-                    {doc?.path ? (
-                      <>
-                        <div className="w-full h-full rounded-lg overflow-hidden">
-                          <img
-                            src={resolveUrl(doc.path)}
-                            className="w-full h-full object-cover"
-                            alt={docLabel}
-                          />
-                        </div>
-                        <a
-                          href={resolveUrl(doc.path)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="absolute bottom-2 left-2 right-2 bg-white/90 backdrop-blur-sm text-[11px] text-[#1E293B] font-semibold px-2 py-1 rounded truncate text-center"
-                          title={docLabel}
+              {/* Front */}
+              <div
+                className={`border border-dashed border-[#1849D6]/40 rounded-xl flex flex-col items-center justify-center p-4 bg-white transition-colors relative h-40 ${isEditing ? "cursor-pointer hover:bg-gray-50" : ""}`}
+                onClick={() =>
+                  isEditing &&
+                  !formData.documentFront &&
+                  fileInputFrontRef.current?.click()
+                }
+              >
+                {formData.documentFront ? (
+                  <div className="w-full h-full relative group rounded-lg overflow-hidden">
+                    <img
+                      src={resolveUrl(formData.documentFront)}
+                      className="w-full h-full object-cover"
+                      alt="Front"
+                    />
+                    {isEditing && (
+                      <div className="absolute inset-0 bg-black/40 hidden group-hover:flex items-center justify-center gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            fileInputFrontRef.current?.click();
+                          }}
+                          className="px-3 py-1 bg-white rounded text-xs text-[#1E293B] font-medium"
                         >
-                          {docLabel}
-                        </a>
-                      </>
-                    ) : (
-                      <>
-                        <Plus size={24} className="text-[#1E293B] mb-2" />
-                        <p className="text-[12px] text-[#1E293B] font-medium text-center px-2">
-                          {docLabel} not uploaded
-                        </p>
-                      </>
+                          Change
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveImage("front");
+                          }}
+                          className="px-3 py-1 bg-red-500 text-white rounded text-xs font-medium"
+                        >
+                          Remove
+                        </button>
+                      </div>
                     )}
                   </div>
-                );
-              })}
+                ) : (
+                  <>
+                    <Plus size={24} className="text-[#1E293B] mb-2" />
+                    <p className="text-[12px] text-[#1E293B] font-medium">
+                      Document Front Side
+                    </p>
+                  </>
+                )}
+                {isEditing && (
+                  <input
+                    type="file"
+                    ref={fileInputFrontRef}
+                    className="hidden"
+                    accept="image/*"
+                    onChange={(e) => handleImageUpload(e, "front")}
+                  />
+                )}
+              </div>
+              {/* Back */}
+              <div
+                className={`border border-dashed border-[#1849D6]/40 rounded-xl flex flex-col items-center justify-center p-4 bg-white transition-colors relative h-40 ${isEditing ? "cursor-pointer hover:bg-gray-50" : ""}`}
+                onClick={() =>
+                  isEditing &&
+                  !formData.documentBack &&
+                  fileInputBackRef.current?.click()
+                }
+              >
+                {formData.documentBack ? (
+                  <div className="w-full h-full relative group rounded-lg overflow-hidden">
+                    <img
+                      src={resolveUrl(formData.documentBack)}
+                      className="w-full h-full object-cover"
+                      alt="Back"
+                    />
+                    {isEditing && (
+                      <div className="absolute inset-0 bg-black/40 hidden group-hover:flex items-center justify-center gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            fileInputBackRef.current?.click();
+                          }}
+                          className="px-3 py-1 bg-white rounded text-xs text-[#1E293B] font-medium"
+                        >
+                          Change
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveImage("back");
+                          }}
+                          className="px-3 py-1 bg-red-500 text-white rounded text-xs font-medium"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <Plus size={24} className="text-[#1E293B] mb-2" />
+                    <p className="text-[12px] text-[#1E293B] font-medium">
+                      Document Back Side
+                    </p>
+                  </>
+                )}
+                {isEditing && (
+                  <input
+                    type="file"
+                    ref={fileInputBackRef}
+                    className="hidden"
+                    accept="image/*"
+                    onChange={(e) => handleImageUpload(e, "back")}
+                  />
+                )}
+              </div>
             </div>
             <p className="text-[12px] text-gray-400 mt-6 pt-2">
               Only supports .jpg, .png files
