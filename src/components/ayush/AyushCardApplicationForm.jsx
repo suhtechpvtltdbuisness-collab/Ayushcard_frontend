@@ -234,6 +234,7 @@ const AyushCardApplicationForm = ({
   // Member scanning state
   const [memberScanningIndex, setMemberScanningIndex] = useState(null);
   const [memberScanProgress, setMemberScanProgress] = useState(0);
+  const [memberOcrLoading, setMemberOcrLoading] = useState(false);
   const memberVideoRef = useRef(null);
   const memberCanvasRef = useRef(null);
   const memberStreamRef = useRef(null);
@@ -1055,14 +1056,14 @@ const AyushCardApplicationForm = ({
     }
   };
 
-  const stopMemberCamera = () => {
+  const stopMemberCamera = ({ resetScanningIndex = true } = {}) => {
     if (memberStreamRef.current) {
       memberStreamRef.current.getTracks().forEach((track) => track.stop());
       memberStreamRef.current = null;
     }
     if (memberVideoRef.current) memberVideoRef.current.srcObject = null;
     setMemberCameraActive(false);
-    setMemberScanningIndex(null);
+    if (resetScanningIndex) setMemberScanningIndex(null);
   };
 
   const calculateAge = (dobStr) => {
@@ -1087,9 +1088,137 @@ const AyushCardApplicationForm = ({
         age--;
       }
 
-      return age > 0 && age < 120 ? age.toString() : "";
+      return age >= 0 && age < 120 ? age.toString() : "";
     } catch (e) {
       return "";
+    }
+  };
+
+  const normalizeDigits = (s) => String(s || "").replace(/\D/g, "");
+  const isLikelyMemberName = (s) => {
+    const t = String(s || "").trim();
+    if (t.length < 3 || t.length > 80) return false;
+    const words = t.split(/\s+/).filter(Boolean);
+    if (words.length < 1) return false;
+    // Require at least one "real" word token.
+    return words.some((w) => /^[A-Za-z]{3,}$/.test(w));
+  };
+
+  const isLikelyMemberDocId = (docNumber) => {
+    const digits = normalizeDigits(docNumber);
+    // Member doc is Aadhaar: accept ONLY exactly 12 digits.
+    if (digits.length !== 12) return "";
+    // Ignore obvious junk like "000000000000" or "111111111111".
+    if (/^(\d)\1{11}$/.test(digits)) return "";
+    return digits;
+  };
+
+  const preprocessMemberImageForOCR = async (base64Src) => {
+    // 1) Reduce size so Tesseract runs faster + with less noise.
+    let working = base64Src;
+    try {
+      working = await compressBase64Image(base64Src, 1200, 1200, 0.75);
+    } catch (e) {
+      // Keep original if compression fails.
+      working = base64Src;
+    }
+
+    // 2) Center-crop to reduce background/background motion.
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const w = img.width || 0;
+        const h = img.height || 0;
+        if (w < 200 || h < 200) {
+          resolve(working);
+          return;
+        }
+
+        const cropScale = 0.78;
+        const cropW = Math.max(260, Math.round(w * cropScale));
+        const cropH = Math.max(260, Math.round(h * cropScale));
+        const sx = Math.round((w - cropW) / 2);
+        // Bias crop slightly toward the lower half (aadhaar number usually sits lower).
+        const baseSy = (h - cropH) / 2;
+        const bias = Math.round(h * 0.06);
+        const sy = Math.max(0, Math.min(Math.round(baseSy + bias), h - cropH));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = cropW;
+        canvas.height = cropH;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("No canvas context"));
+          return;
+        }
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, cropW, cropH);
+        ctx.drawImage(img, sx, sy, cropW, cropH, 0, 0, cropW, cropH);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = (e) => reject(e);
+      img.src = working;
+    });
+  };
+
+  const scanAndFillMember = async ({ base64Src, index }) => {
+    setMemberOcrLoading(true);
+    setMemberScanProgress(0);
+    try {
+      const processedBase64 = await preprocessMemberImageForOCR(base64Src);
+      const details = await performOCR(processedBase64, (p) =>
+        setMemberScanProgress(p),
+      );
+      if (!details) {
+        toastWarn("Could not extract member details. Please enter manually.");
+        return;
+      }
+
+      const nextName = isLikelyMemberName(details.name) ? details.name : "";
+      // For members, accept only real Aadhaar numbers.
+      // VID is 12 digits too, but we must not auto-fill it into Aadhaar/documentId.
+      const nextDocId =
+        details?.type === "aadhaar"
+          ? isLikelyMemberDocId(details.docNumber)
+          : "";
+      const nextAge = calculateAge(details.dob);
+
+      // Only accept Aadhaar/docId when DOB/age was also extracted confidently.
+      const nextDocIdAccepted = nextDocId && nextAge ? nextDocId : "";
+
+      const validCount =
+        (nextName ? 1 : 0) + (nextAge ? 1 : 0) + (nextDocIdAccepted ? 1 : 0);
+      const shouldFill = validCount >= 2;
+
+      setMembers((prev) => {
+        const updatedMembers = [...prev];
+        const target = updatedMembers[index] || {};
+        updatedMembers[index] = {
+          ...target,
+          fullName: shouldFill ? (nextName ? nextName : target.fullName) : target.fullName,
+          age: shouldFill ? (nextAge ? nextAge : target.age) : target.age,
+          documentId: shouldFill
+            ? (nextDocIdAccepted ? nextDocIdAccepted : target.documentId)
+            : target.documentId,
+          scannedImage: processedBase64,
+        };
+        return updatedMembers;
+      });
+
+      if (shouldFill) {
+        toastWarn("Member details extracted successfully!");
+      } else {
+        toastWarn(
+          "OCR found data but could not confidently extract all fields. Please enter manually.",
+        );
+      }
+    } catch (err) {
+      console.error("Member OCR Error:", err);
+      toastWarn("Could not extract details. Please enter manually.");
+    } finally {
+      setMemberOcrLoading(false);
+      setMemberScanProgress(0);
+      setMemberScanningIndex(null);
     }
   };
 
@@ -1101,6 +1230,7 @@ const AyushCardApplicationForm = ({
     )
       return;
 
+    const targetIndex = memberScanningIndex;
     const video = memberVideoRef.current;
     const canvas = memberCanvasRef.current;
 
@@ -1110,34 +1240,20 @@ const AyushCardApplicationForm = ({
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     const base64 = canvas.toDataURL("image/jpeg", 0.8);
-    stopMemberCamera();
-
-    try {
-      const results = await performOCR(base64, (p) => setMemberScanProgress(p));
-      if (results) {
-        const age = calculateAge(results.dob);
-        const updatedMembers = [...members];
-        updatedMembers[memberScanningIndex] = {
-          ...updatedMembers[memberScanningIndex],
-          fullName: results.name || "",
-          age: age,
-          documentId: results.docNumber || "",
-          scannedImage: base64,
-        };
-        setMembers(updatedMembers);
-        toastWarn("Member details extracted successfully!");
-      }
-    } catch (err) {
-      console.error("Member capture OCR Error:", err);
-      toastWarn("Could not extract details. Please enter manually.");
-    } finally {
-      setMemberScanProgress(0);
-    }
+    // Stop camera but keep `memberScanningIndex` so the UI can show progress.
+    stopMemberCamera({ resetScanningIndex: false });
+    await scanAndFillMember({ base64Src: base64, index: targetIndex });
   };
 
   const handleMemberScanImage = async (e, index) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toastWarn("Image size should be less than 5MB");
+      e.target.value = "";
+      return;
+    }
 
     const base64String = await new Promise((resolve) => {
       const reader = new FileReader();
@@ -1147,31 +1263,8 @@ const AyushCardApplicationForm = ({
 
     setMemberScanningIndex(index);
     setMemberScanProgress(0);
-
-    try {
-      const details = await performOCR(base64String, (p) =>
-        setMemberScanProgress(p),
-      );
-      if (details) {
-        const age = calculateAge(details.dob);
-        const updatedMembers = [...members];
-        updatedMembers[index] = {
-          ...updatedMembers[index],
-          fullName: details.name || "",
-          age: age,
-          documentId: details.docNumber || "",
-          scannedImage: base64String,
-        };
-        setMembers(updatedMembers);
-        toastWarn("Member details extracted successfully!");
-      }
-    } catch (err) {
-      console.error("Member OCR Error:", err);
-      toastWarn("Could not extract details. Please enter manually.");
-    } finally {
-      setMemberScanProgress(0);
-      setMemberScanningIndex(null);
-    }
+    await scanAndFillMember({ base64Src: base64String, index });
+    e.target.value = "";
   };
 
   const submitFinalApplication = async (resolvedTxnId = null) => {
@@ -1903,19 +1996,19 @@ const AyushCardApplicationForm = ({
       className={
         variant === "modal"
           ? "fixed inset-0 z-100 flex items-center justify-center bg-black/60 px-4"
-          : "min-h-screen bg-[#f0f0f0] py-8 px-4"
+          : "min-h-screen bg-[#f0f0f0] py-8 px-0"
       }
       style={{ fontFamily: "Quicksand, sans-serif" }}
     >
       <div
         className={
           variant === "page"
-            ? "max-w-4xl mx-auto w-full flex flex-col gap-4"
+            ? "w-full flex flex-col gap-4"
             : "w-full flex justify-center items-stretch"
         }
       >
         {variant === "page" && (
-          <div className="flex flex-wrap items-center gap-3 px-1">
+          <div className="flex flex-wrap items-center gap-3 px-2 sm:px-1">
             {onBack && (
               <button
                 type="button"
@@ -1932,7 +2025,7 @@ const AyushCardApplicationForm = ({
           </div>
         )}
         <div
-          className="bg-white w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300 relative rounded-xl shadow-xl"
+          className="bg-white w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300 relative rounded-xl shadow-xl"
           style={{ fontFamily: "'Quicksand', sans-serif" }}
         >
         {/* Header Section */}
@@ -2623,21 +2716,31 @@ const AyushCardApplicationForm = ({
                         <div className="md:col-span-2 bg-orange-50 border border-[#FBD7B0] rounded-lg p-3 mb-3">
                           {memberCameraActive ? (
                             <div className="space-y-3">
-                              <video
-                                ref={memberVideoRef}
-                                autoPlay
-                                playsInline
-                                className="w-full rounded-lg border border-[#F6B579] max-h-64"
-                              />
+                              <div className="relative w-full">
+                                <video
+                                  ref={memberVideoRef}
+                                  autoPlay
+                                  playsInline
+                                  className="w-full rounded-lg border border-[#F6B579] max-h-64 object-cover"
+                                />
+                                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 border-2 border-white/50 border-dashed aspect-[1.6/1] w-[70%] rounded-lg pointer-events-none" />
+                              </div>
                               <div className="flex gap-2">
                                 <button
                                   onClick={captureMemberPhoto}
+                                  disabled={memberOcrLoading}
                                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#FA8112] text-white rounded-lg hover:bg-[#E47510] font-semibold"
                                 >
-                                  <Check size={18} /> Capture
+                                  {memberOcrLoading ? (
+                                    <Loader2 className="animate-spin" size={18} />
+                                  ) : (
+                                    <Check size={18} />
+                                  )}{" "}
+                                  Capture
                                 </button>
                                 <button
-                                  onClick={stopMemberCamera}
+                                  onClick={() => stopMemberCamera()}
+                                  disabled={memberOcrLoading}
                                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-100 font-semibold"
                                 >
                                   <X size={18} /> Cancel
@@ -2646,13 +2749,13 @@ const AyushCardApplicationForm = ({
                             </div>
                           ) : (
                             <div className="space-y-3">
-                              {memberScanProgress > 0 && (
+                              {memberOcrLoading || memberScanProgress > 0 ? (
                                 <div>
                                   <div className="w-full bg-gray-200 rounded-full h-2">
                                     <div
                                       className="bg-[#FA8112] h-2 rounded-full transition-all"
                                       style={{
-                                        width: `${memberScanProgress}%`,
+                                        width: `${memberOcrLoading ? memberScanProgress : memberScanProgress}%`,
                                       }}
                                     />
                                   </div>
@@ -2660,12 +2763,13 @@ const AyushCardApplicationForm = ({
                                     Scanning: {memberScanProgress}%
                                   </p>
                                 </div>
-                              )}
+                              ) : null}
                               <div className="flex gap-2">
                                 <button
                                   onClick={() =>
                                     startMemberCamera(activeMemberTab - 1)
                                   }
+                                  disabled={memberOcrLoading}
                                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#FA8112] text-white rounded-lg hover:bg-[#E47510] font-semibold"
                                 >
                                   <Camera size={18} /> Use Camera
@@ -2674,6 +2778,7 @@ const AyushCardApplicationForm = ({
                                   onClick={() =>
                                     memberInputRef.current?.click()
                                   }
+                                  disabled={memberOcrLoading}
                                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#FA8112] text-white rounded-lg hover:bg-[#E47510] font-semibold"
                                 >
                                   <UploadCloud size={18} /> Upload Photo

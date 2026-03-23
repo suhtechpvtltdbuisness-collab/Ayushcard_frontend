@@ -145,8 +145,16 @@ export const performOCR = async (imageBase64, onProgress = () => {}) => {
     const panPattern = /[A-Z]{5}\d{4}[A-Z]/;
 
     const matches = text.match(aadhaarPattern);
+    const upperText = String(text || "").toUpperCase();
+    const vidDetected = /\bVID\b/.test(upperText);
+    const uidDetected =
+      /\bUID\b/.test(upperText) ||
+      upperText.includes("AADHAAR") ||
+      upperText.includes("UNIQUE");
+
     if (matches) {
-      results.type = "aadhaar";
+      // VID often looks identical to Aadhaar (4-4-4 digits). Use labels when present.
+      results.type = vidDetected && !uidDetected ? "vid" : "aadhaar";
       results.docNumber = matches[0].replace(/\s/g, "");
     } else if (text.match(panPattern)) {
       results.type = "pan";
@@ -155,7 +163,7 @@ export const performOCR = async (imageBase64, onProgress = () => {}) => {
       const allDigits = text.replace(/[^0-9]/g, "");
       const twelveDigitMatches = allDigits.match(/\d{12}/g);
       if (twelveDigitMatches) {
-        results.type = "aadhaar";
+        results.type = vidDetected && !uidDetected ? "vid" : "aadhaar";
         results.docNumber =
           twelveDigitMatches[twelveDigitMatches.length - 1];
       }
@@ -192,8 +200,8 @@ export const performOCR = async (imageBase64, onProgress = () => {}) => {
     else if (lowerText.includes("male") || lowerText.includes("/ m"))
       results.gender = "Male";
 
-    // 4. Name extraction — Aadhaar (robust against noisy OCR)
-    if (results.type === "aadhaar") {
+    // 4. Name extraction — Aadhaar/VID (robust against noisy OCR)
+    if (results.type === "aadhaar" || results.type === "vid") {
       let govtIndex = -1;
       let dobIndex = -1;
 
