@@ -237,7 +237,7 @@ export const performOCR = async (imageBase64, onProgress = () => {}) => {
         if (extracted && !isLikelyGarbageName(extracted)) {
           candidates.push({ s: extracted, score: scoreNameCandidate(extracted) });
         }
-        const tempClean = line.replace(/[|:;\[\]'`]/g, " ").trim();
+        const tempClean = line.replace(/[|:;[\]'`]/g, " ").trim();
         const digitCount = (tempClean.match(/\d/g) || []).length;
         if (digitCount < 6 && tempClean.length > 4 && tempClean.length < 90) {
           const cleanName = tempClean.replace(/[^A-Za-z\s.]/g, " ").replace(/\s+/g, " ").trim();
@@ -260,7 +260,7 @@ export const performOCR = async (imageBase64, onProgress = () => {}) => {
           if (extracted && !isLikelyGarbageName(extracted)) {
             candidates.push({ s: extracted, score: scoreNameCandidate(extracted) + 5 });
           }
-          const tempClean = line.replace(/[|:;\[\]]/g, "").trim();
+          const tempClean = line.replace(/[|:;[\]]/g, "").trim();
           const digitCount = (tempClean.match(/\d/g) || []).length;
           if (digitCount < 4 && !/[&%=]{2,}/.test(tempClean) && tempClean.length > 3) {
             const cleanName = tempClean.replace(/[^A-Za-z\s.]/g, "").trim();

@@ -1232,29 +1232,27 @@ const AyushCardApplicationForm = ({
         details?.type === "aadhaar" ? isLikelyMemberDocId(details.docNumber) : "";
       const nextAge = calculateAge(details.dob);
 
-      // Only accept Aadhaar/docId when DOB/age was also extracted confidently.
-      const nextDocIdAccepted = nextDocId && nextAge ? nextDocId : "";
+      // Accept Aadhaar/docId confidently even if DOB/age isn't extracted,
+      // as long as we didn't detect VID (details.type === "aadhaar") and the
+      // Aadhaar number is valid (exactly 12 digits, non-junk).
+      const nextDocIdAccepted = nextDocId || "";
 
-      const validCount =
-        (nextName ? 1 : 0) + (nextAge ? 1 : 0) + (nextDocIdAccepted ? 1 : 0);
-      const shouldFill = validCount >= 2;
+      const anyExtracted = Boolean(nextName || nextAge || nextDocIdAccepted);
 
       setMembers((prev) => {
         const updatedMembers = [...prev];
         const target = updatedMembers[index] || {};
         updatedMembers[index] = {
           ...target,
-          fullName: shouldFill ? (nextName ? nextName : target.fullName) : target.fullName,
-          age: shouldFill ? (nextAge ? nextAge : target.age) : target.age,
-          documentId: shouldFill
-            ? (nextDocIdAccepted ? nextDocIdAccepted : target.documentId)
-            : target.documentId,
+          fullName: nextName ? nextName : target.fullName,
+          age: nextAge ? nextAge : target.age,
+          documentId: nextDocIdAccepted ? nextDocIdAccepted : target.documentId,
           scannedImage: processedBase64,
         };
         return updatedMembers;
       });
 
-      if (shouldFill) {
+      if (anyExtracted) {
         toastWarn("Member details extracted successfully!");
       } else {
         toastWarn(
@@ -2863,7 +2861,7 @@ const AyushCardApplicationForm = ({
                         <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
                           Full Name
                         </label>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col sm:flex-row gap-2">
                           <input
                             type="text"
                             name="fullName"
@@ -2873,7 +2871,7 @@ const AyushCardApplicationForm = ({
                             }
                             placeholder="Full Name"
                             style={{ fontFamily: "'Inter', sans-serif" }}
-                            className="flex-1 border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                            className="order-2 sm:order-1 w-full sm:flex-1 border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
                           />
                           {memberScanningIndex !== activeMemberTab - 1 && (
                             <button
@@ -2882,7 +2880,7 @@ const AyushCardApplicationForm = ({
                                 setMemberScanProgress(0);
                                 setMemberScanningIndex(activeMemberTab - 1);
                               }}
-                              className="px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors"
+                              className="order-1 sm:order-2 w-full sm:w-auto px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors"
                               title="Scan member ID"
                             >
                               <ScanLine size={18} className="text-[#fa8112]" />
