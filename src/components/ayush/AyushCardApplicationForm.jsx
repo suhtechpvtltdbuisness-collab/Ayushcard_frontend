@@ -46,8 +46,7 @@ function splitFamilyHeadNameParts(fullName) {
     .split(" ")
     .filter(Boolean);
   const firstName = nameParts[0] || "";
-  const lastName =
-    nameParts.length > 1 ? nameParts[nameParts.length - 1] : "";
+  const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : "";
   const middleName =
     nameParts.length > 2 ? nameParts.slice(1, -1).join(" ") : "";
   return { firstName, middleName, lastName };
@@ -1203,7 +1202,12 @@ const AyushCardApplicationForm = ({
       if (!details || !docAccepted) {
         let fullCompressed = base64Src;
         try {
-          fullCompressed = await compressBase64Image(base64Src, 1200, 1200, 0.75);
+          fullCompressed = await compressBase64Image(
+            base64Src,
+            1200,
+            1200,
+            0.75,
+          );
         } catch (e) {
           fullCompressed = base64Src;
         }
@@ -1229,7 +1233,9 @@ const AyushCardApplicationForm = ({
       // For members, accept only real Aadhaar numbers.
       // VID is 12 digits too, but we must not auto-fill it into Aadhaar/documentId.
       const nextDocId =
-        details?.type === "aadhaar" ? isLikelyMemberDocId(details.docNumber) : "";
+        details?.type === "aadhaar"
+          ? isLikelyMemberDocId(details.docNumber)
+          : "";
       const nextAge = calculateAge(details.dob);
 
       // Accept Aadhaar/docId confidently even if DOB/age isn't extracted,
@@ -1418,15 +1424,9 @@ const AyushCardApplicationForm = ({
       const errMsg = err.response?.data?.message || err.message || "";
 
       if (errMsg.toLowerCase().includes("already exists")) {
-        console.log(
-          "Card already exists (public modal), proceeding to success.",
+        toastWarn(
+          "Card already exists for this applicant. Receipt can be printed only after a new card is created.",
         );
-        const errData = extractCreatedCardRecord(err.response?.data);
-        setSubmissionReceipt(errData);
-        if (errData?.applicationId) {
-          setApplicationId(String(errData.applicationId));
-        }
-        setCurrentStep(successStep);
         return;
       }
 
@@ -1540,13 +1540,9 @@ const AyushCardApplicationForm = ({
       console.error("Staff card create error:", err);
       const errMsg = err.response?.data?.message || err.message || "";
       if (errMsg.toLowerCase().includes("already exists")) {
-        const errData = extractCreatedCardRecord(err.response?.data);
-        setSubmissionReceipt(errData);
-        if (errData?.applicationId) {
-          setApplicationId(String(errData.applicationId));
-        }
-        setCurrentStep(successStep);
-        toastSuccess("Application recorded.");
+        toastWarn(
+          "Card already exists for this applicant. Receipt can be printed only after a new card is created.",
+        );
         return;
       }
       toastError(errMsg || "Failed to create Ayush card. Please try again.");
@@ -1771,9 +1767,7 @@ const AyushCardApplicationForm = ({
         }
         if (staffPaymentMode === "online") {
           if (!txnId) {
-            toastWarn(
-              "Complete online payment and tap Verify, then continue.",
-            );
+            toastWarn("Complete online payment and tap Verify, then continue.");
             return;
           }
           await submitStaffApplication();
@@ -1873,7 +1867,16 @@ const AyushCardApplicationForm = ({
       : txnId || "—"
     : txnId || "—";
 
+  const hasPrintableReceipt = Boolean(
+    submissionReceipt &&
+    (submissionReceipt._id != null ||
+      submissionReceipt.applicationId != null ||
+      submissionReceipt.cardNo != null),
+  );
+
   const renderThermalReceipt = () => {
+    if (!hasPrintableReceipt) return null;
+
     const rec = submissionReceipt;
     const displayAppId =
       rec?.applicationId != null ? String(rec.applicationId) : applicationId;
@@ -1903,138 +1906,165 @@ const AyushCardApplicationForm = ({
         : new Date();
 
     return (
-    <div
-      id="public-thermal-receipt"
-      className="hidden print:block w-[2in] max-w-[2in] box-border bg-white p-2 font-sans text-black leading-tight"
-    >
-      <div className="text-center border-b border-dashed border-black pb-2 mb-2">
-        <h1 className="font-black text-[15px] uppercase tracking-tight leading-none">
-          BKBS
-        </h1>
-        <p className="text-[7px] font-semibold mt-1 uppercase tracking-wide">
-          Ayush Card · Receipt
-        </p>
-      </div>
-
-      <div className="text-[8px] space-y-0.5 mb-2 border-b border-dashed border-gray-400 pb-2">
-        <div className="flex justify-between gap-1">
-          <span className="font-bold shrink-0">App ID</span>
-          <span className="font-mono text-right break-all">{displayAppId}</span>
-        </div>
-        {rec?.cardNo ? (
-          <div className="flex justify-between gap-1">
-            <span className="font-bold shrink-0">Card No</span>
-            <span className="font-mono text-right break-all text-[7px]">
-              {String(rec.cardNo)}
-            </span>
+      <div className="public-thermal-receipt-wrap hidden print:block">
+        <div className="public-thermal-receipt w-[2in] max-w-[2in] box-border bg-white p-2 font-sans text-black leading-tight">
+          <div className="text-center border-b border-dashed border-black pb-2 mb-2">
+            <h1 className="font-black text-[15px] uppercase tracking-tight leading-none">
+              BKBS
+            </h1>
+            <p className="text-[7px] font-semibold mt-1 uppercase tracking-wide">
+              Ayush Card · Receipt
+            </p>
           </div>
-        ) : null}
-        <div className="flex justify-between gap-1">
-          <span className="font-bold shrink-0">Date</span>
-          <span className="text-right">
-            {receiptDate.toLocaleString("en-IN", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </span>
-        </div>
-      </div>
 
-      <div className="text-[8px] mb-2 border-b border-dashed border-gray-400 pb-2">
-        <p className="font-bold uppercase mb-1">Family head</p>
-        <p className="font-bold text-[9px] uppercase break-words">
-          {displayName}
-        </p>
-        <p className="mt-0.5">Ph: {displayPhone || "—"}</p>
-        <p className="break-all">
-          Aadhaar:{" "}
-          {displayAadhaarRaw.length >= 4
-            ? `****${displayAadhaarRaw.slice(-4)}`
-            : "—"}
-        </p>
-        <p className="break-words mt-0.5">
-          {displayAddress
-            ? `${displayAddress.slice(0, 80)}${displayAddress.length > 80 ? "…" : ""}`
-            : "—"}
-        </p>
-        <p>Pin: {displayPin || "—"}</p>
-      </div>
-
-      <div className="text-[8px] mb-2 border-b border-dashed border-gray-400 pb-2">
-        <p className="font-bold uppercase mb-1">
-          Members ({listMembers.length})
-        </p>
-        {listMembers.length === 0 ? (
-          <p className="text-gray-600">None</p>
-        ) : (
-          <ul className="space-y-1 list-none p-0 m-0">
-            {listMembers.map((m, idx) => (
-              <li
-                key={idx}
-                className="border-b border-dotted border-gray-300 pb-1 last:border-0"
-              >
-                <span className="font-bold">{idx + 1}.</span>{" "}
-                <span className="font-semibold uppercase">
-                  {thermalMemberLabel(m)}
-                </span>
-                <br />
-                <span className="text-[7px]">
-                  {m.relation || "—"} · Age {m.age ?? "—"}
-                </span>
-                <br />
-                <span className="font-mono text-[7px] break-all">
-                  Doc:{" "}
-                  {thermalMemberDocId(m).length >= 4
-                    ? `****${thermalMemberDocId(m).slice(-4)}`
-                    : "—"}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div className="text-[8px] space-y-0.5 mb-2">
-        {extraMembersBeyondIncluded === 0 ? (
-          <div className="flex justify-between">
-            <span>Up to 4 members</span>
-            <span className="font-semibold">₹{AYUSH_CARD_BASE_PACKAGE_RUPEES}.00</span>
-          </div>
-        ) : (
-          <>
-            <div className="flex justify-between">
-              <span>Base (up to 4)</span>
-              <span>₹{AYUSH_CARD_BASE_PACKAGE_RUPEES}.00</span>
-            </div>
-            <div className="flex justify-between">
-              <span>
-                Extra {extraMembersBeyondIncluded}×₹
-                {AYUSH_CARD_EXTRA_MEMBER_RUPEES}
-              </span>
-              <span>
-                ₹
-                {extraMembersBeyondIncluded * AYUSH_CARD_EXTRA_MEMBER_RUPEES}.00
+          <div className="text-[8px] space-y-0.5 mb-2 border-b border-dashed border-gray-400 pb-2">
+            <div className="flex justify-between gap-1">
+              <span className="font-bold shrink-0">App ID</span>
+              <span className="font-mono text-right break-all">
+                {displayAppId}
               </span>
             </div>
-          </>
-        )}
-        <div className="flex justify-between font-black text-[10px] border-t-2 border-black pt-1 mt-1">
-          <span>TOTAL</span>
-          <span>₹{receiptTotal}.00</span>
+            {rec?.cardNo ? (
+              <div className="flex justify-between gap-1">
+                <span className="font-bold shrink-0">Card No</span>
+                <span className="font-mono text-right break-all text-[7px]">
+                  {String(rec.cardNo)}
+                </span>
+              </div>
+            ) : null}
+            <div className="flex justify-between gap-1">
+              <span className="font-bold shrink-0">Date</span>
+              <span className="text-right">
+                {receiptDate.toLocaleString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
+            </div>
+          </div>
+
+          <div className="text-[8px] mb-2 border-b border-dashed border-gray-400 pb-2">
+            <p className="font-bold uppercase mb-1">Family head</p>
+            <p className="font-bold text-[9px] uppercase break-words">
+              {displayName}
+            </p>
+            <p className="mt-0.5">Ph: {displayPhone || "—"}</p>
+            <p className="break-all">
+              Aadhaar:{" "}
+              {displayAadhaarRaw.length >= 4
+                ? `****${displayAadhaarRaw.slice(-4)}`
+                : "—"}
+            </p>
+            <p className="break-words mt-0.5">
+              {displayAddress
+                ? `${displayAddress.slice(0, 80)}${displayAddress.length > 80 ? "…" : ""}`
+                : "—"}
+            </p>
+            <p>Pin: {displayPin || "—"}</p>
+          </div>
+
+          <div className="text-[8px] mb-2 border-b border-dashed border-gray-400 pb-2">
+            <p className="font-bold uppercase mb-1">
+              Members ({listMembers.length})
+            </p>
+            {listMembers.length === 0 ? (
+              <p className="text-gray-600">None</p>
+            ) : (
+              <ul className="space-y-1 list-none p-0 m-0">
+                {listMembers.map((m, idx) => (
+                  <li
+                    key={idx}
+                    className="border-b border-dotted border-gray-300 pb-1 last:border-0"
+                  >
+                    <span className="font-bold">{idx + 1}.</span>{" "}
+                    <span className="font-semibold uppercase">
+                      {thermalMemberLabel(m)}
+                    </span>
+                    <br />
+                    <span className="text-[7px]">
+                      {m.relation || "—"} · Age {m.age ?? "—"}
+                    </span>
+                    <br />
+                    <span className="font-mono text-[7px] break-all">
+                      Doc:{" "}
+                      {thermalMemberDocId(m).length >= 4
+                        ? `****${thermalMemberDocId(m).slice(-4)}`
+                        : "—"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="text-[8px] space-y-0.5 mb-2">
+            {extraMembersBeyondIncluded === 0 ? (
+              <div className="flex justify-between">
+                <span>Up to 4 members</span>
+                <span className="font-semibold">
+                  ₹{AYUSH_CARD_BASE_PACKAGE_RUPEES}.00
+                </span>
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-between">
+                  <span>Base (up to 4)</span>
+                  <span>₹{AYUSH_CARD_BASE_PACKAGE_RUPEES}.00</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>
+                    Extra {extraMembersBeyondIncluded}×₹
+                    {AYUSH_CARD_EXTRA_MEMBER_RUPEES}
+                  </span>
+                  <span>
+                    ₹
+                    {extraMembersBeyondIncluded *
+                      AYUSH_CARD_EXTRA_MEMBER_RUPEES}
+                    .00
+                  </span>
+                </div>
+              </>
+            )}
+            <div className="flex justify-between font-black text-[10px] border-t-2 border-black pt-1 mt-1">
+              <span>TOTAL</span>
+              <span>₹{receiptTotal}.00</span>
+            </div>
+          </div>
+
+          <div className="text-[7px] font-semibold space-y-0.5 border-t border-dashed border-gray-400 pt-2 uppercase">
+            <p>Pay: {thermalPaymentLabel}</p>
+            <p className="break-all">Ref: {thermalPaymentRef}</p>
+            <p className="text-center mt-2 font-black normal-case tracking-wide border border-black py-0.5">
+              Submitted
+            </p>
+          </div>
+
+          <div className="text-[7px] mt-3 pt-2 border-t border-dashed border-gray-400 space-y-1">
+            <p className="font-bold text-center text-[8px] mb-1">
+              महत्वपूर्ण सूचना
+            </p>
+            <p className="text-[6px] leading-tight">
+              1- यह रसीद अत्यंत महत्वपूर्ण दस्तावेज है। कृपया इसे सुरक्षित रखें,
+              क्योंकि रसीद प्रस्तुत किए बिना आयूष कार्ड प्रदान नहीं किया जाएगा।
+            </p>
+            <p className="text-[6px] leading-tight">
+              2- रसीद गुम हो जाने की स्थिति में ₹50 (पचास रुपये) का अर्थ दंड
+              (पेनल्टी) देय होगा।
+            </p>
+            <p className="text-[6px] leading-tight">
+              3- आयूष कार्ड केवल परिवार के मुखिया अथवा कार्ड में नामित सदस्य को
+              ही, उनके वैध आधार कार्ड के साथ सत्यापन उपरांत प्रदान किया जाएगा।
+            </p>
+            <p className="text-[6px] leading-tight">
+              4- किसी भी विवाद की स्थिति में अंतिम निर्णय का अधिकार संस्था के
+              पास सुरक्षित रहेगा।
+            </p>
+          </div>
         </div>
       </div>
-
-      <div className="text-[7px] font-semibold space-y-0.5 border-t border-dashed border-gray-400 pt-2 uppercase">
-        <p>Pay: {thermalPaymentLabel}</p>
-        <p className="break-all">Ref: {thermalPaymentRef}</p>
-        <p className="text-center mt-2 font-black normal-case tracking-wide border border-black py-0.5">
-          Submitted
-        </p>
-      </div>
-    </div>
     );
   };
 
@@ -2087,560 +2117,360 @@ const AyushCardApplicationForm = ({
           className="bg-white w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300 relative rounded-xl shadow-xl"
           style={{ fontFamily: "'Quicksand', sans-serif" }}
         >
-        {/* Header Section */}
-        <div className="flex justify-between items-center px-3 py-2 bg-[#F5F5F5] shrink-0">
-          <div className="flex items-center gap-4 w-full">
-            <div className="flex items-center justify-center shrink-0">
-              <img
-                src="/logo_whitebg.svg"
-                alt="BKBS Trust"
-                className="h-20 w-20"
-              />
+          {/* Header Section */}
+          <div className="flex justify-between items-center px-3 py-2 bg-[#F5F5F5] shrink-0">
+            <div className="flex items-center gap-4 w-full">
+              <div className="flex items-center justify-center shrink-0">
+                <img
+                  src="/logo_whitebg.svg"
+                  alt="BKBS Trust"
+                  className="h-20 w-20"
+                />
+              </div>
+              <div className="flex-1 text-left">
+                <h3 className="text-[14px] font-semibold text-[#222222]">
+                  {variant === "page"
+                    ? "New card registration"
+                    : "Apply for Ayush Card"}
+                </h3>
+              </div>
+              {variant === "modal" ? (
+                <button
+                  onClick={onClose}
+                  className="p-1 hover:bg-gray-200 rounded-full transition-colors text-[#222222] shrink-0 border border-[#222222]"
+                >
+                  <X size={16} />
+                </button>
+              ) : (
+                <div className="w-8 shrink-0" aria-hidden />
+              )}
             </div>
-            <div className="flex-1 text-left">
-              <h3 className="text-[14px] font-semibold text-[#222222]">
-                {variant === "page"
-                  ? "New card registration"
-                  : "Apply for Ayush Card"}
-              </h3>
-            </div>
-            {variant === "modal" ? (
-              <button
-                onClick={onClose}
-                className="p-1 hover:bg-gray-200 rounded-full transition-colors text-[#222222] shrink-0 border border-[#222222]"
-              >
-                <X size={16} />
-              </button>
-            ) : (
-              <div className="w-8 shrink-0" aria-hidden />
-            )}
           </div>
-        </div>
 
-        {/* Hidden File Inputs — 2nd document upload only (no OCR here) */}
-        <input
-          type="file"
-          accept=".jpg,.jpeg,.png"
-          ref={docBackInputRef}
-          className="hidden"
-          onChange={handleDocumentUpload}
-        />
-        <input
-          type="file"
-          accept="image/*"
-          ref={headImageInputRef}
-          className="hidden"
-          onChange={handleHeadImageUpload}
-        />
-        <input
-          type="file"
-          accept=".jpg,.jpeg,.png"
-          ref={paymentInputRef}
-          className="hidden"
-          onChange={handlePaymentScreenshotUpload}
-        />
+          {/* Hidden File Inputs — 2nd document upload only (no OCR here) */}
+          <input
+            type="file"
+            accept=".jpg,.jpeg,.png"
+            ref={docBackInputRef}
+            className="hidden"
+            onChange={handleDocumentUpload}
+          />
+          <input
+            type="file"
+            accept="image/*"
+            ref={headImageInputRef}
+            className="hidden"
+            onChange={handleHeadImageUpload}
+          />
+          <input
+            type="file"
+            accept=".jpg,.jpeg,.png"
+            ref={paymentInputRef}
+            className="hidden"
+            onChange={handlePaymentScreenshotUpload}
+          />
 
-        {currentStep < successStep ? (
-          <>
-            {/* <div className="text-center py-4 relative bg-white shrink-0">
+          {currentStep < successStep ? (
+            <>
+              {/* <div className="text-center py-4 relative bg-white shrink-0">
               <h2 className="text-2xl font-semibold text-[#222222] inline-block relative pb-2">
                 New Card Registration
                 <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-24 h-1 bg-[#fa8112] rounded-full"></span>
               </h2>
             </div> */}
 
-            {/* Stepper */}
-            <div className="px-4 sm:px-8 py-2 flex justify-center bg-white shrink-0">
-              <div className="flex items-center max-w-xl w-full justify-between relative py-1">
-                {/* Step lines background */}
-                <div className="absolute top-[38%] left-[15%] w-[70%] h-[1.5px] bg-[#f7e5bc] -z-10"></div>
-                <div
-                  className="absolute top-[38%] left-[15%] h-[1.5px] bg-[#fa8112] -z-10 transition-all duration-500"
-                  style={{ width: `${stepperProgressPct}%` }}
-                ></div>
-
-                {stepperSteps.map((step) => (
+              {/* Stepper */}
+              <div className="px-4 sm:px-8 py-2 flex justify-center bg-white shrink-0">
+                <div className="flex items-center max-w-xl w-full justify-between relative py-1">
+                  {/* Step lines background */}
+                  <div className="absolute top-[38%] left-[15%] w-[70%] h-[1.5px] bg-[#f7e5bc] -z-10"></div>
                   <div
-                    key={step.num}
-                    className="flex flex-col items-center bg-white relative z-10 w-[72px] sm:w-[80px]"
-                  >
+                    className="absolute top-[38%] left-[15%] h-[1.5px] bg-[#fa8112] -z-10 transition-all duration-500"
+                    style={{ width: `${stepperProgressPct}%` }}
+                  ></div>
+
+                  {stepperSteps.map((step) => (
                     <div
-                      className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[11px] sm:text-[12px] font-bold mb-1 transition-colors ${
-                        currentStep === step.num
-                          ? "bg-[#fa8112] text-white"
-                          : currentStep > step.num
+                      key={step.num}
+                      className="flex flex-col items-center bg-white relative z-10 w-[72px] sm:w-[80px]"
+                    >
+                      <div
+                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[11px] sm:text-[12px] font-bold mb-1 transition-colors ${
+                          currentStep === step.num
                             ? "bg-[#fa8112] text-white"
-                            : "border border-[#f7e5bc] text-[#222222] bg-white"
-                      }`}
-                    >
-                      {currentStep > step.num ? (
-                        <Check size={13} strokeWidth={3} />
-                      ) : (
-                        step.num
-                      )}
+                            : currentStep > step.num
+                              ? "bg-[#fa8112] text-white"
+                              : "border border-[#f7e5bc] text-[#222222] bg-white"
+                        }`}
+                      >
+                        {currentStep > step.num ? (
+                          <Check size={13} strokeWidth={3} />
+                        ) : (
+                          step.num
+                        )}
+                      </div>
+                      <span
+                        className={`text-[9px] sm:text-[10px] md:text-[11px] text-center max-w-[68px] sm:max-w-none leading-tight md:whitespace-nowrap ${
+                          currentStep === step.num
+                            ? "font-bold text-[#222222]"
+                            : "font-semibold text-[#666666]"
+                        }`}
+                      >
+                        {step.label}
+                      </span>
                     </div>
-                    <span
-                      className={`text-[9px] sm:text-[10px] md:text-[11px] text-center max-w-[68px] sm:max-w-none leading-tight md:whitespace-nowrap ${
-                        currentStep === step.num
-                          ? "font-bold text-[#222222]"
-                          : "font-semibold text-[#666666]"
-                      }`}
-                    >
-                      {step.label}
-                    </span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
 
-            {/* Main Content Area */}
-            <div className="flex-1 overflow-y-auto px-8 pb-24 pt-2 custom-scrollbar">
-              {/* STEP 1: ADD FAMILY HEAD */}
-              {currentStep === 1 && (
-                <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                  <div className="bg-[#FAF3E1] rounded-lg p-3 px-4 flex items-center gap-3 border-l-4 border-[#FA8112] mb-5">
-                    <User size={20} className="text-[#222222]" />
-                    <h3 className="font-medium text-[12px] text-[#222222]">
-                      Family Head Details
-                    </h3>
-                  </div>
+              {/* Main Content Area */}
+              <div className="flex-1 overflow-y-auto px-8 pb-24 pt-2 custom-scrollbar">
+                {/* STEP 1: ADD FAMILY HEAD */}
+                {currentStep === 1 && (
+                  <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                    <div className="bg-[#FAF3E1] rounded-lg p-3 px-4 flex items-center gap-3 border-l-4 border-[#FA8112] mb-5">
+                      <User size={20} className="text-[#222222]" />
+                      <h3 className="font-medium text-[12px] text-[#222222]">
+                        Family Head Details
+                      </h3>
+                    </div>
 
-              
+                    <div className="flex flex-col md:flex-row gap-3 md:gap-4 mb-6 relative w-full items-stretch md:items-stretch">
+                      {/* Family Head Photo — first on mobile, left column on desktop */}
+                      <div className="w-full md:flex-1 md:min-w-0 border-2 border-[#fa8112] bg-[#faf3e1] p-3 sm:p-4 rounded-xl min-h-0 flex flex-col items-center justify-center">
+                        <h4 className="w-full text-[11px] sm:text-[12px] font-bold text-[#222222] mb-2 text-center">
+                          Upload head photo
+                        </h4>
+                        {!headImage ? (
+                          headCameraActive ? (
+                            <div className="w-full max-w-[260px] border border-[#fa8112]/30 bg-white rounded-lg p-2">
+                              <div className="relative aspect-square w-full max-w-[180px] mx-auto rounded-lg overflow-hidden border border-[#F6B579]">
+                                <video
+                                  ref={headCameraVideoRef}
+                                  autoPlay
+                                  playsInline
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              <div className="flex gap-2 mt-3">
+                                <button
+                                  type="button"
+                                  onClick={captureHeadPhoto}
+                                  className="flex-1 py-2 bg-[#fa8112] text-white rounded-lg font-semibold flex items-center justify-center gap-2"
+                                >
+                                  <Camera size={16} /> Capture
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={stopHeadCamera}
+                                  className="flex-1 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-semibold"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="border border-dashed border-gray-300 bg-white rounded-lg py-4 px-4 flex flex-col items-center justify-center text-center w-full max-w-[260px]">
+                              <UploadCloud
+                                className="text-[#a4a4a4] mb-1.5"
+                                size={20}
+                              />
+                              <div className="flex gap-2 mt-2 w-full">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    headImageInputRef.current?.click()
+                                  }
+                                  className="flex-1 px-2 py-1.5 border border-[#fa8112] text-[#fa8112] rounded-lg text-[11px] font-semibold hover:bg-orange-50"
+                                >
+                                  Upload
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={startHeadCamera}
+                                  className="flex-1 px-2 py-1.5 bg-[#fa8112] text-white rounded-lg text-[11px] font-semibold"
+                                >
+                                  {headCameraPermissionDenied
+                                    ? "Allow Camera"
+                                    : "Camera"}
+                                </button>
+                              </div>
+                              {headCameraPermissionDenied && (
+                                <p className="text-[11px] text-red-500 mt-2 text-center">
+                                  Camera access is blocked, please allow camera
+                                  access in browser settings.
+                                </p>
+                              )}
+                            </div>
+                          )
+                        ) : (
+                          <div className="relative">
+                            <img
+                              src={headImage}
+                              alt="Head"
+                              className="w-20 h-20 rounded-full object-cover border-2 border-[#faf3e1]"
+                            />
+                            <button
+                              className="absolute -top-2 -right-2 bg-white border border-gray-200 text-gray-600 rounded-full p-1 shadow-sm hover:bg-gray-100"
+                              onClick={() => setHeadImage(null)}
+                            >
+                              <CloseIcon size={14} />
+                            </button>
+                          </div>
+                        )}
+                        <canvas ref={headCameraCanvasRef} className="hidden" />
+                      </div>
 
-                  <div className="flex flex-col md:flex-row gap-3 md:gap-4 mb-6 relative w-full items-stretch md:items-stretch">
-                    {/* Family Head Photo — first on mobile, left column on desktop */}
-                    <div className="w-full md:flex-1 md:min-w-0 border-2 border-[#fa8112] bg-[#faf3e1] p-3 sm:p-4 rounded-xl min-h-0 flex flex-col items-center justify-center">
-                      <h4 className="w-full text-[11px] sm:text-[12px] font-bold text-[#222222] mb-2 text-center">
-                        Upload head photo
-                      </h4>
-                      {!headImage ? (
-                        headCameraActive ? (
-                          <div className="w-full max-w-[260px] border border-[#fa8112]/30 bg-white rounded-lg p-2">
-                            <div className="relative aspect-square w-full max-w-[180px] mx-auto rounded-lg overflow-hidden border border-[#F6B579]">
+                      {/* 1st document: OCR only — middle column */}
+                      <div className="w-full md:flex-1 md:min-w-0 flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl border border-[#fa8112]/30 bg-[#faf3e1] min-h-0">
+                        <h4 className="w-full text-[11px] sm:text-[12px] font-bold text-[#222222] mb-1 text-center">
+                          1st document — OCR scan
+                        </h4>
+
+                        {cameraActive ? (
+                          <div className="w-full max-w-sm space-y-2 animate-in fade-in zoom-in-95">
+                            <div className="relative aspect-[4/3] max-h-[200px] sm:max-h-[220px] bg-black rounded-lg overflow-hidden shadow border border-white">
                               <video
-                                ref={headCameraVideoRef}
+                                ref={videoRef}
                                 autoPlay
                                 playsInline
                                 className="w-full h-full object-cover"
                               />
-                            </div>
-                            <div className="flex gap-2 mt-3">
-                              <button
-                                type="button"
-                                onClick={captureHeadPhoto}
-                                className="flex-1 py-2 bg-[#fa8112] text-white rounded-lg font-semibold flex items-center justify-center gap-2"
-                              >
-                                <Camera size={16} /> Capture
-                              </button>
-                              <button
-                                type="button"
-                                onClick={stopHeadCamera}
-                                className="flex-1 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-semibold"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="border border-dashed border-gray-300 bg-white rounded-lg py-4 px-4 flex flex-col items-center justify-center text-center w-full max-w-[260px]">
-                            <UploadCloud
-                              className="text-[#a4a4a4] mb-1.5"
-                              size={20}
-                            />
-                            <div className="flex gap-2 mt-2 w-full">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  headImageInputRef.current?.click()
-                                }
-                                className="flex-1 px-2 py-1.5 border border-[#fa8112] text-[#fa8112] rounded-lg text-[11px] font-semibold hover:bg-orange-50"
-                              >
-                                Upload
-                              </button>
-                              <button
-                                type="button"
-                                onClick={startHeadCamera}
-                                className="flex-1 px-2 py-1.5 bg-[#fa8112] text-white rounded-lg text-[11px] font-semibold"
-                              >
-                                {headCameraPermissionDenied
-                                  ? "Allow Camera"
-                                  : "Camera"}
-                              </button>
-                            </div>
-                            {headCameraPermissionDenied && (
-                              <p className="text-[11px] text-red-500 mt-2 text-center">
-                                Camera access is blocked, please allow camera access in browser settings.
-                              </p>
-                            )}
-                          </div>
-                        )
-                      ) : (
-                        <div className="relative">
-                          <img
-                            src={headImage}
-                            alt="Head"
-                            className="w-20 h-20 rounded-full object-cover border-2 border-[#faf3e1]"
-                          />
-                          <button
-                            className="absolute -top-2 -right-2 bg-white border border-gray-200 text-gray-600 rounded-full p-1 shadow-sm hover:bg-gray-100"
-                            onClick={() => setHeadImage(null)}
-                          >
-                            <CloseIcon size={14} />
-                          </button>
-                        </div>
-                      )}
-                      <canvas ref={headCameraCanvasRef} className="hidden" />
-                    </div>
-
-                    {/* 1st document: OCR only — middle column */}
-                    <div className="w-full md:flex-1 md:min-w-0 flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl border border-[#fa8112]/30 bg-[#faf3e1] min-h-0">
-                      <h4 className="w-full text-[11px] sm:text-[12px] font-bold text-[#222222] mb-1 text-center">
-                        1st document — OCR scan
-                      </h4>
-                     
-                      {cameraActive ? (
-                        <div className="w-full max-w-sm space-y-2 animate-in fade-in zoom-in-95">
-                          <div className="relative aspect-[4/3] max-h-[200px] sm:max-h-[220px] bg-black rounded-lg overflow-hidden shadow border border-white">
-                            <video
-                              ref={videoRef}
-                              autoPlay
-                              playsInline
-                              className="w-full h-full object-cover"
-                            />
-                            <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 border-2 border-white/50 border-dashed aspect-[1.6/1] rounded-lg"></div>
-                            {ocrLoading && (
-                              <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center p-6 transition-all animate-in fade-in">
-                                <div className="w-full max-w-[160px] h-1.5 bg-white/20 rounded-full overflow-hidden mb-3 relative">
-                                  <div
-                                    className="h-full bg-[#fa8112] transition-all duration-300"
-                                    style={{ width: `${ocrProgress}%` }}
-                                  ></div>
+                              <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 border-2 border-white/50 border-dashed aspect-[1.6/1] rounded-lg"></div>
+                              {ocrLoading && (
+                                <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center p-6 transition-all animate-in fade-in">
+                                  <div className="w-full max-w-[160px] h-1.5 bg-white/20 rounded-full overflow-hidden mb-3 relative">
+                                    <div
+                                      className="h-full bg-[#fa8112] transition-all duration-300"
+                                      style={{ width: `${ocrProgress}%` }}
+                                    ></div>
+                                  </div>
+                                  <p className="text-white text-[12px] font-bold animate-pulse">
+                                    Scanning... {ocrProgress}%
+                                  </p>
+                                  <div className="absolute left-0 right-0 h-0.5 bg-[#fa8112] shadow-[0_0_10px_#fa8112] blur-[1px] animate-[scan_2s_infinite]"></div>
                                 </div>
-                                <p className="text-white text-[12px] font-bold animate-pulse">
-                                  Scanning... {ocrProgress}%
-                                </p>
-                                <div className="absolute left-0 right-0 h-0.5 bg-[#fa8112] shadow-[0_0_10px_#fa8112] blur-[1px] animate-[scan_2s_infinite]"></div>
-                              </div>
-                            )}
-                          </div>
-                          <style>{`
+                              )}
+                            </div>
+                            <style>{`
                               @keyframes scan {
                                 0% { top: 20%; }
                                 50% { top: 80%; }
                                 100% { top: 20%; }
                               }
                             `}</style>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={stopCamera}
-                              className="flex-1 py-2 text-[12px] bg-white border border-gray-200 text-gray-600 rounded-lg font-semibold transition-all"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              onClick={capturePhoto}
-                              disabled={ocrLoading}
-                              className="flex-[2] py-2 text-[12px] bg-[#fa8112] text-white rounded-lg font-semibold shadow flex items-center justify-center gap-1.5 active:scale-95"
+                            <div className="flex gap-2">
+                              <button
+                                onClick={stopCamera}
+                                className="flex-1 py-2 text-[12px] bg-white border border-gray-200 text-gray-600 rounded-lg font-semibold transition-all"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={capturePhoto}
+                                disabled={ocrLoading}
+                                className="flex-[2] py-2 text-[12px] bg-[#fa8112] text-white rounded-lg font-semibold shadow flex items-center justify-center gap-1.5 active:scale-95"
+                              >
+                                {ocrLoading ? (
+                                  <Loader2 className="animate-spin" size={16} />
+                                ) : (
+                                  <Camera size={16} />
+                                )}
+                                {ocrLoading ? "Scanning..." : "Capture & Scan"}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center group w-full">
+                            <div
+                              className="w-14 h-14 bg-white rounded-xl flex items-center justify-center shadow mb-3 cursor-pointer hover:scale-105 transition-all border border-orange-100 group-hover:border-[#fa8112]"
+                              onClick={startCamera}
                             >
                               {ocrLoading ? (
-                                <Loader2 className="animate-spin" size={16} />
+                                <Loader2
+                                  className="animate-spin text-[#fa8112]"
+                                  size={24}
+                                />
                               ) : (
-                                <Camera size={16} />
+                                <Camera size={24} className="text-[#fa8112]" />
                               )}
-                              {ocrLoading ? "Scanning..." : "Capture & Scan"}
-                            </button>
+                            </div>
+                            <p className="text-[11px] text-gray-500 text-center mb-3 px-1">
+                              Camera or gallery to scan the front side.
+                            </p>
+                            <div className="flex gap-2 w-full text-[12px] justify-center flex-wrap">
+                              <button
+                                onClick={startCamera}
+                                className="px-3 py-2 bg-[#fa8112] text-white rounded-lg font-semibold flex items-center justify-center gap-1.5 shadow-sm hover:bg-[#e47510] transition-all"
+                              >
+                                <Camera size={13} /> Camera
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => ocrFileInputRef.current?.click()}
+                                className="px-3 py-2 bg-white border border-[#fa8112] text-[#fa8112] rounded-lg font-semibold flex items-center justify-center gap-1.5 hover:bg-orange-50 transition-all"
+                              >
+                                <UploadCloud size={13} /> Gallery
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center group w-full">
-                          <div
-                            className="w-14 h-14 bg-white rounded-xl flex items-center justify-center shadow mb-3 cursor-pointer hover:scale-105 transition-all border border-orange-100 group-hover:border-[#fa8112]"
-                            onClick={startCamera}
-                          >
-                            {ocrLoading ? (
-                              <Loader2
-                                className="animate-spin text-[#fa8112]"
-                                size={24}
-                              />
-                            ) : (
-                              <Camera size={24} className="text-[#fa8112]" />
-                            )}
-                          </div>
-                          <p className="text-[11px] text-gray-500 text-center mb-3 px-1">
-                            Camera or gallery to scan the front side.
-                          </p>
-                          <div className="flex gap-2 w-full text-[12px] justify-center flex-wrap">
-                            <button
-                              onClick={startCamera}
-                              className="px-3 py-2 bg-[#fa8112] text-white rounded-lg font-semibold flex items-center justify-center gap-1.5 shadow-sm hover:bg-[#e47510] transition-all"
-                            >
-                              <Camera size={13} /> Camera
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                ocrFileInputRef.current?.click()
-                              }
-                              className="px-3 py-2 bg-white border border-[#fa8112] text-[#fa8112] rounded-lg font-semibold flex items-center justify-center gap-1.5 hover:bg-orange-50 transition-all"
-                            >
-                              <UploadCloud size={13} /> Gallery
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                      <canvas ref={canvasRef} className="hidden" />
-                      <input
-                        ref={ocrFileInputRef}
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="hidden"
-                        onChange={handleScanImage}
-                      />
-                    </div>
-
-                    {/* 2nd document: file upload only — no OCR */}
-                    <div className="w-full md:flex-1 md:min-w-0 border-2 border-[#fa8112] bg-[#faf3e1] p-3 sm:p-4 rounded-xl min-h-0 flex flex-col">
-                      <h4 className="font-bold text-[11px] sm:text-[12px] text-[#222222] mb-1 text-center">
-                        2nd document — upload only
-                      </h4>
-                     
-                      <div className="flex flex-1 items-center justify-center py-1 min-h-[100px]">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            docBackInputRef.current?.click();
-                          }}
-                          className={`w-full flex flex-col items-center justify-center py-4 px-4 rounded-lg transition-all shadow-sm ${
-                            docBack
-                              ? "bg-white border-2 border-green-500"
-                              : "bg-white border hover:border-[#fa8112]"
-                          }`}
-                        >
-                          <div
-                            className={`w-10 h-10 ${docBack ? "bg-green-500" : "bg-[#fa8112]"} rounded-full flex items-center justify-center text-white mb-3`}
-                          >
-                            {docBack ? (
-                              <Check size={20} className="text-white" />
-                            ) : (
-                              <UploadCloud size={20} />
-                            )}
-                          </div>
-                          <span className="text-[14px] font-semibold text-[#222222]">
-                            {docBack ? "2nd document added" : "Upload 2nd document"}
-                          </span>
-                          <span className="text-[12px] text-gray-500 truncate w-full px-1 text-center max-w-[200px] mt-1">
-                            {docBack ? docBack.name : "JPG / PNG only"}
-                          </span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
-                    <div>
-                      <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
-                        Full Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="fullName"
-                        value={familyHead.fullName}
-                        onChange={handleHeadChange}
-                        placeholder="As per identity document"
-                        style={{ fontFamily: "'Inter', sans-serif" }}
-                        className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
-                      />
-                      {renderHeadDuplicateHint(headNameDuplicate, "name")}
-                    </div>
-                    <div>
-                      <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
-                        Date of Birth <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
+                        )}
+                        <canvas ref={canvasRef} className="hidden" />
                         <input
-                          type="date"
-                          name="dob"
-                          value={familyHead.dob}
-                          onChange={handleHeadChange}
-                          style={{ fontFamily: "'Inter', sans-serif" }}
-                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
+                          ref={ocrFileInputRef}
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={handleScanImage}
                         />
                       </div>
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
-                        Gender <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        name="gender"
-                        value={familyHead.gender}
-                        onChange={handleHeadChange}
-                        style={{ fontFamily: "'Inter', sans-serif" }}
-                        className="w-full md:max-w-md border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors appearance-none bg-white"
-                      >
-                        <option value="">Select gender</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
-                        Address <span className="text-red-500">*</span>
-                      </label>
-                      <textarea
-                        name="address"
-                        value={familyHead.address}
-                        onChange={handleHeadChange}
-                        placeholder="House no., street, district, state"
-                        rows={2}
-                        style={{ fontFamily: "'Inter', sans-serif" }}
-                        className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors resize-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
-                        Pincode <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="pincode"
-                        value={familyHead.pincode}
-                        onChange={handleHeadChange}
-                        placeholder="6-digit pincode"
-                        style={{ fontFamily: "'Inter', sans-serif" }}
-                        className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
-                        Contact Number <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="tel"
-                        name="contactNumber"
-                        value={familyHead.contactNumber}
-                        onChange={handleHeadChange}
-                        placeholder="10-digit mobile number"
-                        style={{ fontFamily: "'Inter', sans-serif" }}
-                        className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
-                      />
-                      {renderHeadDuplicateHint(
-                        headPhoneDuplicate,
-                        "phone number",
-                      )}
-                    </div>
-                    <div>
-                      <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
-                        Aadhaar Number <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="aadhaarNumber"
-                        value={familyHead.aadhaarNumber}
-                        onChange={handleHeadChange}
-                        placeholder="12-digit Aadhaar number"
-                        style={{ fontFamily: "'Inter', sans-serif" }}
-                        className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
-                      />
-                      {renderHeadDuplicateHint(
-                        headAadhaarDuplicate,
-                        "Aadhaar number",
-                      )}
-                    </div>
-                    <div>
-                      <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
-                        Email
-                      </label>
-                      <input
-                        type="email"
-                        name="emailAddress"
-                        value={familyHead.emailAddress}
-                        onChange={handleHeadChange}
-                        placeholder="Email address"
-                        style={{ fontFamily: "'Inter', sans-serif" }}
-                        className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
 
-              {/* STEP 2: MEMBERS */}
-              {currentStep === 2 && (
-                <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                  <p className="text-[14px] text-gray-500 mb-4">
-                    Family Head + Additional Members{" "}
-                    <span className="font-bold text-[#222222]">
-                      {totalMembersCount}/7
-                    </span>{" "}
-              
-                  </p>
+                      {/* 2nd document: file upload only — no OCR */}
+                      <div className="w-full md:flex-1 md:min-w-0 border-2 border-[#fa8112] bg-[#faf3e1] p-3 sm:p-4 rounded-xl min-h-0 flex flex-col">
+                        <h4 className="font-bold text-[11px] sm:text-[12px] text-[#222222] mb-1 text-center">
+                          2nd document — upload only
+                        </h4>
 
-                  {/* Tabs — Family Head + added members only (Add Member is below the form) */}
-                  <div className="flex flex-wrap gap-3 mb-5">
-                    <button
-                      type="button"
-                      onClick={() => setActiveMemberTab(0)}
-                      className={`flex items-center gap-2 px-5 py-2.5 rounded-full border transition-all text-[15px] font-medium ${
-                        activeMemberTab === 0
-                          ? "border-gray-300 text-gray-800 bg-gray-50"
-                          : "border-gray-200 text-[#666666] hover:bg-gray-50 bg-white"
-                      }`}
-                    >
-                      Family Head
-                    </button>
-
-                    {members.map((member, idx) => (
-                      <button
-                        type="button"
-                        key={idx}
-                        onClick={() => setActiveMemberTab(idx + 1)}
-                        className={`group flex items-center gap-2 px-5 py-2.5 rounded-full border transition-all text-[15px] font-medium relative ${
-                          activeMemberTab === idx + 1
-                            ? "border-[#FA8112] text-[#FA8112] bg-[#FA8112]/5"
-                            : "border-gray-200 text-[#FA8112] hover:bg-[#FA8112]/5"
-                        }`}
-                      >
-                        <User size={18} />
-                        {member.fullName || `Member ${idx + 1}`}
-
-                        {/* Cut Icon always visible as per design */}
-                        <div
-                          className={`ml-1 flex items-center justify-center rounded-full p-0.5 transition-colors ${
-                            activeMemberTab === idx + 1
-                              ? "bg-red-50 text-red-500 border border-red-200 hover:bg-red-100"
-                              : "text-[#A0AAB4] hover:text-red-500"
-                          }`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeMember(idx);
-                          }}
-                        >
-                          <CloseIcon size={14} strokeWidth={2.5} />
+                        <div className="flex flex-1 items-center justify-center py-1 min-h-[100px]">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              docBackInputRef.current?.click();
+                            }}
+                            className={`w-full flex flex-col items-center justify-center py-4 px-4 rounded-lg transition-all shadow-sm ${
+                              docBack
+                                ? "bg-white border-2 border-green-500"
+                                : "bg-white border hover:border-[#fa8112]"
+                            }`}
+                          >
+                            <div
+                              className={`w-10 h-10 ${docBack ? "bg-green-500" : "bg-[#fa8112]"} rounded-full flex items-center justify-center text-white mb-3`}
+                            >
+                              {docBack ? (
+                                <Check size={20} className="text-white" />
+                              ) : (
+                                <UploadCloud size={20} />
+                              )}
+                            </div>
+                            <span className="text-[14px] font-semibold text-[#222222]">
+                              {docBack
+                                ? "2nd document added"
+                                : "Upload 2nd document"}
+                            </span>
+                            <span className="text-[12px] text-gray-500 truncate w-full px-1 text-center max-w-[200px] mt-1">
+                              {docBack ? docBack.name : "JPG / PNG only"}
+                            </span>
+                          </button>
                         </div>
-                      </button>
-                    ))}
-                  </div>
+                      </div>
+                    </div>
 
-                  {/* Form Content Based on Tab */}
-                  <div className="bg-[#FAF3E1] rounded-lg p-3 px-4 flex items-center gap-3 border-l-4 border-[#FA8112] mb-5">
-                    <User size={20} className="text-[#222222]" />
-                    <h3 className="font-semibold text-[#222222]">
-                      {activeMemberTab === 0
-                        ? "Family Head Details"
-                        : `Member ${activeMemberTab} Details`}
-                    </h3>
-                  </div>
-
-                  {activeMemberTab === 0 ? (
-                    /* Display Head Details inside Step 3 (Editable or just reflecting) */
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 opacity-90">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
                       <div>
-                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
-                          Full Name
+                        <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
+                          Full Name <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="text"
@@ -2649,13 +2479,13 @@ const AyushCardApplicationForm = ({
                           onChange={handleHeadChange}
                           placeholder="As per identity document"
                           style={{ fontFamily: "'Inter', sans-serif" }}
-                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
                         />
                         {renderHeadDuplicateHint(headNameDuplicate, "name")}
                       </div>
                       <div>
-                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
-                          Date of Birth
+                        <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
+                          Date of Birth <span className="text-red-500">*</span>
                         </label>
                         <div className="relative">
                           <input
@@ -2664,20 +2494,20 @@ const AyushCardApplicationForm = ({
                             value={familyHead.dob}
                             onChange={handleHeadChange}
                             style={{ fontFamily: "'Inter', sans-serif" }}
-                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
                           />
                         </div>
                       </div>
                       <div className="md:col-span-2">
-                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
-                          Gender
+                        <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
+                          Gender <span className="text-red-500">*</span>
                         </label>
                         <select
                           name="gender"
                           value={familyHead.gender}
                           onChange={handleHeadChange}
                           style={{ fontFamily: "'Inter', sans-serif" }}
-                          className="w-full md:max-w-md border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] appearance-none bg-white"
+                          className="w-full md:max-w-md border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors appearance-none bg-white"
                         >
                           <option value="">Select gender</option>
                           <option value="Male">Male</option>
@@ -2686,8 +2516,8 @@ const AyushCardApplicationForm = ({
                         </select>
                       </div>
                       <div className="md:col-span-2">
-                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
-                          Address
+                        <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
+                          Address <span className="text-red-500">*</span>
                         </label>
                         <textarea
                           name="address"
@@ -2696,12 +2526,12 @@ const AyushCardApplicationForm = ({
                           placeholder="House no., street, district, state"
                           rows={2}
                           style={{ fontFamily: "'Inter', sans-serif" }}
-                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] resize-none"
+                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors resize-none"
                         />
                       </div>
                       <div>
-                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
-                          Pincode
+                        <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
+                          Pincode <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="text"
@@ -2710,12 +2540,12 @@ const AyushCardApplicationForm = ({
                           onChange={handleHeadChange}
                           placeholder="6-digit pincode"
                           style={{ fontFamily: "'Inter', sans-serif" }}
-                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
                         />
                       </div>
                       <div>
-                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
-                          Contact Number
+                        <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
+                          Contact Number <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="tel"
@@ -2724,7 +2554,7 @@ const AyushCardApplicationForm = ({
                           onChange={handleHeadChange}
                           placeholder="10-digit mobile number"
                           style={{ fontFamily: "'Inter', sans-serif" }}
-                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
                         />
                         {renderHeadDuplicateHint(
                           headPhoneDuplicate,
@@ -2732,8 +2562,8 @@ const AyushCardApplicationForm = ({
                         )}
                       </div>
                       <div>
-                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
-                          Aadhaar Number
+                        <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
+                          Aadhaar Number <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="text"
@@ -2742,7 +2572,7 @@ const AyushCardApplicationForm = ({
                           onChange={handleHeadChange}
                           placeholder="12-digit Aadhaar number"
                           style={{ fontFamily: "'Inter', sans-serif" }}
-                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
                         />
                         {renderHeadDuplicateHint(
                           headAadhaarDuplicate,
@@ -2750,7 +2580,7 @@ const AyushCardApplicationForm = ({
                         )}
                       </div>
                       <div>
-                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                        <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
                           Email
                         </label>
                         <input
@@ -2760,944 +2590,1319 @@ const AyushCardApplicationForm = ({
                           onChange={handleHeadChange}
                           placeholder="Email address"
                           style={{ fontFamily: "'Inter', sans-serif" }}
-                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
                         />
                       </div>
                     </div>
-                  ) : (
-                    /* Display Active Member Fields */
-                    <div
-                      className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3"
-                      key={`member-${activeMemberTab}`}
-                    >
-                      {/* Member Scanning UI */}
-                      {memberScanningIndex === activeMemberTab - 1 && (
-                        <div className="md:col-span-2 bg-orange-50 border border-[#FBD7B0] rounded-lg p-3 mb-3">
-                          {memberCameraActive ? (
-                            <div className="space-y-3">
-                              <div className="relative w-full">
-                                <video
-                                  ref={memberVideoRef}
-                                  autoPlay
-                                  playsInline
-                                  className="w-full rounded-lg border border-[#F6B579] max-h-64 object-cover"
-                                />
-                                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 border-2 border-white/50 border-dashed aspect-[1.6/1] w-[70%] rounded-lg pointer-events-none" />
-                              </div>
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={captureMemberPhoto}
-                                  disabled={memberOcrLoading}
-                                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#FA8112] text-white rounded-lg hover:bg-[#E47510] font-semibold"
-                                >
-                                  {memberOcrLoading ? (
-                                    <Loader2 className="animate-spin" size={18} />
-                                  ) : (
-                                    <Check size={18} />
-                                  )}{" "}
-                                  Capture
-                                </button>
-                                <button
-                                  onClick={() => stopMemberCamera()}
-                                  disabled={memberOcrLoading}
-                                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-100 font-semibold"
-                                >
-                                  <X size={18} /> Cancel
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="space-y-3">
-                              {memberOcrLoading || memberScanProgress > 0 ? (
-                                <div>
-                                  <div className="w-full bg-gray-200 rounded-full h-2">
-                                    <div
-                                      className="bg-[#FA8112] h-2 rounded-full transition-all"
-                                      style={{
-                                        width: `${memberOcrLoading ? memberScanProgress : memberScanProgress}%`,
-                                      }}
-                                    />
-                                  </div>
-                                  <p className="text-xs text-gray-600 mt-1">
-                                    Scanning: {memberScanProgress}%
-                                  </p>
-                                </div>
-                              ) : null}
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() =>
-                                    startMemberCamera(activeMemberTab - 1)
-                                  }
-                                  disabled={memberOcrLoading}
-                                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#FA8112] text-white rounded-lg hover:bg-[#E47510] font-semibold"
-                                >
-                                  <Camera size={18} /> Use Camera
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    memberInputRef.current?.click()
-                                  }
-                                  disabled={memberOcrLoading}
-                                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#FA8112] text-white rounded-lg hover:bg-[#E47510] font-semibold"
-                                >
-                                  <UploadCloud size={18} /> Upload Photo
-                                </button>
-                              </div>
-                              <input
-                                ref={memberInputRef}
-                                type="file"
-                                accept="image/*"
-                                onChange={(e) =>
-                                  handleMemberScanImage(e, activeMemberTab - 1)
-                                }
-                                style={{ display: "none" }}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      )}
+                  </div>
+                )}
 
-                      <div>
-                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
-                          Full Name
-                        </label>
-                        <div className="flex flex-col sm:flex-row gap-2">
+                {/* STEP 2: MEMBERS */}
+                {currentStep === 2 && (
+                  <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                    <p className="text-[14px] text-gray-500 mb-4">
+                      Family Head + Additional Members{" "}
+                      <span className="font-bold text-[#222222]">
+                        {totalMembersCount}/7
+                      </span>{" "}
+                    </p>
+
+                    {/* Tabs — Family Head + added members only (Add Member is below the form) */}
+                    <div className="flex flex-wrap gap-3 mb-5">
+                      <button
+                        type="button"
+                        onClick={() => setActiveMemberTab(0)}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-full border transition-all text-[15px] font-medium ${
+                          activeMemberTab === 0
+                            ? "border-gray-300 text-gray-800 bg-gray-50"
+                            : "border-gray-200 text-[#666666] hover:bg-gray-50 bg-white"
+                        }`}
+                      >
+                        Family Head
+                      </button>
+
+                      {members.map((member, idx) => (
+                        <button
+                          type="button"
+                          key={idx}
+                          onClick={() => setActiveMemberTab(idx + 1)}
+                          className={`group flex items-center gap-2 px-5 py-2.5 rounded-full border transition-all text-[15px] font-medium relative ${
+                            activeMemberTab === idx + 1
+                              ? "border-[#FA8112] text-[#FA8112] bg-[#FA8112]/5"
+                              : "border-gray-200 text-[#FA8112] hover:bg-[#FA8112]/5"
+                          }`}
+                        >
+                          <User size={18} />
+                          {member.fullName || `Member ${idx + 1}`}
+
+                          {/* Cut Icon always visible as per design */}
+                          <div
+                            className={`ml-1 flex items-center justify-center rounded-full p-0.5 transition-colors ${
+                              activeMemberTab === idx + 1
+                                ? "bg-red-50 text-red-500 border border-red-200 hover:bg-red-100"
+                                : "text-[#A0AAB4] hover:text-red-500"
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeMember(idx);
+                            }}
+                          >
+                            <CloseIcon size={14} strokeWidth={2.5} />
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Form Content Based on Tab */}
+                    <div className="bg-[#FAF3E1] rounded-lg p-3 px-4 flex items-center gap-3 border-l-4 border-[#FA8112] mb-5">
+                      <User size={20} className="text-[#222222]" />
+                      <h3 className="font-semibold text-[#222222]">
+                        {activeMemberTab === 0
+                          ? "Family Head Details"
+                          : `Member ${activeMemberTab} Details`}
+                      </h3>
+                    </div>
+
+                    {activeMemberTab === 0 ? (
+                      /* Display Head Details inside Step 3 (Editable or just reflecting) */
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 opacity-90">
+                        <div>
+                          <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                            Full Name
+                          </label>
                           <input
                             type="text"
                             name="fullName"
-                            value={members[activeMemberTab - 1].fullName}
-                            onChange={(e) =>
-                              handleMemberChange(activeMemberTab - 1, e)
-                            }
-                            placeholder="Full Name"
+                            value={familyHead.fullName}
+                            onChange={handleHeadChange}
+                            placeholder="As per identity document"
                             style={{ fontFamily: "'Inter', sans-serif" }}
-                            className="order-2 sm:order-1 w-full sm:flex-1 border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
                           />
-                          {memberScanningIndex !== activeMemberTab - 1 && (
-                            <button
-                              onClick={() => {
-                                stopMemberCamera();
-                                setMemberScanProgress(0);
-                                setMemberScanningIndex(activeMemberTab - 1);
-                              }}
-                              className="order-1 sm:order-2 w-full sm:w-auto px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors"
-                              title="Scan member ID"
-                            >
-                              <ScanLine size={18} className="text-[#fa8112]" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
-                          Relation
-                        </label>
-                        <select
-                          name="relation"
-                          value={members[activeMemberTab - 1].relation}
-                          onChange={(e) =>
-                            handleMemberChange(activeMemberTab - 1, e)
-                          }
-                          style={{ fontFamily: "'Inter', sans-serif" }}
-                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] appearance-none bg-white"
-                        >
-                          <option value="">Select Relation</option>
-                          <option value="Spouse">Spouse</option>
-                          <option value="Son">Son</option>
-                          <option value="Daughter">Daughter</option>
-                          <option value="Father">Father</option>
-                          <option value="Mother">Mother</option>
-                          <option value="Brother">Brother</option>
-                          <option value="Sister">Sister</option>
-                          <option value="Grandfather">Grandfather</option>
-                          <option value="Grandmother">Grandmother</option>
-                          <option value="Other">Other</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
-                          Age
-                        </label>
-                        <input
-                          type="number"
-                          name="age"
-                          value={members[activeMemberTab - 1].age}
-                          onChange={(e) => {
-                            const val = e.target.value
-                              .replace(/\D/g, "")
-                              .slice(0, 3);
-                            handleMemberChange(activeMemberTab - 1, {
-                              target: { name: "age", value: val },
-                            });
-                          }}
-                          placeholder="Age"
-                          style={{ fontFamily: "'Inter', sans-serif" }}
-                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
-                          Document ID (Aadhaar)
-                        </label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          name="documentId"
-                          value={
-                            members[activeMemberTab - 1]?.documentId ?? ""
-                          }
-                          onChange={(e) =>
-                            handleMemberChange(activeMemberTab - 1, e)
-                          }
-                          placeholder="12-digit document number"
-                          maxLength={12}
-                          style={{ fontFamily: "'Inter', sans-serif" }}
-                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {totalMembersCount < 8 && (
-                    <div
-                      ref={addMemberScrollAnchorRef}
-                      className="mt-8 pt-5 border-t border-[#fa8112]/25 flex flex-col items-center gap-3 pb-4"
-                    >
-                      <p className="text-[13px] text-[#666666] text-center max-w-md">
-                        Optional: add parents, spouse, or children on the same
-                        card.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={addMember}
-                        className="flex items-center justify-center gap-2 w-full max-w-sm px-6 py-3.5 rounded-full border-2 border-dashed border-[#FA8112] text-[#FA8112] bg-[#FA8112]/5 hover:bg-[#FA8112]/10 transition-all text-[15px] font-semibold shadow-sm"
-                      >
-                        <Plus size={20} />
-                        Add Member
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Member scanning canvas - hidden */}
-              <canvas ref={memberCanvasRef} style={{ display: "none" }} />
-
-              {/* STEP 3: REVIEW */}
-              {currentStep === 3 && (
-                <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                  {/* Card Preview Section */}
-                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-6">
-                    <div className="flex justify-between items-center p-4 bg-gray-50 border-b border-gray-200">
-                      <h4 className="font-bold text-[#222222] text-[15px]">
-                        Card Preview
-                      </h4>
-                    </div>
-                    <div className="p-4 sm:p-6 flex items-center justify-center bg-[#fcfcfc]">
-                      <div className="w-full max-w-[480px]">
-                        <AyushCardPreview data={cardPreviewData} side="front" />
-                      </div>
-                    </div>
-                    <div className="p-4 border-t border-gray-100 grid grid-cols-2 md:grid-cols-5 gap-4 bg-white">
-                      <div>
-                        <p className="text-[11px] font-bold text-gray-400 uppercase">
-                          Head Name
-                        </p>
-                        <p className="text-[14px] font-bold text-[#222222] truncate">
-                          {familyHead.fullName || "—"}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-[11px] font-bold text-gray-400 uppercase">
-                          Aadhaar No
-                        </p>
-                        <p className="text-[14px] font-bold text-[#222222] truncate">
-                          {familyHead.aadhaarNumber || "—"}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-[11px] font-bold text-gray-400 uppercase">
-                          Contact
-                        </p>
-                        <p className="text-[14px] font-bold text-[#222222] truncate">
-                          {familyHead.contactNumber || "—"}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-[11px] font-bold text-gray-400 uppercase">
-                          Members
-                        </p>
-                        <p className="text-[14px] font-bold text-[#222222]">
-                          {totalMembersCount}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[11px] font-bold text-gray-400 uppercase">
-                          Amount
-                        </p>
-                        <p className="text-[14px] font-bold text-[#fa8112]">
-                          ₹{estimatedFee}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-[#FAF3E1] rounded-lg p-3 px-4 flex items-center gap-3 border-l-4 border-[#FA8112] mb-2">
-                    <User size={20} className="text-[#222222]" />
-                    <h3 className="font-semibold text-[#222222]">
-                      Review Your Application
-                    </h3>
-                  </div>
-                  <p className="text-[14px] text-gray-500 mb-6">
-                    Please verify all details before final submission
-                  </p>
-
-                  <div className="space-y-4">
-                    {/* Head Review Card */}
-                    <div className="bg-white p-5 rounded-xl border border-gray-100">
-                      <div className="flex justify-between items-center mb-4">
-                        <div className="flex items-center gap-3">
-                          <User size={20} className="text-[#222222]" />
-                          <h4 className="text-[16px] font-bold text-[#222222]">
-                            Family Head Details
-                          </h4>
-                        </div>
-                        <button
-                          onClick={() => setIsEditingReview(!isEditingReview)}
-                          className={`text-[14px] font-semibold underline underline-offset-2 transition-colors ${isEditingReview ? "text-green-600 decoration-green-600" : "text-[#222222] decoration-[#222222] hover:text-[#FA8112] hover:decoration-[#FA8112]"}`}
-                        >
-                          {isEditingReview ? "Done" : "Edit"}
-                        </button>
-                      </div>
-
-                      <div className="flex flex-col md:flex-row gap-4 mb-6 md:overflow-x-auto md:pb-2 md:custom-scrollbar">
-                        {/* 1. Family head photo */}
-                        <div className="shrink-0 flex flex-col gap-2">
-                          <div className="w-full md:w-[240px] h-[150px] bg-gray-200 rounded-lg flex items-center justify-center relative overflow-hidden group">
-                            {headImage ? (
-                              <>
-                                <div className="relative w-full h-full group">
-                                  <img
-                                    src={headImage}
-                                    alt="Head"
-                                    className="w-full h-full object-cover"
-                                  />
-                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        const win = window.open();
-                                        win.document.write(
-                                          `<img src="${headImage}" />`,
-                                        );
-                                      }}
-                                      className="bg-white/90 hover:bg-white text-[#222222] p-1.5 rounded-full shadow-lg transition-all"
-                                      title="View Photo"
-                                    >
-                                      <ScanLine size={16} />
-                                    </button>
-                                  </div>
-                                </div>
-                                {isEditingReview && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setHeadImage(null)}
-                                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors"
-                                  >
-                                    <CloseIcon size={14} />
-                                  </button>
-                                )}
-                              </>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  headImageInputRef.current?.click()
-                                }
-                                className="w-full h-full flex flex-col items-center justify-center text-gray-400 hover:bg-gray-50 transition-colors"
-                              >
-                                <UploadCloud size={24} className="mb-2" />
-                                <span className="text-xs">Upload Photo</span>
-                              </button>
-                            )}
-                          </div>
-                          <div>
-                            <p className="text-[14px] font-semibold text-[#222222]">
-                              Family Head Photo
-                            </p>
-                            <p className="text-[12px] text-gray-500">&nbsp;</p>
-                          </div>
-                        </div>
-
-                        {/* 2. First document (OCR) */}
-                        <div className="shrink-0 flex flex-col gap-2">
-                          <div className="w-full md:w-[240px] h-[150px] bg-gray-200 rounded-lg flex items-center justify-center relative overflow-hidden group">
-                            {docFront ? (
-                              <>
-                                {docFront.url ? (
-                                  <div className="relative w-full h-full group">
-                                    <img
-                                      src={docFront.url}
-                                      className="w-full h-full object-cover"
-                                      alt="Document"
-                                    />
-                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          window.open(docFront.url, "_blank");
-                                        }}
-                                        className="bg-white/90 hover:bg-white text-[#222222] p-1.5 rounded-full shadow-lg transition-all"
-                                        title="View Document"
-                                      >
-                                        <ScanLine size={16} />
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="text-gray-500 flex flex-col items-center">
-                                    <FileText size={32} className="mb-2" />
-                                    <span className="text-xs truncate w-[140px] text-center">
-                                      {docFront.name}
-                                    </span>
-                                  </div>
-                                )}
-                                {isEditingReview && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setDocFront(null)}
-                                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors"
-                                  >
-                                    <CloseIcon size={14} />
-                                  </button>
-                                )}
-                              </>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  ocrFileInputRef.current?.click()
-                                }
-                                className="w-full h-full flex flex-col items-center justify-center text-gray-400 hover:bg-gray-50 transition-colors"
-                              >
-                                <UploadCloud size={24} className="mb-2" />
-                                <span className="text-xs">OCR scan</span>
-                              </button>
-                            )}
-                          </div>
-                          <div>
-                            <p className="text-[14px] font-semibold text-[#222222]">
-                              1st document (OCR)
-                            </p>
-                            <p className="text-[12px] text-gray-500">
-                              Scan or gallery — auto-fills form
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* 3. Second document (upload) */}
-                        <div className="shrink-0 flex flex-col gap-2">
-                          <div className="w-full md:w-[240px] h-[150px] bg-gray-200 rounded-lg flex items-center justify-center relative overflow-hidden group">
-                            {docBack ? (
-                              <>
-                                {docBack.url ? (
-                                  <div className="relative w-full h-full group">
-                                    <img
-                                      src={docBack.url}
-                                      className="w-full h-full object-cover"
-                                      alt="Second document"
-                                    />
-                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          window.open(docBack.url, "_blank");
-                                        }}
-                                        className="bg-white/90 hover:bg-white text-[#222222] p-1.5 rounded-full shadow-lg transition-all"
-                                        title="View Document"
-                                      >
-                                        <ScanLine size={16} />
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="text-gray-500 flex flex-col items-center">
-                                    <FileText size={32} className="mb-2" />
-                                    <span className="text-xs truncate w-[140px] text-center">
-                                      {docBack.name}
-                                    </span>
-                                  </div>
-                                )}
-                                {isEditingReview && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setDocBack(null)}
-                                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors"
-                                  >
-                                    <CloseIcon size={14} />
-                                  </button>
-                                )}
-                              </>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  docBackInputRef.current?.click()
-                                }
-                                className="w-full h-full flex flex-col items-center justify-center text-gray-400 hover:bg-gray-50 transition-colors"
-                              >
-                                <UploadCloud size={24} className="mb-2" />
-                                <span className="text-xs">Upload file</span>
-                              </button>
-                            )}
-                          </div>
-                          <div>
-                            <p className="text-[14px] font-semibold text-[#222222]">
-                              2nd document (upload)
-                            </p>
-                            <p className="text-[12px] text-gray-500">
-                              JPG/PNG — no OCR
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-6">
-                        <div>
-                          <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
-                            Full Name
-                          </p>
-                          {isEditingReview ? (
-                            <input
-                              type="text"
-                              name="fullName"
-                              value={familyHead.fullName}
-                              onChange={handleHeadChange}
-                              className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
-                            />
-                          ) : (
-                            <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
-                              {familyHead.fullName || "—"}
-                            </p>
-                          )}
                           {renderHeadDuplicateHint(headNameDuplicate, "name")}
                         </div>
                         <div>
-                          <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                          <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
                             Date of Birth
-                          </p>
-                          {isEditingReview ? (
+                          </label>
+                          <div className="relative">
                             <input
                               type="date"
                               name="dob"
                               value={familyHead.dob}
                               onChange={handleHeadChange}
-                              className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                              style={{ fontFamily: "'Inter', sans-serif" }}
+                              className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
                             />
-                          ) : (
-                            <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
-                              {familyHead.dob || "YYYY-MM-DD"}
-                            </p>
-                          )}
+                          </div>
                         </div>
-                        <div className="sm:col-span-2">
-                          <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                        <div className="md:col-span-2">
+                          <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
                             Gender
-                          </p>
-                          {isEditingReview ? (
-                            <select
-                              name="gender"
-                              value={familyHead.gender}
-                              onChange={handleHeadChange}
-                              className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
-                            >
-                              <option value="">Select Gender</option>
-                              <option value="Male">Male</option>
-                              <option value="Female">Female</option>
-                              <option value="Other">Other</option>
-                            </select>
-                          ) : (
-                            <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
-                              {familyHead.gender || "—"}
-                            </p>
-                          )}
+                          </label>
+                          <select
+                            name="gender"
+                            value={familyHead.gender}
+                            onChange={handleHeadChange}
+                            style={{ fontFamily: "'Inter', sans-serif" }}
+                            className="w-full md:max-w-md border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] appearance-none bg-white"
+                          >
+                            <option value="">Select gender</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                          </select>
                         </div>
-                        <div className="sm:col-span-2">
-                          <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                        <div className="md:col-span-2">
+                          <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
                             Address
-                          </p>
-                          {isEditingReview ? (
-                            <textarea
-                              name="address"
-                              value={familyHead.address}
-                              onChange={handleHeadChange}
-                              rows={2}
-                              className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222] resize-none"
-                            />
-                          ) : (
-                            <p className="text-[14px] font-semibold text-[#222222] w-full pr-2 line-clamp-3">
-                              {familyHead.address || "—"}
-                            </p>
-                          )}
+                          </label>
+                          <textarea
+                            name="address"
+                            value={familyHead.address}
+                            onChange={handleHeadChange}
+                            placeholder="House no., street, district, state"
+                            rows={2}
+                            style={{ fontFamily: "'Inter', sans-serif" }}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] resize-none"
+                          />
                         </div>
                         <div>
-                          <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                          <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
                             Pincode
-                          </p>
-                          {isEditingReview ? (
-                            <input
-                              type="text"
-                              name="pincode"
-                              value={familyHead.pincode}
-                              onChange={handleHeadChange}
-                              className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
-                            />
-                          ) : (
-                            <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
-                              {familyHead.pincode || "—"}
-                            </p>
-                          )}
+                          </label>
+                          <input
+                            type="text"
+                            name="pincode"
+                            value={familyHead.pincode}
+                            onChange={handleHeadChange}
+                            placeholder="6-digit pincode"
+                            style={{ fontFamily: "'Inter', sans-serif" }}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                          />
                         </div>
                         <div>
-                          <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
-                            Contact
-                          </p>
-                          {isEditingReview ? (
-                            <input
-                              type="tel"
-                              name="contactNumber"
-                              value={familyHead.contactNumber}
-                              onChange={handleHeadChange}
-                              className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
-                            />
-                          ) : (
-                            <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
-                              {familyHead.contactNumber || "—"}
-                            </p>
-                          )}
+                          <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                            Contact Number
+                          </label>
+                          <input
+                            type="tel"
+                            name="contactNumber"
+                            value={familyHead.contactNumber}
+                            onChange={handleHeadChange}
+                            placeholder="10-digit mobile number"
+                            style={{ fontFamily: "'Inter', sans-serif" }}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                          />
                           {renderHeadDuplicateHint(
                             headPhoneDuplicate,
                             "phone number",
                           )}
                         </div>
                         <div>
-                          <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                          <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
                             Aadhaar Number
-                          </p>
-                          {isEditingReview ? (
-                            <input
-                              type="text"
-                              name="aadhaarNumber"
-                              value={familyHead.aadhaarNumber}
-                              onChange={handleHeadChange}
-                              className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
-                            />
-                          ) : (
-                            <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
-                              {familyHead.aadhaarNumber || "—"}
-                            </p>
-                          )}
+                          </label>
+                          <input
+                            type="text"
+                            name="aadhaarNumber"
+                            value={familyHead.aadhaarNumber}
+                            onChange={handleHeadChange}
+                            placeholder="12-digit Aadhaar number"
+                            style={{ fontFamily: "'Inter', sans-serif" }}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                          />
                           {renderHeadDuplicateHint(
                             headAadhaarDuplicate,
                             "Aadhaar number",
                           )}
                         </div>
-                        <div className="sm:col-span-2">
-                          <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                        <div>
+                          <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
                             Email
-                          </p>
-                          {isEditingReview ? (
-                            <input
-                              type="email"
-                              name="emailAddress"
-                              value={familyHead.emailAddress}
-                              onChange={handleHeadChange}
-                              className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
-                            />
-                          ) : (
-                            <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
-                              {familyHead.emailAddress || "—"}
-                            </p>
-                          )}
+                          </label>
+                          <input
+                            type="email"
+                            name="emailAddress"
+                            value={familyHead.emailAddress}
+                            onChange={handleHeadChange}
+                            placeholder="Email address"
+                            style={{ fontFamily: "'Inter', sans-serif" }}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                          />
                         </div>
                       </div>
+                    ) : (
+                      /* Display Active Member Fields */
+                      <div
+                        className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3"
+                        key={`member-${activeMemberTab}`}
+                      >
+                        {/* Member Scanning UI */}
+                        {memberScanningIndex === activeMemberTab - 1 && (
+                          <div className="md:col-span-2 bg-orange-50 border border-[#FBD7B0] rounded-lg p-3 mb-3">
+                            {memberCameraActive ? (
+                              <div className="space-y-3">
+                                <div className="relative w-full">
+                                  <video
+                                    ref={memberVideoRef}
+                                    autoPlay
+                                    playsInline
+                                    className="w-full rounded-lg border border-[#F6B579] max-h-64 object-cover"
+                                  />
+                                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 border-2 border-white/50 border-dashed aspect-[1.6/1] w-[70%] rounded-lg pointer-events-none" />
+                                </div>
+                                <div className="flex flex-col sm:flex-row gap-2">
+                                  <button
+                                    onClick={captureMemberPhoto}
+                                    disabled={memberOcrLoading}
+                                    className="flex-1 flex items-center justify-center gap-2 px-2 sm:px-4 py-2 bg-[#FA8112] text-white rounded-lg hover:bg-[#E47510] font-semibold text-[10px] sm:text-[13px] leading-tight"
+                                  >
+                                    {memberOcrLoading ? (
+                                      <Loader2
+                                        className="animate-spin"
+                                        size={16}
+                                      />
+                                    ) : (
+                                      <Check size={16} />
+                                    )}{" "}
+                                    Capture
+                                  </button>
+                                  <button
+                                    onClick={() => stopMemberCamera()}
+                                    disabled={memberOcrLoading}
+                                    className="flex-1 flex items-center justify-center gap-2 px-2 sm:px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-100 font-semibold text-[10px] sm:text-[13px] leading-tight"
+                                  >
+                                    <X size={16} /> Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                {memberOcrLoading || memberScanProgress > 0 ? (
+                                  <div>
+                                    <div className="w-full bg-gray-200 rounded-full h-2">
+                                      <div
+                                        className="bg-[#FA8112] h-2 rounded-full transition-all"
+                                        style={{
+                                          width: `${memberOcrLoading ? memberScanProgress : memberScanProgress}%`,
+                                        }}
+                                      />
+                                    </div>
+                                    <p className="text-[10px] text-gray-600 mt-1">
+                                      Scanning: {memberScanProgress}%
+                                    </p>
+                                  </div>
+                                ) : null}
+                                <div className="flex flex-col sm:flex-row gap-2">
+                                  <button
+                                    onClick={() =>
+                                      startMemberCamera(activeMemberTab - 1)
+                                    }
+                                    disabled={memberOcrLoading}
+                                    className="flex-1 flex items-center justify-center gap-2 px-2 sm:px-4 py-2 bg-[#FA8112] text-white rounded-lg hover:bg-[#E47510] font-semibold text-[10px] sm:text-[13px] leading-tight"
+                                  >
+                                    <Camera size={16} /> Use Camera
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      memberInputRef.current?.click()
+                                    }
+                                    disabled={memberOcrLoading}
+                                    className="flex-1 flex items-center justify-center gap-2 px-2 sm:px-4 py-2 bg-[#FA8112] text-white rounded-lg hover:bg-[#E47510] font-semibold text-[10px] sm:text-[13px] leading-tight"
+                                  >
+                                    <UploadCloud size={16} /> Upload Photo
+                                  </button>
+                                </div>
+                                <input
+                                  ref={memberInputRef}
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) =>
+                                    handleMemberScanImage(
+                                      e,
+                                      activeMemberTab - 1,
+                                    )
+                                  }
+                                  style={{ display: "none" }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
 
-                      {isEditingReview && (
-                        <div className="mt-8 flex justify-center">
-                          <button
-                            onClick={() => setIsEditingReview(false)}
-                            className="bg-[#fa8112] text-white px-8 py-2 rounded-lg font-bold hover:bg-[#e0700d] transition-colors shadow-md"
-                          >
-                            Save Changes
-                          </button>
+                        <div>
+                          <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                            Full Name
+                          </label>
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            <input
+                              type="text"
+                              name="fullName"
+                              value={members[activeMemberTab - 1].fullName}
+                              onChange={(e) =>
+                                handleMemberChange(activeMemberTab - 1, e)
+                              }
+                              placeholder="Full Name"
+                              style={{ fontFamily: "'Inter', sans-serif" }}
+                              className="order-2 sm:order-1 w-full sm:flex-1 border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                            />
+                            {memberScanningIndex !== activeMemberTab - 1 && (
+                              <button
+                                onClick={() => {
+                                  stopMemberCamera();
+                                  setMemberScanProgress(0);
+                                  setMemberScanningIndex(activeMemberTab - 1);
+                                }}
+                                className="order-1 sm:order-2 w-full sm:w-auto px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors"
+                                title="Scan member ID"
+                              >
+                                <ScanLine
+                                  size={18}
+                                  className="text-[#fa8112]"
+                                />
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      )}
+                        <div>
+                          <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                            Relation
+                          </label>
+                          <select
+                            name="relation"
+                            value={members[activeMemberTab - 1].relation}
+                            onChange={(e) =>
+                              handleMemberChange(activeMemberTab - 1, e)
+                            }
+                            style={{ fontFamily: "'Inter', sans-serif" }}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] appearance-none bg-white"
+                          >
+                            <option value="">Select Relation</option>
+                            <option value="Spouse">Spouse</option>
+                            <option value="Son">Son</option>
+                            <option value="Daughter">Daughter</option>
+                            <option value="Father">Father</option>
+                            <option value="Mother">Mother</option>
+                            <option value="Brother">Brother</option>
+                            <option value="Sister">Sister</option>
+                            <option value="Grandfather">Grandfather</option>
+                            <option value="Grandmother">Grandmother</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                            Age
+                          </label>
+                          <input
+                            type="number"
+                            name="age"
+                            value={members[activeMemberTab - 1].age}
+                            onChange={(e) => {
+                              const val = e.target.value
+                                .replace(/\D/g, "")
+                                .slice(0, 3);
+                              handleMemberChange(activeMemberTab - 1, {
+                                target: { name: "age", value: val },
+                              });
+                            }}
+                            placeholder="Age"
+                            style={{ fontFamily: "'Inter', sans-serif" }}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                            Document ID (Aadhaar)
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            name="documentId"
+                            value={
+                              members[activeMemberTab - 1]?.documentId ?? ""
+                            }
+                            onChange={(e) =>
+                              handleMemberChange(activeMemberTab - 1, e)
+                            }
+                            placeholder="12-digit document number"
+                            maxLength={12}
+                            style={{ fontFamily: "'Inter', sans-serif" }}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {totalMembersCount < 8 && (
+                      <div
+                        ref={addMemberScrollAnchorRef}
+                        className="mt-8 pt-5 border-t border-[#fa8112]/25 flex flex-col items-center gap-3 pb-4"
+                      >
+                        <p className="text-[13px] text-[#666666] text-center max-w-md">
+                          Optional: add parents, spouse, or children on the same
+                          card.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={addMember}
+                          className="flex items-center justify-center gap-2 w-full max-w-sm px-4 sm:px-6 py-3 rounded-full border-2 border-dashed border-[#FA8112] text-[#FA8112] bg-[#FA8112]/5 hover:bg-[#FA8112]/10 transition-all text-[10px] sm:text-[15px] font-semibold shadow-sm leading-tight"
+                        >
+                          <Plus size={18} />
+                          Add Member
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Member scanning canvas - hidden */}
+                <canvas ref={memberCanvasRef} style={{ display: "none" }} />
+
+                {/* STEP 3: REVIEW */}
+                {currentStep === 3 && (
+                  <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                    {/* Card Preview Section */}
+                    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-6">
+                      <div className="flex justify-between items-center p-4 bg-gray-50 border-b border-gray-200">
+                        <h4 className="font-bold text-[#222222] text-[15px]">
+                          Card Preview
+                        </h4>
+                      </div>
+                      <div className="p-4 sm:p-6 flex items-center justify-center bg-[#fcfcfc]">
+                        <div className="w-full max-w-[480px]">
+                          <AyushCardPreview
+                            data={cardPreviewData}
+                            side="front"
+                          />
+                        </div>
+                      </div>
+                      <div className="p-4 border-t border-gray-100 grid grid-cols-2 md:grid-cols-5 gap-4 bg-white">
+                        <div>
+                          <p className="text-[11px] font-bold text-gray-400 uppercase">
+                            Head Name
+                          </p>
+                          <p className="text-[14px] font-bold text-[#222222] truncate">
+                            {familyHead.fullName || "—"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-bold text-gray-400 uppercase">
+                            Aadhaar No
+                          </p>
+                          <p className="text-[14px] font-bold text-[#222222] truncate">
+                            {familyHead.aadhaarNumber || "—"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-bold text-gray-400 uppercase">
+                            Contact
+                          </p>
+                          <p className="text-[14px] font-bold text-[#222222] truncate">
+                            {familyHead.contactNumber || "—"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-bold text-gray-400 uppercase">
+                            Members
+                          </p>
+                          <p className="text-[14px] font-bold text-[#222222]">
+                            {totalMembersCount}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[11px] font-bold text-gray-400 uppercase">
+                            Amount
+                          </p>
+                          <p className="text-[14px] font-bold text-[#fa8112]">
+                            ₹{estimatedFee}
+                          </p>
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Add Member details in Review */}
-                    {members.length > 0 && (
-                      <div className="bg-white p-5 rounded-xl border border-gray-100 mt-6">
+                    <div className="bg-[#FAF3E1] rounded-lg p-3 px-4 flex items-center gap-3 border-l-4 border-[#FA8112] mb-2">
+                      <User size={20} className="text-[#222222]" />
+                      <h3 className="font-semibold text-[#222222]">
+                        Review Your Application
+                      </h3>
+                    </div>
+                    <p className="text-[14px] text-gray-500 mb-6">
+                      Please verify all details before final submission
+                    </p>
+
+                    <div className="space-y-4">
+                      {/* Head Review Card */}
+                      <div className="bg-white p-5 rounded-xl border border-gray-100">
                         <div className="flex justify-between items-center mb-4">
                           <div className="flex items-center gap-3">
                             <User size={20} className="text-[#222222]" />
                             <h4 className="text-[16px] font-bold text-[#222222]">
-                              Members ({members.length})
+                              Family Head Details
                             </h4>
+                          </div>
+                          <button
+                            onClick={() => setIsEditingReview(!isEditingReview)}
+                            className={`text-[14px] font-semibold underline underline-offset-2 transition-colors ${isEditingReview ? "text-green-600 decoration-green-600" : "text-[#222222] decoration-[#222222] hover:text-[#FA8112] hover:decoration-[#FA8112]"}`}
+                          >
+                            {isEditingReview ? "Done" : "Edit"}
+                          </button>
+                        </div>
+
+                        <div className="flex flex-col md:flex-row gap-4 mb-6 md:overflow-x-auto md:pb-2 md:custom-scrollbar">
+                          {/* 1. Family head photo */}
+                          <div className="shrink-0 flex flex-col gap-2">
+                            <div className="w-full md:w-[240px] h-[150px] bg-gray-200 rounded-lg flex items-center justify-center relative overflow-hidden group">
+                              {headImage ? (
+                                <>
+                                  <div className="relative w-full h-full group">
+                                    <img
+                                      src={headImage}
+                                      alt="Head"
+                                      className="w-full h-full object-cover"
+                                    />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const win = window.open();
+                                          win.document.write(
+                                            `<img src="${headImage}" />`,
+                                          );
+                                        }}
+                                        className="bg-white/90 hover:bg-white text-[#222222] p-1.5 rounded-full shadow-lg transition-all"
+                                        title="View Photo"
+                                      >
+                                        <ScanLine size={16} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                  {isEditingReview && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setHeadImage(null)}
+                                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors"
+                                    >
+                                      <CloseIcon size={14} />
+                                    </button>
+                                  )}
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    headImageInputRef.current?.click()
+                                  }
+                                  className="w-full h-full flex flex-col items-center justify-center text-gray-400 hover:bg-gray-50 transition-colors"
+                                >
+                                  <UploadCloud size={24} className="mb-2" />
+                                  <span className="text-xs">Upload Photo</span>
+                                </button>
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-[14px] font-semibold text-[#222222]">
+                                Family Head Photo
+                              </p>
+                              <p className="text-[12px] text-gray-500">
+                                &nbsp;
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* 2. First document (OCR) */}
+                          <div className="shrink-0 flex flex-col gap-2">
+                            <div className="w-full md:w-[240px] h-[150px] bg-gray-200 rounded-lg flex items-center justify-center relative overflow-hidden group">
+                              {docFront ? (
+                                <>
+                                  {docFront.url ? (
+                                    <div className="relative w-full h-full group">
+                                      <img
+                                        src={docFront.url}
+                                        className="w-full h-full object-cover"
+                                        alt="Document"
+                                      />
+                                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            window.open(docFront.url, "_blank");
+                                          }}
+                                          className="bg-white/90 hover:bg-white text-[#222222] p-1.5 rounded-full shadow-lg transition-all"
+                                          title="View Document"
+                                        >
+                                          <ScanLine size={16} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="text-gray-500 flex flex-col items-center">
+                                      <FileText size={32} className="mb-2" />
+                                      <span className="text-xs truncate w-[140px] text-center">
+                                        {docFront.name}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {isEditingReview && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setDocFront(null)}
+                                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors"
+                                    >
+                                      <CloseIcon size={14} />
+                                    </button>
+                                  )}
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    ocrFileInputRef.current?.click()
+                                  }
+                                  className="w-full h-full flex flex-col items-center justify-center text-gray-400 hover:bg-gray-50 transition-colors"
+                                >
+                                  <UploadCloud size={24} className="mb-2" />
+                                  <span className="text-xs">OCR scan</span>
+                                </button>
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-[14px] font-semibold text-[#222222]">
+                                1st document (OCR)
+                              </p>
+                              <p className="text-[12px] text-gray-500">
+                                Scan or gallery — auto-fills form
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* 3. Second document (upload) */}
+                          <div className="shrink-0 flex flex-col gap-2">
+                            <div className="w-full md:w-[240px] h-[150px] bg-gray-200 rounded-lg flex items-center justify-center relative overflow-hidden group">
+                              {docBack ? (
+                                <>
+                                  {docBack.url ? (
+                                    <div className="relative w-full h-full group">
+                                      <img
+                                        src={docBack.url}
+                                        className="w-full h-full object-cover"
+                                        alt="Second document"
+                                      />
+                                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            window.open(docBack.url, "_blank");
+                                          }}
+                                          className="bg-white/90 hover:bg-white text-[#222222] p-1.5 rounded-full shadow-lg transition-all"
+                                          title="View Document"
+                                        >
+                                          <ScanLine size={16} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="text-gray-500 flex flex-col items-center">
+                                      <FileText size={32} className="mb-2" />
+                                      <span className="text-xs truncate w-[140px] text-center">
+                                        {docBack.name}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {isEditingReview && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setDocBack(null)}
+                                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors"
+                                    >
+                                      <CloseIcon size={14} />
+                                    </button>
+                                  )}
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    docBackInputRef.current?.click()
+                                  }
+                                  className="w-full h-full flex flex-col items-center justify-center text-gray-400 hover:bg-gray-50 transition-colors"
+                                >
+                                  <UploadCloud size={24} className="mb-2" />
+                                  <span className="text-xs">Upload file</span>
+                                </button>
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-[14px] font-semibold text-[#222222]">
+                                2nd document (upload)
+                              </p>
+                              <p className="text-[12px] text-gray-500">
+                                JPG/PNG — no OCR
+                              </p>
+                            </div>
                           </div>
                         </div>
 
-                        <div className="space-y-4">
-                          {members.map((member, idx) => (
-                            <div
-                              key={idx}
-                              className="bg-white p-4 rounded-xl border border-gray-200"
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-6">
+                          <div>
+                            <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                              Full Name
+                            </p>
+                            {isEditingReview ? (
+                              <input
+                                type="text"
+                                name="fullName"
+                                value={familyHead.fullName}
+                                onChange={handleHeadChange}
+                                className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                              />
+                            ) : (
+                              <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                                {familyHead.fullName || "—"}
+                              </p>
+                            )}
+                            {renderHeadDuplicateHint(headNameDuplicate, "name")}
+                          </div>
+                          <div>
+                            <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                              Date of Birth
+                            </p>
+                            {isEditingReview ? (
+                              <input
+                                type="date"
+                                name="dob"
+                                value={familyHead.dob}
+                                onChange={handleHeadChange}
+                                className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                              />
+                            ) : (
+                              <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                                {familyHead.dob || "YYYY-MM-DD"}
+                              </p>
+                            )}
+                          </div>
+                          <div className="sm:col-span-2">
+                            <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                              Gender
+                            </p>
+                            {isEditingReview ? (
+                              <select
+                                name="gender"
+                                value={familyHead.gender}
+                                onChange={handleHeadChange}
+                                className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                              >
+                                <option value="">Select Gender</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                              </select>
+                            ) : (
+                              <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                                {familyHead.gender || "—"}
+                              </p>
+                            )}
+                          </div>
+                          <div className="sm:col-span-2">
+                            <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                              Address
+                            </p>
+                            {isEditingReview ? (
+                              <textarea
+                                name="address"
+                                value={familyHead.address}
+                                onChange={handleHeadChange}
+                                rows={2}
+                                className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222] resize-none"
+                              />
+                            ) : (
+                              <p className="text-[14px] font-semibold text-[#222222] w-full pr-2 line-clamp-3">
+                                {familyHead.address || "—"}
+                              </p>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                              Pincode
+                            </p>
+                            {isEditingReview ? (
+                              <input
+                                type="text"
+                                name="pincode"
+                                value={familyHead.pincode}
+                                onChange={handleHeadChange}
+                                className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                              />
+                            ) : (
+                              <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                                {familyHead.pincode || "—"}
+                              </p>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                              Contact
+                            </p>
+                            {isEditingReview ? (
+                              <input
+                                type="tel"
+                                name="contactNumber"
+                                value={familyHead.contactNumber}
+                                onChange={handleHeadChange}
+                                className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                              />
+                            ) : (
+                              <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                                {familyHead.contactNumber || "—"}
+                              </p>
+                            )}
+                            {renderHeadDuplicateHint(
+                              headPhoneDuplicate,
+                              "phone number",
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                              Aadhaar Number
+                            </p>
+                            {isEditingReview ? (
+                              <input
+                                type="text"
+                                name="aadhaarNumber"
+                                value={familyHead.aadhaarNumber}
+                                onChange={handleHeadChange}
+                                className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                              />
+                            ) : (
+                              <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                                {familyHead.aadhaarNumber || "—"}
+                              </p>
+                            )}
+                            {renderHeadDuplicateHint(
+                              headAadhaarDuplicate,
+                              "Aadhaar number",
+                            )}
+                          </div>
+                          <div className="sm:col-span-2">
+                            <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                              Email
+                            </p>
+                            {isEditingReview ? (
+                              <input
+                                type="email"
+                                name="emailAddress"
+                                value={familyHead.emailAddress}
+                                onChange={handleHeadChange}
+                                className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                              />
+                            ) : (
+                              <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                                {familyHead.emailAddress || "—"}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {isEditingReview && (
+                          <div className="mt-8 flex justify-center">
+                            <button
+                              onClick={() => setIsEditingReview(false)}
+                              className="bg-[#fa8112] text-white px-8 py-2 rounded-lg font-bold hover:bg-[#e0700d] transition-colors shadow-md"
                             >
-                              <h4 className="font-bold text-[#222222] mb-4 pb-2 border-b border-gray-100 uppercase tracking-wider text-[11px]">
-                                Member {idx + 1}
+                              Save Changes
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Add Member details in Review */}
+                      {members.length > 0 && (
+                        <div className="bg-white p-5 rounded-xl border border-gray-100 mt-6">
+                          <div className="flex justify-between items-center mb-4">
+                            <div className="flex items-center gap-3">
+                              <User size={20} className="text-[#222222]" />
+                              <h4 className="text-[16px] font-bold text-[#222222]">
+                                Members ({members.length})
                               </h4>
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                <div>
-                                  <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
-                                    Member Name
-                                  </p>
-                                  {isEditingReview ? (
-                                    <input
-                                      type="text"
-                                      name="fullName"
-                                      value={member.fullName}
-                                      onChange={(e) =>
-                                        handleMemberChange(idx, e)
-                                      }
-                                      className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
-                                    />
-                                  ) : (
-                                    <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
-                                      {member.fullName || "—"}
+                            </div>
+                          </div>
+
+                          <div className="space-y-4">
+                            {members.map((member, idx) => (
+                              <div
+                                key={idx}
+                                className="bg-white p-4 rounded-xl border border-gray-200"
+                              >
+                                <h4 className="font-bold text-[#222222] mb-4 pb-2 border-b border-gray-100 uppercase tracking-wider text-[11px]">
+                                  Member {idx + 1}
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                  <div>
+                                    <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                                      Member Name
                                     </p>
-                                  )}
-                                </div>
-                                <div>
-                                  <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
-                                    Relation
-                                  </p>
-                                  {isEditingReview ? (
-                                    <select
-                                      name="relation"
-                                      value={member.relation}
-                                      onChange={(e) =>
-                                        handleMemberChange(idx, e)
-                                      }
-                                      className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222] bg-white"
-                                    >
-                                      <option value="">Select Relation</option>
-                                      <option value="Spouse">Spouse</option>
-                                      <option value="Son">Son</option>
-                                      <option value="Daughter">Daughter</option>
-                                      <option value="Father">Father</option>
-                                      <option value="Mother">Mother</option>
-                                      <option value="Brother">Brother</option>
-                                      <option value="Sister">Sister</option>
-                                      <option value="Grandfather">
-                                        Grandfather
-                                      </option>
-                                      <option value="Grandmother">
-                                        Grandmother
-                                      </option>
-                                      <option value="Other">Other</option>
-                                    </select>
-                                  ) : (
-                                    <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
-                                      {member.relation || "—"}
+                                    {isEditingReview ? (
+                                      <input
+                                        type="text"
+                                        name="fullName"
+                                        value={member.fullName}
+                                        onChange={(e) =>
+                                          handleMemberChange(idx, e)
+                                        }
+                                        className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                                      />
+                                    ) : (
+                                      <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                                        {member.fullName || "—"}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                                      Relation
                                     </p>
-                                  )}
-                                </div>
-                                <div>
-                                  <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
-                                    Age
-                                  </p>
-                                  {isEditingReview ? (
-                                    <input
-                                      type="number"
-                                      name="age"
-                                      value={member.age}
-                                      onChange={(e) => {
-                                        const val = e.target.value
-                                          .replace(/\D/g, "")
-                                          .slice(0, 3);
-                                        handleMemberChange(idx, {
-                                          target: { name: "age", value: val },
-                                        });
-                                      }}
-                                      className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
-                                    />
-                                  ) : (
-                                    <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
-                                      {member.age || "—"}
+                                    {isEditingReview ? (
+                                      <select
+                                        name="relation"
+                                        value={member.relation}
+                                        onChange={(e) =>
+                                          handleMemberChange(idx, e)
+                                        }
+                                        className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222] bg-white"
+                                      >
+                                        <option value="">
+                                          Select Relation
+                                        </option>
+                                        <option value="Spouse">Spouse</option>
+                                        <option value="Son">Son</option>
+                                        <option value="Daughter">
+                                          Daughter
+                                        </option>
+                                        <option value="Father">Father</option>
+                                        <option value="Mother">Mother</option>
+                                        <option value="Brother">Brother</option>
+                                        <option value="Sister">Sister</option>
+                                        <option value="Grandfather">
+                                          Grandfather
+                                        </option>
+                                        <option value="Grandmother">
+                                          Grandmother
+                                        </option>
+                                        <option value="Other">Other</option>
+                                      </select>
+                                    ) : (
+                                      <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                                        {member.relation || "—"}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                                      Age
                                     </p>
-                                  )}
-                                </div>
-                                <div>
-                                  <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
-                                    Document ID
-                                  </p>
-                                  {isEditingReview ? (
-                                    <input
-                                      type="text"
-                                      name="documentId"
-                                      inputMode="numeric"
-                                      maxLength={12}
-                                      value={member.documentId ?? ""}
-                                      onChange={(e) =>
-                                        handleMemberChange(idx, e)
-                                      }
-                                      className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
-                                    />
-                                  ) : (
-                                    <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
-                                      {member.documentId?.replace(
-                                        /(\d{4})(?=\d)/g,
-                                        "$1 ",
-                                      ) || "—"}
+                                    {isEditingReview ? (
+                                      <input
+                                        type="number"
+                                        name="age"
+                                        value={member.age}
+                                        onChange={(e) => {
+                                          const val = e.target.value
+                                            .replace(/\D/g, "")
+                                            .slice(0, 3);
+                                          handleMemberChange(idx, {
+                                            target: { name: "age", value: val },
+                                          });
+                                        }}
+                                        className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                                      />
+                                    ) : (
+                                      <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                                        {member.age || "—"}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                                      Document ID
                                     </p>
-                                  )}
+                                    {isEditingReview ? (
+                                      <input
+                                        type="text"
+                                        name="documentId"
+                                        inputMode="numeric"
+                                        maxLength={12}
+                                        value={member.documentId ?? ""}
+                                        onChange={(e) =>
+                                          handleMemberChange(idx, e)
+                                        }
+                                        className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
+                                      />
+                                    ) : (
+                                      <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
+                                        {member.documentId?.replace(
+                                          /(\d{4})(?=\d)/g,
+                                          "$1 ",
+                                        ) || "—"}
+                                      </p>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div className="mt-6 p-5 bg-blue-50 rounded-xl border border-blue-200">
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            id="declaration-checkbox"
+                            className="w-5 h-5 mt-0.5 cursor-pointer accent-[#fa8112]"
+                            required
+                          />
+                          <label
+                            htmlFor="declaration-checkbox"
+                            className="cursor-pointer flex-1"
+                          >
+                            <p className="text-[13px] text-blue-800 leading-relaxed">
+                              I Declare That all the Information and Documents
+                              Provided by Me to the Organization Regarding Me
+                              and My Family are True and Correct. If Any Error,
+                              Inaccuracy or Misleading Element is Found in this
+                              Information in Future, Then it's Full Legal
+                              Responsibility Will Be My Personal Responsibility.
+                            </p>
+                          </label>
                         </div>
                       </div>
-                    )}
-                    <div className="mt-6 p-4 bg-white rounded-xl border border-gray-200">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-5 h-5 rounded-full border border-gray-400 flex items-center justify-center text-gray-500 text-xs">
-                          i
-                        </div>
-                        <h4 className="text-[15px] font-semibold text-[#222222]">
-                          Note
-                        </h4>
-                      </div>
-                      <p className="text-[12px] text-gray-500">
-                        Card fee is a fixed ₹{AYUSH_CARD_BASE_PACKAGE_RUPEES} for 1
-                        to {AYUSH_CARD_INCLUDED_MEMBERS} members (including family
-                        head). Each additional member adds ₹
-                        {AYUSH_CARD_EXTRA_MEMBER_RUPEES}.
+                    </div>
+                  </div>
+                )}
+                {/* STEP 4: PAYMENT — admin/employee: offline (camera) + online */}
+                {!skipPayment && currentStep === 4 && staffPaymentFlow && (
+                  <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                    <canvas
+                      ref={staffCashCanvasRef}
+                      className="hidden"
+                      aria-hidden
+                    />
+                    <div className="text-center mb-6">
+                      <h3 className="font-black text-[22px] md:text-[24px] text-[#22333B] uppercase tracking-tight mb-2">
+                        Payment
+                      </h3>
+                      <p className="text-[13px] text-gray-500">
+                        Total payable:{" "}
+                        <span className="font-bold text-[#fa8112]">
+                          ₹{Number(estimatedFee).toFixed(2)}
+                        </span>
                       </p>
                     </div>
-                  </div>
-                </div>
-              )}
-              {/* STEP 4: PAYMENT — admin/employee: offline (camera) + online */}
-              {!skipPayment && currentStep === 4 && staffPaymentFlow && (
-                <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                  <canvas
-                    ref={staffCashCanvasRef}
-                    className="hidden"
-                    aria-hidden
-                  />
-                  <div className="text-center mb-6">
-                    <h3 className="font-black text-[22px] md:text-[24px] text-[#22333B] uppercase tracking-tight mb-2">
-                      Payment
-                    </h3>
-                    <p className="text-[13px] text-gray-500">
-                      Total payable:{" "}
-                      <span className="font-bold text-[#fa8112]">
-                        ₹{Number(estimatedFee).toFixed(2)}
-                      </span>
-                    </p>
-                  </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto mb-8">
-                    <button
-                      type="button"
-                      onClick={handleStaffChooseOfflineCash}
-                      disabled={staffCashCameraLoading}
-                      className={`flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 transition-all shadow-sm disabled:opacity-60 ${
-                        staffPaymentMode === "cash"
-                          ? "border-[#fa8112] bg-orange-50 ring-2 ring-[#fa8112]/30"
-                          : "border-gray-200 bg-white hover:border-[#fa8112]/50"
-                      }`}
-                    >
-                      <Banknote className="w-10 h-10 text-[#fa8112]" />
-                      <span className="font-bold text-[#22333B]">
-                        Offline / Cash
-                      </span>
-                      <span className="text-[11px] text-gray-500 text-center leading-snug">
-                        Opens your camera to capture the cash receipt
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleStaffChooseOnline}
-                      className={`flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 transition-all shadow-sm ${
-                        staffPaymentMode === "online"
-                          ? "border-[#fa8112] bg-orange-50 ring-2 ring-[#fa8112]/30"
-                          : "border-gray-200 bg-white hover:border-[#fa8112]/50"
-                      }`}
-                    >
-                      <span className="text-3xl" aria-hidden>
-                        💳
-                      </span>
-                      <span className="font-bold text-[#22333B]">Online</span>
-                      <span className="text-[11px] text-gray-500 text-center leading-snug">
-                        Pay with Cashfree (UPI / card)
-                      </span>
-                    </button>
-                  </div>
-
-                  {staffCashCameraActive && (
-                    <div className="max-w-lg mx-auto mb-8 space-y-3">
-                      <video
-                        ref={staffCashVideoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        className="w-full rounded-xl border-2 border-[#fa8112] bg-black max-h-72 object-cover"
-                      />
-                      <div className="flex flex-wrap gap-2 justify-center">
-                        <button
-                          type="button"
-                          onClick={captureStaffCashReceipt}
-                          className="flex-1 min-w-[140px] bg-[#fa8112] text-white font-bold py-3 rounded-xl hover:bg-[#e0720f]"
-                        >
-                          Capture receipt
-                        </button>
-                        <button
-                          type="button"
-                          onClick={stopStaffCashCamera}
-                          className="px-6 py-3 border border-gray-300 rounded-xl font-semibold text-gray-700 hover:bg-gray-50"
-                        >
-                          Cancel
-                        </button>
-                      </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto mb-8">
+                      <button
+                        type="button"
+                        onClick={handleStaffChooseOfflineCash}
+                        disabled={staffCashCameraLoading}
+                        className={`flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 transition-all shadow-sm disabled:opacity-60 ${
+                          staffPaymentMode === "cash"
+                            ? "border-[#fa8112] bg-orange-50 ring-2 ring-[#fa8112]/30"
+                            : "border-gray-200 bg-white hover:border-[#fa8112]/50"
+                        }`}
+                      >
+                        <Banknote className="w-10 h-10 text-[#fa8112]" />
+                        <span className="font-bold text-[#22333B]">
+                          Offline / Cash
+                        </span>
+                        <span className="text-[11px] text-gray-500 text-center leading-snug">
+                          Opens your camera to capture the cash receipt
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleStaffChooseOnline}
+                        className={`flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 transition-all shadow-sm ${
+                          staffPaymentMode === "online"
+                            ? "border-[#fa8112] bg-orange-50 ring-2 ring-[#fa8112]/30"
+                            : "border-gray-200 bg-white hover:border-[#fa8112]/50"
+                        }`}
+                      >
+                        <span className="text-3xl" aria-hidden>
+                          💳
+                        </span>
+                        <span className="font-bold text-[#22333B]">Online</span>
+                        <span className="text-[11px] text-gray-500 text-center leading-snug">
+                          Pay with Cashfree (UPI / card)
+                        </span>
+                      </button>
                     </div>
-                  )}
 
-                  {staffPaymentMode === "cash" &&
-                    staffCashReceiptImage &&
-                    !staffCashCameraActive && (
-                      <div className="max-w-md mx-auto mb-8 space-y-3">
-                        <p className="text-sm font-semibold text-center text-green-700">
-                          Cash receipt photo attached
-                        </p>
-                        <img
-                          src={staffCashReceiptImage}
-                          alt="Cash receipt"
-                          className="w-full rounded-xl border border-gray-200"
+                    {staffCashCameraActive && (
+                      <div className="max-w-lg mx-auto mb-8 space-y-3">
+                        <video
+                          ref={staffCashVideoRef}
+                          autoPlay
+                          playsInline
+                          muted
+                          className="w-full rounded-xl border-2 border-[#fa8112] bg-black max-h-72 object-cover"
                         />
-                        <button
-                          type="button"
-                          onClick={handleStaffChooseOfflineCash}
-                          className="w-full text-[#fa8112] font-semibold text-sm py-2"
-                        >
-                          Retake photo
-                        </button>
+                        <div className="flex flex-wrap gap-2 justify-center">
+                          <button
+                            type="button"
+                            onClick={captureStaffCashReceipt}
+                            className="flex-1 min-w-[140px] bg-[#fa8112] text-white font-bold py-3 rounded-xl hover:bg-[#e0720f]"
+                          >
+                            Capture receipt
+                          </button>
+                          <button
+                            type="button"
+                            onClick={stopStaffCashCamera}
+                            className="px-6 py-3 border border-gray-300 rounded-xl font-semibold text-gray-700 hover:bg-gray-50"
+                          >
+                            Cancel
+                          </button>
+                        </div>
                       </div>
                     )}
 
-                  {staffPaymentMode === "online" && (
+                    {staffPaymentMode === "cash" &&
+                      staffCashReceiptImage &&
+                      !staffCashCameraActive && (
+                        <div className="max-w-md mx-auto mb-8 space-y-3">
+                          <p className="text-sm font-semibold text-center text-green-700">
+                            Cash receipt photo attached
+                          </p>
+                          <img
+                            src={staffCashReceiptImage}
+                            alt="Cash receipt"
+                            className="w-full rounded-xl border border-gray-200"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleStaffChooseOfflineCash}
+                            className="w-full text-[#fa8112] font-semibold text-sm py-2"
+                          >
+                            Retake photo
+                          </button>
+                        </div>
+                      )}
+
+                    {staffPaymentMode === "online" && (
+                      <div className="max-w-xl mx-auto">
+                        {saveError && (
+                          <div className="bg-red-50 text-red-600 text-xs p-3 rounded-lg mb-4 border border-red-100 w-full text-center">
+                            {saveError}
+                          </div>
+                        )}
+
+                        {txnId ? (
+                          <div className="w-full flex flex-col gap-4 animate-in fade-in zoom-in duration-500">
+                            <div className="border rounded-2xl p-6 flex flex-col items-center gap-3 bg-green-50 border-green-200">
+                              <div className="w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg mb-1 bg-green-500">
+                                <Check size={28} strokeWidth={3} />
+                              </div>
+                              <h3 className="text-lg font-bold text-green-700">
+                                Payment verified
+                              </h3>
+                              <p className="text-[11px] text-center font-medium text-green-600">
+                                Ref:{" "}
+                                <span className="font-mono font-bold uppercase select-all tracking-wider">
+                                  {txnId}
+                                </span>
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => submitStaffApplication()}
+                              disabled={submitting}
+                              className="w-full bg-[#fa8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:active:scale-100"
+                            >
+                              {submitting ? (
+                                <Loader2 className="animate-spin" size={24} />
+                              ) : (
+                                <>
+                                  <CheckCircle2 size={24} />
+                                  Submit application
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="w-full space-y-4">
+                            {!orderId ? (
+                              <button
+                                type="button"
+                                onClick={handleInitiateCashfreePayment}
+                                disabled={onlinePaymentLoading}
+                                className="w-full bg-[#fa8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:active:scale-100"
+                              >
+                                {onlinePaymentLoading ? (
+                                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <span className="text-xl">💳</span>
+                                )}
+                                {onlinePaymentLoading
+                                  ? "Preparing gateway..."
+                                  : "Pay with Cashfree"}
+                              </button>
+                            ) : (
+                              <div className="w-full space-y-4">
+                                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex flex-col items-center gap-2">
+                                  <div className="flex items-center gap-2 text-[#fa8112] font-bold text-sm">
+                                    <span className="w-2 h-2 rounded-full bg-[#fa8112] animate-pulse" />
+                                    Awaiting payment…
+                                  </div>
+                                  <p className="text-[10px] text-gray-500 text-center font-mono">
+                                    OrderId: {orderId}
+                                  </p>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => setOrderId(null)}
+                                    className="py-3 border border-gray-300 rounded-xl text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors"
+                                  >
+                                    Retry
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleVerifyCashfreePayment()
+                                    }
+                                    disabled={verifyLoading}
+                                    className="py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-70"
+                                  >
+                                    {verifyLoading ? (
+                                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                      "Verify"
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="pt-6 border-t border-gray-50 flex items-center justify-center gap-6 grayscale opacity-40">
+                              <img
+                                src="https://www.cashfree.com/wp-content/uploads/2022/10/cashfree-logo.png"
+                                className="h-4"
+                                alt="Cashfree"
+                              />
+                              <div className="h-4 w-px bg-gray-200" />
+                              <div className="flex gap-2">
+                                <span className="text-[9px] font-bold text-gray-400">
+                                  UPI
+                                </span>
+                                <span className="text-[9px] font-bold text-gray-400">
+                                  CARDS
+                                </span>
+                                <span className="text-[9px] font-bold text-gray-400">
+                                  NETBANKING
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* STEP 4: PAYMENT — public (online only) */}
+                {!skipPayment && currentStep === 4 && !staffPaymentFlow && (
+                  <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                    <div className="text-center mb-8">
+                      <h3 className="font-black text-[22px] md:text-[24px] text-[#22333B] uppercase tracking-tight mb-2">
+                        Complete Online Payment
+                      </h3>
+                      <p className="text-[13px] text-gray-500">
+                        Total Payable Amount:{" "}
+                        <span className="font-bold text-[#fa8112]">
+                          ₹{Number(estimatedFee).toFixed(2)}
+                        </span>
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-6 mb-8 max-w-2xl mx-auto">
+                      <div className="group border-2 rounded-[32px] p-6 sm:p-8 bg-white transition-all flex flex-col sm:flex-row items-center gap-6 border-[#fa8112] shadow-2xl">
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-orange-50 rounded-3xl flex items-center justify-center text-[#fa8112] group-hover:bg-[#fa8112] group-hover:text-white transition-all shadow-inner shrink-0">
+                          <span className="text-2xl">💳</span>
+                        </div>
+                        <div className="flex-1 text-center sm:text-left">
+                          <h4 className="font-bold text-[#22333B] text-[18px] sm:text-[20px] mb-1">
+                            Online Payment
+                          </h4>
+                          <p className="text-gray-500 text-[13px] sm:text-[14px] leading-relaxed">
+                            UPI, GPay, or Cards.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="max-w-xl mx-auto">
                       {saveError && (
                         <div className="bg-red-50 text-red-600 text-xs p-3 rounded-lg mb-4 border border-red-100 w-full text-center">
@@ -3707,12 +3912,26 @@ const AyushCardApplicationForm = ({
 
                       {txnId ? (
                         <div className="w-full flex flex-col gap-4 animate-in fade-in zoom-in duration-500">
-                          <div className="border rounded-2xl p-6 flex flex-col items-center gap-3 bg-green-50 border-green-200">
-                            <div className="w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg mb-1 bg-green-500">
+                          <div
+                            className={`border rounded-2xl p-6 flex flex-col items-center gap-3 ${
+                              txnId
+                                ? "bg-green-50 border-green-200"
+                                : "bg-orange-50 border-orange-200"
+                            }`}
+                          >
+                            <div
+                              className={`w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg mb-1 ${
+                                txnId ? "bg-green-500" : "bg-orange-500"
+                              }`}
+                            >
                               <Check size={28} strokeWidth={3} />
                             </div>
-                            <h3 className="text-lg font-bold text-green-700">
-                              Payment verified
+                            <h3
+                              className={`text-lg font-bold ${
+                                txnId ? "text-green-700" : "text-orange-700"
+                              }`}
+                            >
+                              Payment Verified!
                             </h3>
                             <p className="text-[11px] text-center font-medium text-green-600">
                               Ref:{" "}
@@ -3724,7 +3943,7 @@ const AyushCardApplicationForm = ({
 
                           <button
                             type="button"
-                            onClick={() => submitStaffApplication()}
+                            onClick={() => submitFinalApplication(txnId)}
                             disabled={submitting}
                             className="w-full bg-[#fa8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:active:scale-100"
                           >
@@ -3733,7 +3952,7 @@ const AyushCardApplicationForm = ({
                             ) : (
                               <>
                                 <CheckCircle2 size={24} />
-                                Submit application
+                                Complete Registration
                               </>
                             )}
                           </button>
@@ -3753,15 +3972,15 @@ const AyushCardApplicationForm = ({
                                 <span className="text-xl">💳</span>
                               )}
                               {onlinePaymentLoading
-                                ? "Preparing gateway..."
+                                ? "Preparing Gateway..."
                                 : "Pay with Cashfree"}
                             </button>
                           ) : (
                             <div className="w-full space-y-4">
                               <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex flex-col items-center gap-2">
                                 <div className="flex items-center gap-2 text-[#fa8112] font-bold text-sm">
-                                  <span className="w-2 h-2 rounded-full bg-[#fa8112] animate-pulse" />
-                                  Awaiting payment…
+                                  <span className="w-2 h-2 rounded-full bg-[#fa8112] animate-pulse"></span>
+                                  Awaiting Payment...
                                 </div>
                                 <p className="text-[10px] text-gray-500 text-center font-mono">
                                   OrderId: {orderId}
@@ -3814,233 +4033,69 @@ const AyushCardApplicationForm = ({
                         </div>
                       )}
                     </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="bg-[#F5F5F5] p-4 border-t border-gray-100 flex items-center justify-between px-8 shrink-0">
+                <div className="flex-1 flex justify-start">
+                  {currentStep > 1 ? (
+                    <button
+                      onClick={handleBack}
+                      className="flex items-center gap-2 bg-white border border-[#FA8112] text-[#FA8112] active:scale-95 font-medium px-6 py-2 rounded-full transition-all duration-300 hover:bg-[#FA8112]/5"
+                    >
+                      <ArrowLeft className="w-5 h-5" />
+                      Back
+                    </button>
+                  ) : (
+                    <p className="text-[15px] font-medium text-[#222222]">
+                      Step {currentStep} of {footerStepMax}
+                    </p>
                   )}
                 </div>
-              )}
-              {/* STEP 4: PAYMENT — public (online only) */}
-              {!skipPayment && currentStep === 4 && !staffPaymentFlow && (
-                <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                  <div className="text-center mb-8">
-                    <h3 className="font-black text-[22px] md:text-[24px] text-[#22333B] uppercase tracking-tight mb-2">
-                      Complete Online Payment
-                    </h3>
-                    <p className="text-[13px] text-gray-500">
-                      Total Payable Amount:{" "}
-                      <span className="font-bold text-[#fa8112]">
-                        ₹{Number(estimatedFee).toFixed(2)}
-                      </span>
+
+                <div className="flex-1 justify-center hidden md:flex">
+                  {currentStep > 1 && (
+                    <p className="text-[14px] text-gray-500">
+                      Step {currentStep} of {footerStepMax}
                     </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-6 mb-8 max-w-2xl mx-auto">
-                    <div className="group border-2 rounded-[32px] p-6 sm:p-8 bg-white transition-all flex flex-col sm:flex-row items-center gap-6 border-[#fa8112] shadow-2xl">
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-orange-50 rounded-3xl flex items-center justify-center text-[#fa8112] group-hover:bg-[#fa8112] group-hover:text-white transition-all shadow-inner shrink-0">
-                        <span className="text-2xl">💳</span>
-                      </div>
-                      <div className="flex-1 text-center sm:text-left">
-                        <h4 className="font-bold text-[#22333B] text-[18px] sm:text-[20px] mb-1">
-                          Online Payment
-                        </h4>
-                        <p className="text-gray-500 text-[13px] sm:text-[14px] leading-relaxed">
-                          UPI, GPay, or Cards.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="max-w-xl mx-auto">
-                    {saveError && (
-                      <div className="bg-red-50 text-red-600 text-xs p-3 rounded-lg mb-4 border border-red-100 w-full text-center">
-                        {saveError}
-                      </div>
-                    )}
-
-                    {txnId ? (
-                      <div className="w-full flex flex-col gap-4 animate-in fade-in zoom-in duration-500">
-                        <div
-                          className={`border rounded-2xl p-6 flex flex-col items-center gap-3 ${
-                            txnId
-                              ? "bg-green-50 border-green-200"
-                              : "bg-orange-50 border-orange-200"
-                          }`}
-                        >
-                          <div
-                            className={`w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg mb-1 ${
-                              txnId ? "bg-green-500" : "bg-orange-500"
-                            }`}
-                          >
-                            <Check size={28} strokeWidth={3} />
-                          </div>
-                          <h3
-                            className={`text-lg font-bold ${
-                              txnId ? "text-green-700" : "text-orange-700"
-                            }`}
-                          >
-                            Payment Verified!
-                          </h3>
-                          <p className="text-[11px] text-center font-medium text-green-600">
-                            Ref:{" "}
-                            <span className="font-mono font-bold uppercase select-all tracking-wider">
-                              {txnId}
-                            </span>
-                          </p>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => submitFinalApplication(txnId)}
-                          disabled={submitting}
-                          className="w-full bg-[#fa8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:active:scale-100"
-                        >
-                          {submitting ? (
-                            <Loader2 className="animate-spin" size={24} />
-                          ) : (
-                            <>
-                              <CheckCircle2 size={24} />
-                              Complete Registration
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="w-full space-y-4">
-                        {!orderId ? (
-                          <button
-                            type="button"
-                            onClick={handleInitiateCashfreePayment}
-                            disabled={onlinePaymentLoading}
-                            className="w-full bg-[#fa8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:active:scale-100"
-                          >
-                            {onlinePaymentLoading ? (
-                              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              <span className="text-xl">💳</span>
-                            )}
-                            {onlinePaymentLoading
-                              ? "Preparing Gateway..."
-                              : "Pay with Cashfree"}
-                          </button>
-                        ) : (
-                          <div className="w-full space-y-4">
-                            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex flex-col items-center gap-2">
-                              <div className="flex items-center gap-2 text-[#fa8112] font-bold text-sm">
-                                <span className="w-2 h-2 rounded-full bg-[#fa8112] animate-pulse"></span>
-                                Awaiting Payment...
-                              </div>
-                              <p className="text-[10px] text-gray-500 text-center font-mono">
-                                OrderId: {orderId}
-                              </p>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
-                              <button
-                                type="button"
-                                onClick={() => setOrderId(null)}
-                                className="py-3 border border-gray-300 rounded-xl text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors"
-                              >
-                                Retry
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleVerifyCashfreePayment()}
-                                disabled={verifyLoading}
-                                className="py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-70"
-                              >
-                                {verifyLoading ? (
-                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                  "Verify"
-                                )}
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="pt-6 border-t border-gray-50 flex items-center justify-center gap-6 grayscale opacity-40">
-                          <img
-                            src="https://www.cashfree.com/wp-content/uploads/2022/10/cashfree-logo.png"
-                            className="h-4"
-                            alt="Cashfree"
-                          />
-                          <div className="h-4 w-px bg-gray-200" />
-                          <div className="flex gap-2">
-                            <span className="text-[9px] font-bold text-gray-400">
-                              UPI
-                            </span>
-                            <span className="text-[9px] font-bold text-gray-400">
-                              CARDS
-                            </span>
-                            <span className="text-[9px] font-bold text-gray-400">
-                              NETBANKING
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            {/* Footer */}
-            <div className="bg-[#F5F5F5] p-4 border-t border-gray-100 flex items-center justify-between px-8 shrink-0">
-              <div className="flex-1 flex justify-start">
-                {currentStep > 1 ? (
+                <div className="flex-1 flex justify-end">
                   <button
-                    onClick={handleBack}
-                    className="flex items-center gap-2 bg-white border border-[#FA8112] text-[#FA8112] active:scale-95 font-medium px-6 py-2 rounded-full transition-all duration-300 hover:bg-[#FA8112]/5"
+                    onClick={handleNext}
+                    disabled={submitting}
+                    className="flex items-center gap-2 bg-[#fa8112] hover:bg-[#e0720f] shadow-md active:scale-95 text-white font-medium pl-6 pr-2 py-2 rounded-full transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed"
                   >
-                    <ArrowLeft className="w-5 h-5" />
-                    Back
+                    {submitting
+                      ? "Submitting..."
+                      : skipPayment && currentStep === 3
+                        ? "Submit"
+                        : currentStep === 4
+                          ? "Confirm"
+                          : "Continue"}
+                    <span className="flex items-center justify-center bg-white rounded-full w-8 h-8 ml-2">
+                      {submitting ? (
+                        <div className="w-4 h-4 border-2 border-[#fa8112] border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <ArrowRight className="w-5 h-5 text-[#fa8112]" />
+                      )}
+                    </span>
                   </button>
-                ) : (
-                  <p className="text-[15px] font-medium text-[#222222]">
-                    Step {currentStep} of {footerStepMax}
-                  </p>
-                )}
+                </div>
               </div>
-
-              <div className="flex-1 justify-center hidden md:flex">
-                {currentStep > 1 && (
-                  <p className="text-[14px] text-gray-500">
-                    Step {currentStep} of {footerStepMax}
-                  </p>
-                )}
-              </div>
-
-              <div className="flex-1 flex justify-end">
-                <button
-                  onClick={handleNext}
-                  disabled={submitting}
-                  className="flex items-center gap-2 bg-[#fa8112] hover:bg-[#e0720f] shadow-md active:scale-95 text-white font-medium pl-6 pr-2 py-2 rounded-full transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                  {submitting
-                    ? "Submitting..."
-                    : skipPayment && currentStep === 3
-                      ? "Submit"
-                      : currentStep === 4
-                        ? "Confirm"
-                        : "Continue"}
-                  <span className="flex items-center justify-center bg-white rounded-full w-8 h-8 ml-2">
-                    {submitting ? (
-                      <div className="w-4 h-4 border-2 border-[#fa8112] border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <ArrowRight className="w-5 h-5 text-[#fa8112]" />
-                    )}
-                  </span>
-                </button>
-              </div>
-            </div>
-          </>
-        ) : (
-          /* STEP 5: SUCCESS / RECEIPT */
-          <div className="flex-1 overflow-y-auto px-8 py-8 animate-in zoom-in-95 duration-500 bg-[#F9FAFB] custom-scrollbar">
-            <style>{`
+            </>
+          ) : (
+            /* STEP 5: SUCCESS / RECEIPT */
+            <div className="flex-1 overflow-y-auto px-8 py-8 animate-in zoom-in-95 duration-500 bg-[#F9FAFB] custom-scrollbar">
+              <style>{`
               @media print {
                 @page { size: 2in auto; margin: 0; }
                 body * { visibility: hidden !important; }
-                #public-thermal-receipt, #public-thermal-receipt * { visibility: visible !important; }
-                #public-thermal-receipt {
+                .public-thermal-receipt-wrap, .public-thermal-receipt-wrap * { visibility: visible !important; }
+                .public-thermal-receipt-wrap {
                   position: fixed !important;
                   left: 0 !important;
                   top: 0 !important;
@@ -4055,159 +4110,171 @@ const AyushCardApplicationForm = ({
               }
             `}</style>
 
-            {renderThermalReceipt()}
+              {renderThermalReceipt()}
 
-            <div
-              id="public-application-receipt"
-              className="max-w-md mx-auto bg-transparent no-print-public"
-            >
-              {/* Receipt Header */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
-                <div className="bg-green-500 p-6 flex flex-col items-center">
-                  <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-3">
-                    <Check className="text-white w-6 h-6" strokeWidth={3} />
+              <div
+                id="public-application-receipt"
+                className="max-w-md mx-auto bg-transparent no-print-public"
+              >
+                {/* Receipt Header */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+                  <div className="bg-green-500 p-6 flex flex-col items-center">
+                    <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-3">
+                      <Check className="text-white w-6 h-6" strokeWidth={3} />
+                    </div>
+                    <h2 className="text-white text-xl font-bold">
+                      {skipPayment || staffPaymentFlow
+                        ? "Application Submitted"
+                        : "Payment Successful"}
+                    </h2>
                   </div>
-                  <h2 className="text-white text-xl font-bold">
-                    {skipPayment || staffPaymentFlow
-                      ? "Application Submitted"
-                      : "Payment Successful"}
-                  </h2>
-                </div>
 
-                <div className="p-6 space-y-4">
-                  {!skipPayment && !staffPaymentFlow && (
-                    <div className="flex justify-between items-center pb-4 border-b border-gray-50">
-                      <span className="text-gray-500 text-sm">Amount Paid</span>
-                      <span className="text-xl font-bold text-[#222222]">
-                        ₹
-                        {submissionReceipt?.totalAmount != null &&
-                        !Number.isNaN(Number(submissionReceipt.totalAmount))
-                          ? Number(submissionReceipt.totalAmount)
-                          : estimatedFee}
-                        .00
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">
-                        {skipPayment || staffPaymentFlow
-                          ? "Application ID"
-                          : "Transaction ID"}
-                      </span>
-                      <span className="font-semibold text-[#222222] uppercase">
-                        {skipPayment || staffPaymentFlow
-                          ? submissionReceipt?.applicationId != null
-                            ? String(submissionReceipt.applicationId)
-                            : applicationId
-                          : txnId || "N/A"}
-                      </span>
-                    </div>
-                    {staffPaymentFlow && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Payment</span>
-                        <span className="font-semibold text-[#222222]">
-                          {staffPaymentMode === "cash"
-                            ? "Cash (receipt attached)"
-                            : txnId
-                              ? `Online · ${txnId}`
-                              : "Online"}
+                  <div className="p-6 space-y-4">
+                    {!skipPayment && !staffPaymentFlow && (
+                      <div className="flex justify-between items-center pb-4 border-b border-gray-50">
+                        <span className="text-gray-500 text-sm">
+                          Amount Paid
+                        </span>
+                        <span className="text-xl font-bold text-[#222222]">
+                          ₹
+                          {submissionReceipt?.totalAmount != null &&
+                          !Number.isNaN(Number(submissionReceipt.totalAmount))
+                            ? Number(submissionReceipt.totalAmount)
+                            : estimatedFee}
+                          .00
                         </span>
                       </div>
                     )}
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">
-                        {skipPayment || staffPaymentFlow
-                          ? "Submitted"
-                          : "Payment Date"}
-                      </span>
-                      <span className="font-semibold text-[#222222]">
-                        {(submissionReceipt?.applicationDate != null &&
-                        String(submissionReceipt.applicationDate).trim() !== ""
-                          ? new Date(
-                              String(
-                                submissionReceipt.applicationDate,
-                              ).length <= 10
-                                ? `${submissionReceipt.applicationDate}T12:00:00`
-                                : submissionReceipt.applicationDate,
-                            )
-                          : new Date()
-                        ).toLocaleDateString("en-IN", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Family Head</span>
-                      <span className="font-semibold text-[#222222]">
-                        {fullNameFromCardRecord(submissionReceipt) ||
-                          familyHead.fullName}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Total Members</span>
-                      <span className="font-semibold text-[#222222]">
-                        {submissionReceipt?.totalMember != null
-                          ? Number(submissionReceipt.totalMember)
-                          : totalMembersCount}
-                      </span>
-                    </div>
-                  </div>
 
-                  <div className="pt-4 mt-4 border-t border-dashed border-gray-200">
-                    <div className="bg-gray-50 rounded-lg p-3 flex items-start gap-3">
-                      <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
-                        <span className="text-blue-600 text-[10px] font-bold">
-                          i
+                    <div className="space-y-3">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">
+                          {skipPayment || staffPaymentFlow
+                            ? "Application ID"
+                            : "Transaction ID"}
+                        </span>
+                        <span className="font-semibold text-[#222222] uppercase">
+                          {skipPayment || staffPaymentFlow
+                            ? submissionReceipt?.applicationId != null
+                              ? String(submissionReceipt.applicationId)
+                              : applicationId
+                            : txnId || "N/A"}
                         </span>
                       </div>
-                      <p className="text-[11px] text-gray-500 leading-relaxed text-left">
-                        Your application is under review. You will receive an
-                        SMS and Email notification once your Ayush Card is
-                        generated.
-                      </p>
+                      {staffPaymentFlow && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500">Payment</span>
+                          <span className="font-semibold text-[#222222]">
+                            {staffPaymentMode === "cash"
+                              ? "Cash (receipt attached)"
+                              : txnId
+                                ? `Online · ${txnId}`
+                                : "Online"}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">
+                          {skipPayment || staffPaymentFlow
+                            ? "Submitted"
+                            : "Payment Date"}
+                        </span>
+                        <span className="font-semibold text-[#222222]">
+                          {(submissionReceipt?.applicationDate != null &&
+                          String(submissionReceipt.applicationDate).trim() !==
+                            ""
+                            ? new Date(
+                                String(submissionReceipt.applicationDate)
+                                  .length <= 10
+                                  ? `${submissionReceipt.applicationDate}T12:00:00`
+                                  : submissionReceipt.applicationDate,
+                              )
+                            : new Date()
+                          ).toLocaleDateString("en-IN", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Family Head</span>
+                        <span className="font-semibold text-[#222222]">
+                          {fullNameFromCardRecord(submissionReceipt) ||
+                            familyHead.fullName}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Total Members</span>
+                        <span className="font-semibold text-[#222222]">
+                          {submissionReceipt?.totalMember != null
+                            ? Number(submissionReceipt.totalMember)
+                            : totalMembersCount}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 mt-4 border-t border-dashed border-gray-200">
+                      <div className="bg-gray-50 rounded-lg p-3 flex items-start gap-3">
+                        <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                          <span className="text-blue-600 text-[10px] font-bold">
+                            i
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-gray-500 leading-relaxed text-left">
+                          Your application is under review. You will receive an
+                          SMS and Email notification once your Ayush Card is
+                          generated.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Action Buttons */}
-              <div className="flex flex-col gap-3">
-                <div className="grid grid-cols-2 gap-3">
+                {/* Action Buttons */}
+                <div className="flex flex-col gap-3">
+                  {!hasPrintableReceipt ? (
+                    <p className="text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      Receipt printing is available only after successful card
+                      creation.
+                    </p>
+                  ) : null}
+                  <div
+                    className={`grid ${hasPrintableReceipt ? "grid-cols-2" : "grid-cols-1"} gap-3`}
+                  >
+                    {hasPrintableReceipt ? (
+                      <button
+                        type="button"
+                        onClick={() => window.print()}
+                        className="flex items-center justify-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-3.5 px-6 rounded-xl transition-all shadow-sm"
+                      >
+                        <Printer size={18} />
+                        Print receipt (2")
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={resetForm}
+                      className="flex items-center justify-center gap-2 bg-white border border-[#fa8112] text-[#fa8112] hover:bg-orange-50 font-bold py-3.5 px-6 rounded-xl transition-all shadow-sm"
+                    >
+                      <Plus size={18} />
+                      Create another
+                    </button>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => window.print()}
-                    className="flex items-center justify-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-3.5 px-6 rounded-xl transition-all shadow-sm"
+                    onClick={variant === "page" && onBack ? onBack : onClose}
+                    className="w-full flex items-center justify-center gap-2 bg-[#FA8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-md mt-1"
                   >
-                    <Printer size={18} />
-                    Print receipt (2&quot;)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="flex items-center justify-center gap-2 bg-white border border-[#fa8112] text-[#fa8112] hover:bg-orange-50 font-bold py-3.5 px-6 rounded-xl transition-all shadow-sm"
-                  >
-                    <Plus size={18} />
-                    Create another
+                    <ArrowLeft size={18} />
+                    {variant === "page" ? "Back to list" : "Return to Home"}
                   </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={variant === "page" && onBack ? onBack : onClose}
-                  className="w-full flex items-center justify-center gap-2 bg-[#FA8112] hover:bg-[#e0720f] active:scale-95 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-md mt-1"
-                >
-                  <ArrowLeft size={18} />
-                  {variant === "page" ? "Back to list" : "Return to Home"}
-                </button>
               </div>
             </div>
-          </div>
-        )}
+          )}
         </div>
       </div>
     </div>

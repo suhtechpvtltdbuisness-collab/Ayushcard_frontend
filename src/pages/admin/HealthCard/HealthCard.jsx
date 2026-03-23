@@ -20,18 +20,17 @@ import Pagination from "../../../components/ui/Pagination";
 const normalizeCard = (card) => ({
   ...card,
   id: card.applicationId || card._id || "",
-  applicant: [
-    card.firstName,
-    card.middleName,
-    card.lastName,
-  ]
-    .filter(Boolean)
-    .join(" ") || "",
+  applicant:
+    [card.firstName, card.middleName, card.lastName]
+      .filter(Boolean)
+      .join(" ") || "",
   phone: card.contact || "",
   pincode: card.pincode || "",
   members: Array.isArray(card.members)
     ? card.members
-    : Array.from({ length: Number(card.totalMember) || 0 }, (_, i) => ({ id: i })),
+    : Array.from({ length: Number(card.totalMember) || 0 }, (_, i) => ({
+        id: i,
+      })),
   payment: {
     applicationFee: 120,
     memberAddOns: (Number(card.totalMember) || 0) * 10,
@@ -39,12 +38,18 @@ const normalizeCard = (card) => ({
   },
   status: (() => {
     switch ((card.status || "").toLowerCase()) {
-      case "approved": return "Verified";
-      case "active": return "Verified";
-      case "pending": return "Not verified";
-      case "rejected": return "Not verified";
-      case "expired": return "Expired";
-      default: return card.status || "Not verified";
+      case "approved":
+        return "Verified";
+      case "active":
+        return "Verified";
+      case "pending":
+        return "Not verified";
+      case "rejected":
+        return "Not verified";
+      case "expired":
+        return "Expired";
+      default:
+        return card.status || "Not verified";
     }
   })(),
 });
@@ -148,7 +153,7 @@ const HealthCard = () => {
   const [selectedRows, setSelectedRows] = useState([]);
   const [deleteError, setDeleteError] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
-  
+
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -169,21 +174,29 @@ const HealthCard = () => {
       const raw = Array.isArray(res?.data?.cards)
         ? res.data.cards
         : Array.isArray(res?.data)
-        ? res.data
-        : Array.isArray(res)
-        ? res
-        : [];
-      
+          ? res.data
+          : Array.isArray(res)
+            ? res
+            : [];
+
       setHealthCards(raw.map(normalizeCard));
-      
+
       const pagination = res?.pagination || res?.data?.pagination || {};
-      const total = pagination.total ?? res?.total ?? res?.count ?? res?.data?.total ?? raw.length;
+      const total =
+        pagination.total ??
+        res?.total ??
+        res?.count ??
+        res?.data?.total ??
+        raw.length;
       const pages = pagination.pages ?? (Math.ceil(total / itemsPerPage) || 1);
-      
+
       setTotalItems(Number(total));
       setTotalPages(Number(pages));
     } catch (err) {
-      console.error("[HealthCard] GET /api/cards failed:", err?.response?.data || err?.message);
+      console.error(
+        "[HealthCard] GET /api/cards failed:",
+        err?.response?.data || err?.message,
+      );
       setFetchError("Could not load cards from server.");
     } finally {
       setLoading(false);
@@ -197,13 +210,22 @@ const HealthCard = () => {
     try {
       const mongoId = itemToDelete._id || itemToDelete.id;
       await apiService.deleteHealthCard(mongoId);
-      setHealthCards((prev) => prev.filter((c) => c._id !== itemToDelete._id && c.id !== itemToDelete.id));
+      setHealthCards((prev) =>
+        prev.filter(
+          (c) => c._id !== itemToDelete._id && c.id !== itemToDelete.id,
+        ),
+      );
       setSelectedRows([]);
       setItemToDelete(null);
     } catch (err) {
-      console.error("[HealthCard] DELETE failed:", err?.response?.data || err?.message);
+      console.error(
+        "[HealthCard] DELETE failed:",
+        err?.response?.data || err?.message,
+      );
       setDeleteError(
-        err?.response?.data?.message || err?.message || "Delete failed. Please try again."
+        err?.response?.data?.message ||
+          err?.message ||
+          "Delete failed. Please try again.",
       );
     } finally {
       setDeleteLoading(false);
@@ -222,8 +244,8 @@ const HealthCard = () => {
     let result = [...healthCards].filter((item) => {
       const applicant = (item.applicant || "").toLowerCase();
       const id = (item.id || "").toLowerCase();
-      const phone = (item.phone || "");
-      const status = (item.status || "");
+      const phone = item.phone || "";
+      const status = item.status || "";
       const query = searchQuery.toLowerCase();
 
       const matchesSearch =
@@ -233,8 +255,7 @@ const HealthCard = () => {
 
       if (activeFilter === "All") return matchesSearch;
       return (
-        matchesSearch &&
-        status.toLowerCase() === activeFilter.toLowerCase()
+        matchesSearch && status.toLowerCase() === activeFilter.toLowerCase()
       );
     });
 
@@ -274,12 +295,13 @@ const HealthCard = () => {
 
   // totalPages is now managed via state from backend response
   const startIndex = (currentPage - 1) * itemsPerPage;
-  
+
   // If the data is already paginated by the server, we don't slice.
   // We only slice if the server returned more items than the limit (fallback).
-  const paginatedData = processedData.length > itemsPerPage 
-    ? processedData.slice(startIndex, startIndex + itemsPerPage)
-    : processedData;
+  const paginatedData =
+    processedData.length > itemsPerPage
+      ? processedData.slice(startIndex, startIndex + itemsPerPage)
+      : processedData;
 
   // renderPaginationButtons removed as it's now handled by the Pagination component.
 
@@ -398,10 +420,11 @@ const HealthCard = () => {
                   setActiveFilter(filter);
                   setCurrentPage(1);
                 }}
-                className={`px-3 sm:px-4 py-2 whitespace-nowrap text-[15px] rounded-lg text-sm font-medium transition-colors text-center ${activeFilter === filter
-                  ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
-                  : "text-[#6B7280] hover:text-[#22333B]"
-                  }`}
+                className={`px-3 sm:px-4 py-2 whitespace-nowrap text-[15px] rounded-lg text-sm font-medium transition-colors text-center ${
+                  activeFilter === filter
+                    ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
+                    : "text-[#6B7280] hover:text-[#22333B]"
+                }`}
               >
                 {filter}
               </button>
@@ -427,7 +450,7 @@ const HealthCard = () => {
           </div>
         ) : paginatedData.length > 0 ? (
           <div className="overflow-y-auto overflow-x-auto flex-1">
-              <table className="min-w-[980px] w-full text-left border-collapse relative">
+            <table className="min-w-[980px] w-full text-left border-collapse relative">
               <thead className="sticky top-0 z-10 bg-[#FFFFFF]">
                 <tr>
                   <th className="py-3 px-4 w-12 text-center">
@@ -504,7 +527,10 @@ const HealthCard = () => {
                         {row.id}
                       </td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
-                        <div className="max-w-[160px] truncate" title={row.applicant}>
+                        <div
+                          className="max-w-[160px] truncate"
+                          title={row.applicant}
+                        >
                           {row.applicant}
                         </div>
                       </td>
@@ -534,8 +560,8 @@ const HealthCard = () => {
                   );
                 })}
               </tbody>
-              </table>
-            </div>
+            </table>
+          </div>
         ) : (
           <div className="flex flex-col items-center justify-center flex-1 py-12 bg-white">
             <div className="w-24 h-24 bg-[#F8FAFC] rounded-full flex items-center justify-center mb-6">
@@ -592,7 +618,10 @@ const HealthCard = () => {
             )}
             <div className="flex justify-end gap-3">
               <button
-                onClick={() => { setItemToDelete(null); setDeleteError(""); }}
+                onClick={() => {
+                  setItemToDelete(null);
+                  setDeleteError("");
+                }}
                 disabled={deleteLoading}
                 className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
@@ -603,7 +632,9 @@ const HealthCard = () => {
                 disabled={deleteLoading}
                 className="px-4 py-2 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-sm font-medium hover:bg-[#ff702d] transition-colors shadow-sm flex items-center gap-2 disabled:opacity-60"
               >
-                {deleteLoading && <Loader2 size={14} className="animate-spin" />}
+                {deleteLoading && (
+                  <Loader2 size={14} className="animate-spin" />
+                )}
                 {deleteLoading ? "Deleting…" : "Confirm Delete"}
               </button>
             </div>

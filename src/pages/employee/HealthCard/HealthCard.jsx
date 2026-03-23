@@ -160,7 +160,7 @@ const HealthCard = () => {
           : Array.isArray(res)
             ? res
             : [];
-      
+
       const normalized = raw.map(normalizeCard);
       setHealthCards(normalized);
     } catch (err) {
@@ -170,8 +170,6 @@ const HealthCard = () => {
       setLoading(false);
     }
   };
-
-
 
   const handleSort = (key) => {
     let direction = "asc";
@@ -243,8 +241,6 @@ const HealthCard = () => {
 
   const isFiltered = searchQuery !== "" || activeFilter !== "All";
 
-
-
   const renderSortableHeader = (
     title,
     sortKey,
@@ -274,16 +270,13 @@ const HealthCard = () => {
     >
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 shrink-0 gap-4 sm:gap-0">
-        <h2 className="text-xl font-bold text-[#22333B]">
-          Ayush Card Applications
-        </h2>
         <div className="flex items-center gap-4">
           {/* Create Button (Tablet/Mobile Only) */}
           <button
             onClick={() => navigate("/employee/health-card/create")}
             className="flex lg:hidden px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff7535] transition-colors items-center gap-2"
           >
-            Create New Application <Plus size={16} />
+            Apply Ayush card <Plus size={16} />
           </button>
         </div>
       </div>
@@ -415,7 +408,10 @@ const HealthCard = () => {
                         {row.id}
                       </td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
-                        <div className="max-w-[160px] truncate" title={row.applicant}>
+                        <div
+                          className="max-w-[160px] truncate"
+                          title={row.applicant}
+                        >
                           {row.applicant}
                         </div>
                       </td>
@@ -435,10 +431,7 @@ const HealthCard = () => {
                         <StatusBadge status={row.status} />
                       </td>
                       <td className="py-3 px-4">
-                        <ActionButtons
-                          item={row}
-                          navigate={navigate}
-                        />
+                        <ActionButtons item={row} navigate={navigate} />
                       </td>
                     </tr>
                   );
@@ -478,8 +471,6 @@ const HealthCard = () => {
         }}
         totalItems={processedData.length}
       />
-
-
     </div>
   );
 };
