@@ -42,7 +42,7 @@ function isLikelyGarbageName(s) {
   if (words.some((w) => NAME_STOPWORDS.has(w.replace(/[^a-z]/gi, "").toLowerCase())))
     return true;
 
-  const letters = t.replace(/[^A-Za-z\u0900-\u097F]/g, ""); // Allow Hindi chars too
+  const letters = t.replace(/[^A-Za-z]/g, ""); // English letters only
   const alphaRatio = t.length ? letters.length / t.length : 0;
   if (alphaRatio < 0.5) return true;
 
@@ -53,7 +53,7 @@ function isLikelyGarbageName(s) {
   if (NAME_GARBAGE_PATTERNS.test(t)) return true;
 
   // Real names usually have at least one word with 3+ letters
-  const longWords = words.filter((w) => /^[A-Za-z\u0900-\u097F]{3,}$/.test(w)).length;
+  const longWords = words.filter((w) => /^[A-Za-z]{3,}$/.test(w)).length;
   if (longWords === 0) return true;
 
   return false;
@@ -72,10 +72,10 @@ function extractTitleCaseNameFromLine(line) {
   // Prefer: Capitalized words before | or junk
   const pipe = s.split(/[|§]/)[0];
   const m = pipe.match(
-    /([A-Z\u0900-\u097F][a-z\u0900-\u097F]{1,}(?:\s+[A-Z\u0900-\u097F][a-z\u0900-\u097F]{1,}){0,3})(?=\s*$|\s*\d|\s*[-–—])/,
+    /([A-Z][a-z]{1,}(?:\s+[A-Z][a-z]{1,}){0,3})(?=\s*$|\s*\d|\s*[-–—])/,
   );
   if (m) return m[1].trim();
-  const m2 = pipe.match(/([A-Z\u0900-\u097F][a-z\u0900-\u097F]{1,}(?:\s+[A-Z\u0900-\u097F][a-z\u0900-\u097F]{1,}){1,3})/);
+  const m2 = pipe.match(/([A-Z][a-z]{1,}(?:\s+[A-Z][a-z]{1,}){1,3})/);
   if (m2) return m2[1].trim();
   return "";
 }
@@ -88,8 +88,6 @@ function scoreNameCandidate(s) {
     // English Title Case
     if (/^[A-Z][a-z]{2,14}$/.test(w)) score += 12;
     else if (/^[A-Z][a-z]+$/.test(w)) score += 6;
-    // Hindi characters
-    else if (/^[\u0900-\u097F]+$/.test(w)) score += 10;
     else if (/^[A-Za-z]{3,}$/.test(w)) score += 4;
     else if (/\d/.test(w)) score -= 25;
     else score -= 3;
@@ -123,7 +121,7 @@ export const performOCR = async (imageBase64, onProgress = () => {}) => {
   try {
     const {
       data: { text },
-    } = await Tesseract.recognize(imageBase64, "eng+hin", {
+    } = await Tesseract.recognize(imageBase64, "eng", {
       logger: (m) => {
         if (m.status === "recognizing text" && onProgress) {
           onProgress(Math.floor(m.progress * 100));
@@ -186,7 +184,7 @@ export const performOCR = async (imageBase64, onProgress = () => {}) => {
     const compactDobPattern = /DOB[:\s]*(\d{2})(\d{2})(\d{4})/i;
 
     const matchYob = (str) => {
-      const found = str.match(/(?:Birth|DOB|Year|ores|YOB|जन्म|तिथि)[^\d]*(\d+)/i);
+      const found = str.match(/(?:Birth|DOB|Year|ores|YOB)[^\d]*(\d+)/i);
       if (found && found[1].length >= 4) {
         const digits = found[1].match(/\d{4}/);
         return digits ? digits[0] : null;
@@ -207,9 +205,9 @@ export const performOCR = async (imageBase64, onProgress = () => {}) => {
 
     // 3. Extract Gender
     const lowerText = text.toLowerCase();
-    if (lowerText.includes("female") || lowerText.includes("/ f") || lowerText.includes("महिला"))
+    if (lowerText.includes("female") || lowerText.includes("/ f"))
       results.gender = "Female";
-    else if (lowerText.includes("male") || lowerText.includes("/ m") || lowerText.includes("पुरुष"))
+    else if (lowerText.includes("male") || lowerText.includes("/ m"))
       results.gender = "Male";
 
     // 4. Name extraction
@@ -219,13 +217,12 @@ export const performOCR = async (imageBase64, onProgress = () => {}) => {
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i].toUpperCase();
-        if (line.includes("GOVERNMENT") || line.includes("INDIA") || line.includes("UIDAI") || line.includes("भारत"))
+        if (line.includes("GOVERNMENT") || line.includes("INDIA") || line.includes("UIDAI"))
           govtIndex = i;
         if (
           line.includes("DOB") ||
           line.includes("BIRTH") ||
           line.includes("YOB") ||
-          line.includes("जन्म") ||
           dobPattern.test(lines[i])
         ) {
           if (dobIndex === -1) dobIndex = i;
@@ -249,7 +246,7 @@ export const performOCR = async (imageBase64, onProgress = () => {}) => {
         const tempClean = line.replace(/[|:;[\]'`]/g, " ").trim();
         const digitCount = (tempClean.match(/\d/g) || []).length;
         if (digitCount < 6 && tempClean.length > 4 && tempClean.length < 90) {
-          const cleanName = tempClean.replace(/[^A-Za-z\u0900-\u097F\s.]/g, " ").replace(/\s+/g, " ").trim();
+          const cleanName = tempClean.replace(/[^A-Za-z\s.]/g, " ").replace(/\s+/g, " ").trim();
           const parts = cleanName.split(/\s+/).filter(Boolean);
           if (parts.length >= 1 && parts.length <= 5) {
             const joined = parts.join(" ");
@@ -272,7 +269,7 @@ export const performOCR = async (imageBase64, onProgress = () => {}) => {
           const tempClean = line.replace(/[|:;[\]]/g, "").trim();
           const digitCount = (tempClean.match(/\d/g) || []).length;
           if (digitCount < 4 && !/[&%=]{2,}/.test(tempClean) && tempClean.length > 3) {
-            const cleanName = tempClean.replace(/[^A-Za-z\u0900-\u097F\s.]/g, "").trim();
+            const cleanName = tempClean.replace(/[^A-Za-z\s.]/g, "").trim();
             const partsCount = cleanName.split(/\s+/).filter(Boolean).length;
             if (partsCount >= 1 && partsCount <= 4) {
               if (!isLikelyGarbageName(cleanName)) {
@@ -303,7 +300,6 @@ export const performOCR = async (imageBase64, onProgress = () => {}) => {
         const proper = s
           .split(/\s+/)
           .map((w) => {
-            if (/^[\u0900-\u097F]+$/.test(w)) return w; // Keep Hindi as is
             return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
           })
           .join(" ");
@@ -317,7 +313,7 @@ export const performOCR = async (imageBase64, onProgress = () => {}) => {
         results.name = best;
       }
     } else if (results.type === "pan") {
-      const taxPatterns = ["INCOME TAX DEPARTMENT", "ভারত", "GOVT. OF INDIA", "GOVERNMENT OF INDIA", "TAX"];
+      const taxPatterns = ["INCOME TAX DEPARTMENT", "GOVT. OF INDIA", "GOVERNMENT OF INDIA", "TAX"];
       const taxIndex = lines.findIndex(l => taxPatterns.some(p => l.toUpperCase().includes(p)));
       
       if (taxIndex !== -1) {
@@ -333,8 +329,8 @@ export const performOCR = async (imageBase64, onProgress = () => {}) => {
     }
 
     // 5. Address extraction attempt
-    // Look for "Address" or "पता"
-    const addressMatch = text.match(/(?:Address|पता)[:\s,]+([\s\S]+?)(?=\d{6}|Card|UIDAI|Unique|$)/i);
+    // Look for "Address"
+    const addressMatch = text.match(/(?:Address)[:\s,]+([\s\S]+?)(?=\d{6}|Card|UIDAI|Unique|$)/i);
     if (addressMatch) {
        results.address = addressMatch[1].replace(/\n/g, " ").replace(/\s+/g, " ").trim();
     }
