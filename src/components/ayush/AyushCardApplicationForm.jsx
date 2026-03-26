@@ -161,12 +161,13 @@ const AyushCardApplicationForm = ({
   const streamRef = useRef(null);
   const [cameraActive, setCameraActive] = useState(false);
 
-  // Helper: compress a base64 image to reasonable dimensions/quality
+  // Helper: compress and filter a base64 image for better OCR
   const compressBase64Image = (
     base64Src,
-    maxWidth = 1000,
-    maxHeight = 1000,
-    quality = 0.7,
+    maxWidth = 1200,
+    maxHeight = 1200,
+    quality = 0.8,
+    applyOcrFilter = false
   ) => {
     return new Promise((resolve, reject) => {
       try {
@@ -183,10 +184,31 @@ const AyushCardApplicationForm = ({
           canvas.width = width;
           canvas.height = height;
           const ctx = canvas.getContext("2d");
-          // Fill background to avoid transparent areas turning black in JPEG
           ctx.fillStyle = "#ffffff";
           ctx.fillRect(0, 0, width, height);
           ctx.drawImage(img, 0, 0, width, height);
+
+          if (applyOcrFilter) {
+            try {
+              const imageData = ctx.getImageData(0, 0, width, height);
+              const data = imageData.data;
+              // Grayscale + Contrast boost
+              for (let i = 0; i < data.length; i += 4) {
+                const r = data[i], g = data[i+1], b = data[i+2];
+                // Luma formula for grayscale
+                const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+                // Simple contrast stretch: values < 100 get darker, > 160 get lighter
+                let val = gray;
+                if (gray < 110) val = Math.max(0, gray * 0.8);
+                else if (gray > 150) val = Math.min(255, gray * 1.1);
+                
+                data[i] = data[i+1] = data[i+2] = val;
+              }
+              ctx.putImageData(imageData, 0, 0);
+            } catch (err) {
+              console.warn("OCR Filter failed, continuing with original colors", err);
+            }
+          }
 
           const outputBase64 = canvas.toDataURL("image/jpeg", quality);
           resolve(outputBase64);
@@ -513,27 +535,23 @@ const AyushCardApplicationForm = ({
     stopCamera();
 
     try {
-      // Camera frames can be noisier than uploaded images. OCR succeeds more
-      // reliably after compressing the full frame and retrying with a focused crop.
-      let results = null;
+      // 1. Try OCR on original full-resolution image first for best accuracy
+      let results = await performOCR(base64, (p) => setOcrProgress(p));
 
-      let fullCompressed = base64;
-      try {
-        fullCompressed = await compressBase64Image(base64, 1200, 1200, 0.75);
-      } catch (e) {
-        fullCompressed = base64;
+      // 2. Robust fallback: Use filtered version if first pass fails to find document ID
+      if (!results?.docNumber) {
+        try {
+          const filtered = await compressBase64Image(base64, 1400, 1400, 0.9, true);
+          results = await performOCR(filtered, (p) => setOcrProgress(p));
+        } catch (e) {}
       }
 
-      results = await performOCR(fullCompressed, (p) => setOcrProgress(p));
-
-      // Retry if Aadhaar/VID was not detected.
+      // 3. One more fallback: Try the center crop
       if (!results?.docNumber) {
         try {
           const cropped = await preprocessMemberImageForOCR(base64);
           results = await performOCR(cropped, (p) => setOcrProgress(p));
-        } catch (e) {
-          // keep first results
-        }
+        } catch (e) {}
       }
 
       if (results) {
@@ -551,11 +569,18 @@ const AyushCardApplicationForm = ({
             prev.aadhaarNumber ||
             "",
         }));
+
+        // ALWAYS compress for storage/request to keep payload small
+        let storageBase64 = base64;
+        try {
+          storageBase64 = await compressBase64Image(base64, 1200, 1200, 0.7);
+        } catch (e) {}
+
         setDocFront({
           name: "captured_id.jpg",
           size: "Live Capture",
-          url: base64,
-          base64: base64,
+          url: storageBase64,
+          base64: storageBase64,
         });
         toastWarn("Details extracted successfully!");
       }
@@ -640,7 +665,17 @@ const AyushCardApplicationForm = ({
         toastWarn("Processing image... please wait.");
 
         try {
-          const results = await performOCR(base64, (p) => setOcrProgress(p));
+          // 1. Try OCR on original uncompressed image first
+          let results = await performOCR(base64, (p) => setOcrProgress(p));
+
+          // 2. Fallback to filtered version
+          if (!results?.docNumber) {
+            try {
+              const filtered = await compressBase64Image(base64, 1400, 1400, 0.9, true);
+              results = await performOCR(filtered, (p) => setOcrProgress(p));
+            } catch (e) {}
+          }
+
           if (results) {
             setFamilyHead((prev) => ({
               ...prev,
@@ -656,15 +691,13 @@ const AyushCardApplicationForm = ({
               pincode: results.pincode || prev.pincode || "",
               address: results.address || prev.address || "",
             }));
-            // Compress scanned image before sending to backend
+
+            // ALWAYS compress for storage/request
             let compressedBase64 = base64;
             try {
-              compressedBase64 = await compressBase64Image(base64);
+              compressedBase64 = await compressBase64Image(base64, 1200, 1200, 0.7);
             } catch (err) {
-              console.warn(
-                "Compression failed, using original base64 for scanned image",
-                err,
-              );
+              console.warn("Compression failed for gallery image", err);
             }
 
             setDocFront({
@@ -1146,16 +1179,15 @@ const AyushCardApplicationForm = ({
   };
 
   const preprocessMemberImageForOCR = async (base64Src) => {
-    // 1) Reduce size so Tesseract runs faster + with less noise.
+    // 1) Compress and apply OCR filter (grayscale/contrast)
     let working = base64Src;
     try {
-      working = await compressBase64Image(base64Src, 1200, 1200, 0.75);
+      working = await compressBase64Image(base64Src, 1200, 1200, 0.85, true);
     } catch (e) {
-      // Keep original if compression fails.
       working = base64Src;
     }
 
-    // 2) Center-crop to reduce background/background motion.
+    // 2) Center-crop to reduce background noise
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
@@ -1166,31 +1198,27 @@ const AyushCardApplicationForm = ({
           return;
         }
 
-        // Keep more of the card in-frame for OCR. Too-tight crops can
-        // cause Aadhaar digits to be partially read (e.g., only 8 digits).
-        const cropScale = 0.9;
-        const cropW = Math.max(260, Math.round(w * cropScale));
-        const cropH = Math.max(260, Math.round(h * cropScale));
+        const cropScale = 0.92;
+        const cropW = Math.round(w * cropScale);
+        const cropH = Math.round(h * cropScale);
         const sx = Math.round((w - cropW) / 2);
-        // Bias crop slightly toward the lower half (aadhaar number usually sits lower).
-        const baseSy = (h - cropH) / 2;
-        const bias = Math.round(h * 0.06);
-        const sy = Math.max(0, Math.min(Math.round(baseSy + bias), h - cropH));
+        const sy = Math.round((h - cropH) / 2);
 
         const canvas = document.createElement("canvas");
         canvas.width = cropW;
         canvas.height = cropH;
         const ctx = canvas.getContext("2d");
         if (!ctx) {
-          reject(new Error("No canvas context"));
+          resolve(working);
           return;
         }
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, cropW, cropH);
         ctx.drawImage(img, sx, sy, cropW, cropH, 0, 0, cropW, cropH);
+        
         resolve(canvas.toDataURL("image/jpeg", 0.85));
       };
-      img.onerror = (e) => reject(e);
+      img.onerror = () => resolve(working);
       img.src = working;
     });
   };
@@ -1199,39 +1227,32 @@ const AyushCardApplicationForm = ({
     setMemberOcrLoading(true);
     setMemberScanProgress(0);
     try {
-      const processedBase64 = await preprocessMemberImageForOCR(base64Src);
+      // 1. Try OCR on original uncompressed image first
+      let details = await performOCR(base64Src, (p) => setMemberScanProgress(p));
 
-      // Try OCR on the crop first, then retry on a compressed full frame
-      // if Aadhaar/VID wasn't confidently detected.
-      let details = await performOCR(processedBase64, (p) =>
-        setMemberScanProgress(p),
-      );
-
-      const docAccepted =
-        details?.type === "aadhaar" && isLikelyMemberDocId(details?.docNumber);
+      // 2. Fallback to cropped/filtered version if original scan failed
+      let docAccepted = details?.type === "aadhaar" && isLikelyMemberDocId(details?.docNumber);
       if (!details || !docAccepted) {
-        let fullCompressed = base64Src;
-        try {
-          fullCompressed = await compressBase64Image(
-            base64Src,
-            1200,
-            1200,
-            0.75,
-          );
-        } catch (e) {
-          fullCompressed = base64Src;
+        const processedBase64 = await preprocessMemberImageForOCR(base64Src);
+        const details2 = await performOCR(processedBase64, (p) => setMemberScanProgress(p));
+        const docAccepted2 = details2?.type === "aadhaar" && isLikelyMemberDocId(details2?.docNumber);
+        if (docAccepted2) {
+          details = details2;
+          docAccepted = true;
         }
+      }
+
+      // 3. Fallback to full compressed/filtered (higher quality)
+      if (!details || !docAccepted) {
         try {
-          const details2 = await performOCR(fullCompressed, (p) =>
-            setMemberScanProgress(p),
-          );
-          const docAccepted2 =
-            details2?.type === "aadhaar" &&
-            isLikelyMemberDocId(details2?.docNumber);
-          if (docAccepted2) details = details2;
-        } catch (e) {
-          // keep first details
-        }
+          const fullFiltered = await compressBase64Image(base64Src, 1400, 1400, 0.9, true);
+          const details3 = await performOCR(fullFiltered, (p) => setMemberScanProgress(p));
+          const docAccepted3 = details3?.type === "aadhaar" && isLikelyMemberDocId(details3?.docNumber);
+          if (docAccepted3) {
+            details = details3;
+            docAccepted = true;
+          }
+        } catch (e) {}
       }
 
       if (!details) {
@@ -1239,20 +1260,20 @@ const AyushCardApplicationForm = ({
         return;
       }
 
+      // ALWAYS compress for storage/request to save bandwidth
+      let storageBase64 = base64Src;
+      try {
+        storageBase64 = await compressBase64Image(base64Src, 1200, 1200, 0.7);
+      } catch (e) {}
+
       const nextName = isLikelyMemberName(details.name) ? details.name : "";
-      // For members, accept only real Aadhaar numbers.
-      // VID is 12 digits too, but we must not auto-fill it into Aadhaar/documentId.
       const nextDocId =
         details?.type === "aadhaar"
           ? isLikelyMemberDocId(details.docNumber)
           : "";
       const nextAge = calculateAge(details.dob);
 
-      // Accept Aadhaar/docId confidently even if DOB/age isn't extracted,
-      // as long as we didn't detect VID (details.type === "aadhaar") and the
-      // Aadhaar number is valid (exactly 12 digits, non-junk).
       const nextDocIdAccepted = nextDocId || "";
-
       const anyExtracted = Boolean(nextName || nextAge || nextDocIdAccepted);
 
       setMembers((prev) => {
@@ -1263,7 +1284,7 @@ const AyushCardApplicationForm = ({
           fullName: nextName ? nextName : target.fullName,
           age: nextAge ? nextAge : target.age,
           documentId: nextDocIdAccepted ? nextDocIdAccepted : target.documentId,
-          scannedImage: processedBase64,
+          scannedImage: storageBase64,
         };
         return updatedMembers;
       });
