@@ -939,8 +939,8 @@ const AyushCardApplicationForm = ({
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            // Prefer front camera for family head photo capture.
-            facingMode: { exact: "user" },
+            // Prefer back/environment camera for family head photo capture.
+            facingMode: { exact: "environment" },
             width: { ideal: 1280 },
             height: { ideal: 720 },
           },
@@ -949,7 +949,7 @@ const AyushCardApplicationForm = ({
         try {
           stream = await navigator.mediaDevices.getUserMedia({
             video: {
-              facingMode: { ideal: "user" },
+              facingMode: { ideal: "environment" },
               width: { ideal: 1280 },
               height: { ideal: 720 },
             },
@@ -2057,20 +2057,21 @@ const AyushCardApplicationForm = ({
               महत्वपूर्ण सूचना
             </p>
             <p className="text-[6px] leading-tight">
-              1- यह रसीद अत्यंत महत्वपूर्ण दस्तावेज है। कृपया इसे सुरक्षित रखें,
-              क्योंकि रसीद प्रस्तुत किए बिना आयूष कार्ड प्रदान नहीं किया जाएगा।
+              1- रसीद सुरक्षित रखें; बिना रसीद आयुष कार्ड नहीं दिया जाएगा।
             </p>
             <p className="text-[6px] leading-tight">
-              2- रसीद गुम हो जाने की स्थिति में ₹50 (पचास रुपये) का अर्थ दंड
-              (पेनल्टी) देय होगा।
+              2- रसीद गुम होने पर ₹50 शुल्क (पेनल्टी) देकर ही कार्ड जारी होगा।
             </p>
             <p className="text-[6px] leading-tight">
-              3- आयूष कार्ड केवल परिवार के मुखिया अथवा कार्ड में नामित सदस्य को
-              ही, उनके वैध आधार कार्ड के साथ सत्यापन उपरांत प्रदान किया जाएगा।
+              3- शुल्क (पेनल्टी) देने के साथ कार्ड केवल मुखिया/नामित सदस्य को,
+              आधार सत्यापन के बाद मिलेगा।
             </p>
             <p className="text-[6px] leading-tight">
-              4- किसी भी विवाद की स्थिति में अंतिम निर्णय का अधिकार संस्था के
-              पास सुरक्षित रहेगा।
+              4- संस्था को दिए गए नंबर पर किसी भी कारण संपर्क न होने पर आप स्वयं
+              जिम्मेदार होंगे.
+            </p>
+            <p className="text-[6px] leading-tight">
+              5- किसी भी विवाद में अंतिम निर्णय संस्था का होगा।
             </p>
           </div>
         </div>
