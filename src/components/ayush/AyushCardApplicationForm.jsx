@@ -138,6 +138,7 @@ const AyushCardApplicationForm = ({
 
   const [paymentScreenshot, setPaymentScreenshot] = useState(null);
   const [isEditingReview, setIsEditingReview] = useState(false);
+  const [declarationAccepted, setDeclarationAccepted] = useState(false);
 
   // Payment States
   const [paymentMethod, setPaymentMethod] = useState("online");
@@ -1773,6 +1774,14 @@ const AyushCardApplicationForm = ({
           );
           return;
         }
+      }
+    }
+
+    // Step 3 validation: Declaration checkbox must be accepted
+    if (currentStep === 3) {
+      if (!declarationAccepted) {
+        toastWarn("Please accept the declaration before continuing.");
+        return;
       }
     }
 
@@ -3654,6 +3663,10 @@ const AyushCardApplicationForm = ({
                             type="checkbox"
                             id="declaration-checkbox"
                             className="w-5 h-5 mt-0.5 cursor-pointer accent-[#fa8112]"
+                            checked={declarationAccepted}
+                            onChange={(e) =>
+                              setDeclarationAccepted(e.target.checked)
+                            }
                             required
                           />
                           <label
