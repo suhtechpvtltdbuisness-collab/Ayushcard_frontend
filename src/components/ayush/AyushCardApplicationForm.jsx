@@ -168,7 +168,7 @@ const AyushCardApplicationForm = ({
     maxWidth = 1200,
     maxHeight = 1200,
     quality = 0.8,
-    applyOcrFilter = false
+    applyOcrFilter = false,
   ) => {
     return new Promise((resolve, reject) => {
       try {
@@ -195,19 +195,24 @@ const AyushCardApplicationForm = ({
               const data = imageData.data;
               // Grayscale + Contrast boost
               for (let i = 0; i < data.length; i += 4) {
-                const r = data[i], g = data[i+1], b = data[i+2];
+                const r = data[i],
+                  g = data[i + 1],
+                  b = data[i + 2];
                 // Luma formula for grayscale
                 const gray = 0.299 * r + 0.587 * g + 0.114 * b;
                 // Simple contrast stretch: values < 100 get darker, > 160 get lighter
                 let val = gray;
                 if (gray < 110) val = Math.max(0, gray * 0.8);
                 else if (gray > 150) val = Math.min(255, gray * 1.1);
-                
-                data[i] = data[i+1] = data[i+2] = val;
+
+                data[i] = data[i + 1] = data[i + 2] = val;
               }
               ctx.putImageData(imageData, 0, 0);
             } catch (err) {
-              console.warn("OCR Filter failed, continuing with original colors", err);
+              console.warn(
+                "OCR Filter failed, continuing with original colors",
+                err,
+              );
             }
           }
 
@@ -300,6 +305,76 @@ const AyushCardApplicationForm = ({
     if (staffCashVideoRef.current) staffCashVideoRef.current.srcObject = null;
     setStaffCashCameraActive(false);
     setStaffCashCameraLoading(false);
+  };
+
+  const handleRawBtPrint = () => {
+    const receiptEl = document.getElementById("thermal-receipt-content");
+    if (!receiptEl) return;
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: sans-serif; color: black; background: white; margin: 0; padding: 0; }
+            .public-thermal-receipt { width: 2in; box-sizing: border-box; padding: 8px; font-size: 8px; line-height: 1.2; }
+            .text-center { text-align: center; }
+            .font-black { font-weight: 900; }
+            .font-bold { font-weight: bold; }
+            .font-semibold { font-weight: 600; }
+            .uppercase { text-transform: uppercase; }
+            .text-\\[15px\\] { font-size: 15px; }
+            .text-\\[10px\\] { font-size: 10px; }
+            .text-\\[9px\\] { font-size: 9px; }
+            .text-\\[8px\\] { font-size: 8px; }
+            .text-\\[7px\\] { font-size: 7px; }
+            .text-\\[6px\\] { font-size: 6px; }
+            .mt-1 { margin-top: 4px; }
+            .mt-2 { margin-top: 8px; }
+            .mt-3 { margin-top: 12px; }
+            .mt-0\\.5 { margin-top: 2px; }
+            .mb-1 { margin-bottom: 4px; }
+            .mb-2 { margin-bottom: 8px; }
+            .pb-1 { padding-bottom: 4px; }
+            .pb-2 { padding-bottom: 8px; }
+            .pt-1 { padding-top: 4px; }
+            .pt-2 { padding-top: 8px; }
+            .border-b { border-bottom: 1px solid black; }
+            .border-t { border-top: 1px solid black; }
+            .border-t-2 { border-top: 2px solid black; }
+            .border-dashed { border-style: dashed; border-color: #9ca3af; }
+            .border-dotted { border-style: dotted; border-color: #d1d5db; }
+            .border-black { border-color: black; border-style: solid; }
+            .flex { display: flex; }
+            .justify-between { justify-content: space-between; }
+            .text-right { text-align: right; }
+            .break-all { word-break: break-all; }
+            .break-words { word-break: break-word; }
+            .tracking-tight { letter-spacing: -0.025em; }
+            .tracking-wide { letter-spacing: 0.025em; }
+            .leading-none { line-height: 1; }
+            .leading-tight { line-height: 1.25; }
+            .shrink-0 { flex-shrink: 0; }
+            .space-y-0\\.5 > * + * { margin-top: 2px; }
+            .space-y-1 > * + * { margin-top: 4px; }
+            .list-none { list-style-type: none; }
+            .p-0 { padding: 0; }
+            .m-0 { margin: 0; }
+            .py-0\\.5 { padding-top: 2px; padding-bottom: 2px; }
+            .border { border-width: 1px; }
+          </style>
+        </head>
+        <body>
+          ${receiptEl.outerHTML}
+        </body>
+      </html>
+    `;
+
+    // Convert to base64
+    const b64 = btoa(unescape(encodeURIComponent(htmlContent)));
+    // Launch RawBT intent
+    window.location.href = `intent:data:text/html;base64,${b64}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;`;
   };
 
   const resetForm = () => {
@@ -542,7 +617,13 @@ const AyushCardApplicationForm = ({
       // 2. Robust fallback: Use filtered version if first pass fails to find document ID
       if (!results?.docNumber) {
         try {
-          const filtered = await compressBase64Image(base64, 1400, 1400, 0.9, true);
+          const filtered = await compressBase64Image(
+            base64,
+            1400,
+            1400,
+            0.9,
+            true,
+          );
           results = await performOCR(filtered, (p) => setOcrProgress(p));
         } catch (e) {}
       }
@@ -672,7 +753,13 @@ const AyushCardApplicationForm = ({
           // 2. Fallback to filtered version
           if (!results?.docNumber) {
             try {
-              const filtered = await compressBase64Image(base64, 1400, 1400, 0.9, true);
+              const filtered = await compressBase64Image(
+                base64,
+                1400,
+                1400,
+                0.9,
+                true,
+              );
               results = await performOCR(filtered, (p) => setOcrProgress(p));
             } catch (e) {}
           }
@@ -696,7 +783,12 @@ const AyushCardApplicationForm = ({
             // ALWAYS compress for storage/request
             let compressedBase64 = base64;
             try {
-              compressedBase64 = await compressBase64Image(base64, 1200, 1200, 0.7);
+              compressedBase64 = await compressBase64Image(
+                base64,
+                1200,
+                1200,
+                0.7,
+              );
             } catch (err) {
               console.warn("Compression failed for gallery image", err);
             }
@@ -1216,7 +1308,7 @@ const AyushCardApplicationForm = ({
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, cropW, cropH);
         ctx.drawImage(img, sx, sy, cropW, cropH, 0, 0, cropW, cropH);
-        
+
         resolve(canvas.toDataURL("image/jpeg", 0.85));
       };
       img.onerror = () => resolve(working);
@@ -1229,14 +1321,21 @@ const AyushCardApplicationForm = ({
     setMemberScanProgress(0);
     try {
       // 1. Try OCR on original uncompressed image first
-      let details = await performOCR(base64Src, (p) => setMemberScanProgress(p));
+      let details = await performOCR(base64Src, (p) =>
+        setMemberScanProgress(p),
+      );
 
       // 2. Fallback to cropped/filtered version if original scan failed
-      let docAccepted = details?.type === "aadhaar" && isLikelyMemberDocId(details?.docNumber);
+      let docAccepted =
+        details?.type === "aadhaar" && isLikelyMemberDocId(details?.docNumber);
       if (!details || !docAccepted) {
         const processedBase64 = await preprocessMemberImageForOCR(base64Src);
-        const details2 = await performOCR(processedBase64, (p) => setMemberScanProgress(p));
-        const docAccepted2 = details2?.type === "aadhaar" && isLikelyMemberDocId(details2?.docNumber);
+        const details2 = await performOCR(processedBase64, (p) =>
+          setMemberScanProgress(p),
+        );
+        const docAccepted2 =
+          details2?.type === "aadhaar" &&
+          isLikelyMemberDocId(details2?.docNumber);
         if (docAccepted2) {
           details = details2;
           docAccepted = true;
@@ -1246,9 +1345,19 @@ const AyushCardApplicationForm = ({
       // 3. Fallback to full compressed/filtered (higher quality)
       if (!details || !docAccepted) {
         try {
-          const fullFiltered = await compressBase64Image(base64Src, 1400, 1400, 0.9, true);
-          const details3 = await performOCR(fullFiltered, (p) => setMemberScanProgress(p));
-          const docAccepted3 = details3?.type === "aadhaar" && isLikelyMemberDocId(details3?.docNumber);
+          const fullFiltered = await compressBase64Image(
+            base64Src,
+            1400,
+            1400,
+            0.9,
+            true,
+          );
+          const details3 = await performOCR(fullFiltered, (p) =>
+            setMemberScanProgress(p),
+          );
+          const docAccepted3 =
+            details3?.type === "aadhaar" &&
+            isLikelyMemberDocId(details3?.docNumber);
           if (docAccepted3) {
             details = details3;
             docAccepted = true;
@@ -1947,7 +2056,10 @@ const AyushCardApplicationForm = ({
 
     return (
       <div className="public-thermal-receipt-wrap hidden print:block">
-        <div className="public-thermal-receipt w-[2in] max-w-[2in] box-border bg-white p-2 font-sans text-black leading-tight">
+        <div
+          id="thermal-receipt-content"
+          className="public-thermal-receipt w-[2in] max-w-[2in] box-border bg-white p-2 font-sans text-black leading-tight"
+        >
           <div className="text-center border-b border-dashed border-black pb-2 mb-2">
             <h1 className="font-black text-[15px] uppercase tracking-tight leading-none">
               BKBS
@@ -4286,28 +4398,40 @@ const AyushCardApplicationForm = ({
                       creation.
                     </p>
                   ) : null}
-                  <div
-                    className={`grid ${hasPrintableReceipt ? "grid-cols-2" : "grid-cols-1"} gap-3`}
-                  >
-                    {hasPrintableReceipt ? (
+
+                  {hasPrintableReceipt && (
+                    <div
+                      className={`grid ${staffPaymentFlow ? "grid-cols-2" : "grid-cols-1"} gap-3`}
+                    >
                       <button
                         type="button"
                         onClick={() => window.print()}
-                        className="flex items-center justify-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-3.5 px-6 rounded-xl transition-all shadow-sm"
+                        className="flex items-center justify-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-3.5 px-3 rounded-xl transition-all shadow-sm text-sm whitespace-nowrap"
                       >
                         <Printer size={18} />
-                        Print receipt (2")
+                        Print receipt
                       </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={resetForm}
-                      className="flex items-center justify-center gap-2 bg-white border border-[#fa8112] text-[#fa8112] hover:bg-orange-50 font-bold py-3.5 px-6 rounded-xl transition-all shadow-sm"
-                    >
-                      <Plus size={18} />
-                      Create another
-                    </button>
-                  </div>
+                      {staffPaymentFlow && (
+                        <button
+                          type="button"
+                          onClick={handleRawBtPrint}
+                          className="flex items-center justify-center gap-2 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 font-bold py-3.5 px-3 rounded-xl transition-all shadow-sm text-sm whitespace-nowrap"
+                        >
+                          <Printer size={18} />
+                          RawBT Print
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="w-full flex items-center justify-center gap-2 bg-white border border-[#fa8112] text-[#fa8112] hover:bg-orange-50 font-bold py-3.5 px-6 rounded-xl transition-all shadow-sm"
+                  >
+                    <Plus size={18} />
+                    Create another
+                  </button>
                   <button
                     type="button"
                     onClick={variant === "page" && onBack ? onBack : onClose}
