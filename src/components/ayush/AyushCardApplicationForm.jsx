@@ -984,13 +984,24 @@ const AyushCardApplicationForm = ({
   const handleMemberChange = (index, e) => {
     let { name, value } = e.target;
 
+    const updatedMembers = [...members];
+
     // Validations
     if (name === "fullName") value = value.replace(/[0-9]/g, "");
     if (name === "contactNumber") value = value.replace(/\D/g, "").slice(0, 10);
-    if (name === "aadhaarNumber" || name === "documentId")
-      value = value.replace(/\D/g, "").slice(0, 12);
+    if (name === "aadhaarNumber") value = value.replace(/\D/g, "").slice(0, 12);
+    if (name === "documentId") {
+      const docType = updatedMembers[index]?.documentType || "Aadhaar";
+      if (docType === "Aadhaar") {
+        value = value.replace(/\D/g, "").slice(0, 12);
+      } else {
+        value = value.toUpperCase();
+      }
+    }
+    if (name === "documentType") {
+      updatedMembers[index].documentId = "";
+    }
 
-    const updatedMembers = [...members];
     updatedMembers[index][name] = value;
     setMembers(updatedMembers);
   };
@@ -1176,6 +1187,7 @@ const AyushCardApplicationForm = ({
         relation: "",
         age: "",
         documentId: "",
+        documentType: "Aadhaar",
       },
     ]);
     setActiveMemberTab(members.length + 1); // Switch to newly created member
@@ -1535,11 +1547,15 @@ const AyushCardApplicationForm = ({
       ].filter(Boolean),
       isPrint: false,
       members: members.map((m) => {
+        const docType = m.documentType || "Aadhaar";
+        let docId = m.documentId || "";
+        if (docType === "Aadhaar") docId = docId.replace(/\D/g, "");
         return {
           name: m.fullName,
           relation: m.relation || "Family Member",
           age: parseInt(m.age) || 0,
-          documentId: (m.documentId || "").replace(/\D/g, ""),
+          documentId: docId,
+          documentType: docType,
         };
       }),
       payment: {
@@ -1614,12 +1630,18 @@ const AyushCardApplicationForm = ({
       verificationDate: today,
       status: "pending",
       totalMember: totalMembersCount,
-      members: members.map((m) => ({
-        name: m.fullName,
-        relation: m.relation || "Family Member",
-        age: parseInt(m.age, 10) || 0,
-        documentId: (m.documentId || "").replace(/\D/g, ""),
-      })),
+      members: members.map((m) => {
+        const docType = m.documentType || "Aadhaar";
+        let docId = m.documentId || "";
+        if (docType === "Aadhaar") docId = docId.replace(/\D/g, "");
+        return {
+          name: m.fullName,
+          relation: m.relation || "Family Member",
+          age: parseInt(m.age, 10) || 0,
+          documentId: docId,
+          documentType: docType,
+        };
+      }),
       documents: [
         docFront && {
           name: "documentFront",
@@ -1877,9 +1899,15 @@ const AyushCardApplicationForm = ({
           toastWarn(`Please fill all details for Member ${i + 1}`);
           return;
         }
-        if ((p.documentId || "").replace(/\D/g, "").length < 12) {
+        const pType = p.documentType || "Aadhaar";
+        if (pType === "Aadhaar" && (p.documentId || "").replace(/\D/g, "").length < 12) {
           toastWarn(
-            `Please enter a valid 12-digit document ID for Member ${i + 1}`,
+            `Please enter a valid 12-digit Aadhaar ID for Member ${i + 1}`,
+          );
+          return;
+        } else if (pType !== "Aadhaar" && !(p.documentId || "").trim()) {
+          toastWarn(
+            `Please enter a valid Document ID for Member ${i + 1}`,
           );
           return;
         }
@@ -1965,12 +1993,18 @@ const AyushCardApplicationForm = ({
     aadhaarNumber: familyHead.aadhaarNumber || "",
     dateApplied: todayFormatted,
     applicationDate: todayFormatted,
-    members: members.map((m) => ({
-      name: m.fullName,
-      relation: m.relation || "Family Member",
-      age: parseInt(m.age) || 0,
-      documentId: (m.documentId || "").replace(/\D/g, ""),
-    })),
+    members: members.map((m) => {
+      const docType = m.documentType || "Aadhaar";
+      let docId = m.documentId || "";
+      if (docType === "Aadhaar") docId = docId.replace(/\D/g, "");
+      return {
+        name: m.fullName,
+        relation: m.relation || "Family Member",
+        age: parseInt(m.age) || 0,
+        documentId: docId,
+        documentType: docType,
+      };
+    }),
     documentFront: docFront?.base64 || docFront?.url || "",
     profileImage: headImage || docFront?.base64 || docFront?.url || "",
     payment: {
@@ -3127,11 +3161,29 @@ const AyushCardApplicationForm = ({
                         </div>
                         <div>
                           <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
-                            Document ID (Aadhaar)
+                            Document Type
+                          </label>
+                          <select
+                            name="documentType"
+                            value={members[activeMemberTab - 1]?.documentType || "Aadhaar"}
+                            onChange={(e) =>
+                              handleMemberChange(activeMemberTab - 1, e)
+                            }
+                            style={{ fontFamily: "'Inter', sans-serif" }}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] appearance-none bg-white"
+                          >
+                            <option value="Aadhaar">Aadhaar</option>
+                            <option value="PAN">PAN</option>
+                            <option value="Birth Certificate">Birth Certificate</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[14px] text-[#222222] font-medium mb-1 block font-inter">
+                            Document ID
                           </label>
                           <input
                             type="text"
-                            inputMode="numeric"
+                            inputMode={members[activeMemberTab - 1]?.documentType === "Aadhaar" || !members[activeMemberTab - 1]?.documentType ? "numeric" : "text"}
                             name="documentId"
                             value={
                               members[activeMemberTab - 1]?.documentId ?? ""
@@ -3139,10 +3191,10 @@ const AyushCardApplicationForm = ({
                             onChange={(e) =>
                               handleMemberChange(activeMemberTab - 1, e)
                             }
-                            placeholder="12-digit document number"
-                            maxLength={12}
+                            placeholder={members[activeMemberTab - 1]?.documentType === "PAN" ? "PAN Number" : members[activeMemberTab - 1]?.documentType === "Birth Certificate" ? "Certificate Number" : "12-digit Aadhaar number"}
+                            maxLength={members[activeMemberTab - 1]?.documentType === "Aadhaar" || !members[activeMemberTab - 1]?.documentType ? 12 : 20}
                             style={{ fontFamily: "'Inter', sans-serif" }}
-                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] uppercase"
                           />
                         </div>
                       </div>
@@ -3740,14 +3792,14 @@ const AyushCardApplicationForm = ({
                                   </div>
                                   <div>
                                     <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
-                                      Document ID
+                                      {member.documentType || "Aadhaar"} ID
                                     </p>
                                     {isEditingReview ? (
                                       <input
                                         type="text"
                                         name="documentId"
-                                        inputMode="numeric"
-                                        maxLength={12}
+                                        inputMode={(!member.documentType || member.documentType === "Aadhaar") ? "numeric" : "text"}
+                                        maxLength={(!member.documentType || member.documentType === "Aadhaar") ? 12 : 20}
                                         value={member.documentId ?? ""}
                                         onChange={(e) =>
                                           handleMemberChange(idx, e)
@@ -3756,10 +3808,10 @@ const AyushCardApplicationForm = ({
                                       />
                                     ) : (
                                       <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
-                                        {member.documentId?.replace(
+                                        {(!member.documentType || member.documentType === "Aadhaar") ? (member.documentId?.replace(
                                           /(\d{4})(?=\d)/g,
                                           "$1 ",
-                                        ) || "—"}
+                                        ) || "—") : (member.documentId || "—")}
                                       </p>
                                     )}
                                   </div>
