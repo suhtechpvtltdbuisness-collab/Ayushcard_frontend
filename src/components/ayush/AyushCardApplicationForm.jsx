@@ -2607,7 +2607,6 @@ const AyushCardApplicationForm = ({
                           ref={ocrFileInputRef}
                           type="file"
                           accept="image/*"
-                          capture="environment"
                           className="hidden"
                           onChange={handleScanImage}
                         />
