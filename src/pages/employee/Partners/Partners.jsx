@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Search, Plus, Eye, Trash2, Download, ArrowUpDown } from "lucide-react";
+import { Search, Eye, ArrowUpDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import apiService from "../../../api/service";
 import Pagination from "../../../components/ui/Pagination";
@@ -25,27 +25,40 @@ const Partners = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
-  const ITEMS_PER_PAGE = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   React.useEffect(() => {
     fetchPartners();
-  }, []);
+  }, [currentPage, itemsPerPage]);
 
   const fetchPartners = async () => {
     try {
       setLoading(true);
-      const res = await apiService.getOrganizations();
+      const res = await apiService.getOrganizations({
+        page: currentPage,
+        limit: itemsPerPage,
+      });
+
       let list = [];
-      if (Array.isArray(res)) {
-        list = res;
-      } else if (res?.data?.organizations && Array.isArray(res.data.organizations)) {
+      if (Array.isArray(res?.data?.organizations)) {
         list = res.data.organizations;
-      } else if (res?.data && Array.isArray(res.data)) {
+      } else if (Array.isArray(res?.data)) {
         list = res.data;
-      } else if (res?.organizations && Array.isArray(res.organizations)) {
-        list = res.organizations;
+      } else if (Array.isArray(res)) {
+        list = res;
       }
       setPartners(list);
+
+      const pagination = res?.pagination || res?.data?.pagination || {};
+      const total =
+        pagination.total ?? res?.total ?? res?.count ?? res?.data?.total ?? list.length;
+      const pages =
+        pagination.pages ?? (Math.ceil(total / itemsPerPage) || 1);
+
+      setTotalItems(Number(total));
+      setTotalPages(Number(pages));
     } catch (err) {
       console.error("Failed to load partners", err);
     } finally {
@@ -101,42 +114,11 @@ const Partners = () => {
     return result;
   }, [partners, searchQuery, sortConfig]);
 
-  const totalPages = Math.ceil(processedData.length / ITEMS_PER_PAGE) || 1;
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedData = processedData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-
-  const renderPaginationButtons = () => {
-    let pages = [];
-    if (totalPages <= 7) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
-    } else {
-      if (currentPage <= 4) {
-        pages = [1, 2, 3, 4, 5, "...", totalPages];
-      } else if (currentPage >= totalPages - 3) {
-        pages = [1, "...", totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
-      } else {
-        pages = [1, "...", currentPage - 1, currentPage, currentPage + 1, "...", totalPages];
-      }
-    }
-
-    return pages.map((page, idx) =>
-      page === "..." ? (
-        <span key={idx} className="w-7 h-7 flex items-center justify-center text-[#9CA3AF]">
-          ...
-        </span>
-      ) : (
-        <button
-          key={idx}
-          onClick={() => setCurrentPage(page)}
-          className={`w-7 h-7 flex items-center justify-center rounded-md text-sm font-medium transition-colors ${
-            currentPage === page ? "bg-[#374151] text-[#FFFCFB]" : "text-[#4B5563] hover:bg-gray-100"
-          }`}
-        >
-          {page}
-        </button>
-      )
-    );
-  };
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedData =
+    processedData.length > itemsPerPage
+      ? processedData.slice(startIndex, startIndex + itemsPerPage)
+      : processedData;
 
   const renderSortableHeader = (title, sortKey, align = "left", className = "") => (
     <th className={`py-3 px-4 text-sm font-semibold text-[#22333B] whitespace-nowrap ${className}`}>
@@ -156,7 +138,10 @@ const Partners = () => {
   );
 
   return (
-    <div className="flex flex-col min-w-0 h-[calc(100vh-170px)] min-h-[560px]" style={{ fontFamily: "Inter, sans-serif" }}>
+    <div
+      className="flex flex-col min-w-0 h-[calc(100vh-170px)] min-h-[560px]"
+      style={{ fontFamily: "Inter, sans-serif" }}
+    >
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 shrink-0 gap-4 sm:gap-0">
         <h2 className="text-xl font-bold text-[#22333B]">Partners</h2>
@@ -196,9 +181,6 @@ const Partners = () => {
                         {row.partnerId || row._id || row.id || "—"}
                       </p>
                     </div>
-                    <span className="text-xs bg-[#FFF4ED] text-[#F68E5F] px-2 py-1 rounded-full">
-                      {row.type || "Hospital"}
-                    </span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 text-sm mb-3">
@@ -277,9 +259,12 @@ const Partners = () => {
         currentPage={currentPage}
         totalPages={totalPages}
         onPageChange={setCurrentPage}
-        itemsPerPage={ITEMS_PER_PAGE}
-        onItemsPerPageChange={() => {}}
-        totalItems={processedData.length}
+        itemsPerPage={itemsPerPage}
+        onItemsPerPageChange={(val) => {
+          setItemsPerPage(val);
+          setCurrentPage(1);
+        }}
+        totalItems={totalItems}
       />
     </div>
   );
