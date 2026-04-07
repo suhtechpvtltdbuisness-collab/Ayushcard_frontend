@@ -309,7 +309,10 @@ const AyushCardApplicationForm = ({
 
   const handleRawBtPrint = () => {
     const receiptEl = document.getElementById("thermal-receipt-content");
-    if (!receiptEl) return;
+    if (!receiptEl) {
+      toastWarn("Receipt is not ready yet. Please try again.");
+      return;
+    }
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -373,8 +376,56 @@ const AyushCardApplicationForm = ({
 
     // Convert to base64
     const b64 = btoa(unescape(encodeURIComponent(htmlContent)));
-    // Launch RawBT intent
-    window.location.href = `intent:data:text/html;base64,${b64}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;`;
+
+    const playStoreUrl =
+      "https://play.google.com/store/apps/details?id=ru.a402d.rawbtprinter";
+    const rawbtDeepLink = `rawbt:data:text/html;base64,${b64}`;
+    const rawbtIntent = `intent:rawbt:data:text/html;base64,${b64}#Intent;package=ru.a402d.rawbtprinter;S.browser_fallback_url=${encodeURIComponent(playStoreUrl)};end;`;
+
+    // In-app browsers often block external-app intents and show "waiting for browser app".
+    const userAgent = navigator.userAgent || "";
+    const isAndroid = /Android/i.test(userAgent);
+    const isLikelyInAppBrowser =
+      /(FBAN|FBAV|Instagram|Line|wv\)|Telegram|MiuiBrowser|EdgA)/i.test(
+        userAgent,
+      );
+
+    if (!isAndroid) {
+      toastWarn(
+        "RawBT printing works on Android phones. Use normal Print on desktop.",
+      );
+      return;
+    }
+
+    let appOpened = false;
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") appOpened = true;
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange, {
+      once: true,
+    });
+
+    // Try direct scheme first (works best when RawBT is already installed).
+    window.location.href = rawbtDeepLink;
+
+    // If browser ignores direct scheme, retry via explicit Android intent package.
+    setTimeout(() => {
+      if (!appOpened) window.location.href = rawbtIntent;
+    }, 700);
+
+    // Show actionable hint when browser blocks app handoff.
+    setTimeout(() => {
+      if (appOpened) return;
+      if (isLikelyInAppBrowser) {
+        toastWarn(
+          "Open this page in Chrome browser, then tap RawBT Print again (in-app browsers can block RAWBT launch).",
+        );
+      } else {
+        toastWarn(
+          "Could not auto-open RAWBT. Please check RawBT default handler permissions and try again.",
+        );
+      }
+    }, 1800);
   };
 
   const resetForm = () => {
@@ -1900,15 +1951,16 @@ const AyushCardApplicationForm = ({
           return;
         }
         const pType = p.documentType || "Aadhaar";
-        if (pType === "Aadhaar" && (p.documentId || "").replace(/\D/g, "").length < 12) {
+        if (
+          pType === "Aadhaar" &&
+          (p.documentId || "").replace(/\D/g, "").length < 12
+        ) {
           toastWarn(
             `Please enter a valid 12-digit Aadhaar ID for Member ${i + 1}`,
           );
           return;
         } else if (pType !== "Aadhaar" && !(p.documentId || "").trim()) {
-          toastWarn(
-            `Please enter a valid Document ID for Member ${i + 1}`,
-          );
+          toastWarn(`Please enter a valid Document ID for Member ${i + 1}`);
           return;
         }
       }
@@ -3164,7 +3216,10 @@ const AyushCardApplicationForm = ({
                           </label>
                           <select
                             name="documentType"
-                            value={members[activeMemberTab - 1]?.documentType || "Aadhaar"}
+                            value={
+                              members[activeMemberTab - 1]?.documentType ||
+                              "Aadhaar"
+                            }
                             onChange={(e) =>
                               handleMemberChange(activeMemberTab - 1, e)
                             }
@@ -3173,7 +3228,9 @@ const AyushCardApplicationForm = ({
                           >
                             <option value="Aadhaar">Aadhaar</option>
                             <option value="PAN">PAN</option>
-                            <option value="Birth Certificate">Birth Certificate</option>
+                            <option value="Birth Certificate">
+                              Birth Certificate
+                            </option>
                           </select>
                         </div>
                         <div>
@@ -3182,7 +3239,13 @@ const AyushCardApplicationForm = ({
                           </label>
                           <input
                             type="text"
-                            inputMode={members[activeMemberTab - 1]?.documentType === "Aadhaar" || !members[activeMemberTab - 1]?.documentType ? "numeric" : "text"}
+                            inputMode={
+                              members[activeMemberTab - 1]?.documentType ===
+                                "Aadhaar" ||
+                              !members[activeMemberTab - 1]?.documentType
+                                ? "numeric"
+                                : "text"
+                            }
                             name="documentId"
                             value={
                               members[activeMemberTab - 1]?.documentId ?? ""
@@ -3190,8 +3253,22 @@ const AyushCardApplicationForm = ({
                             onChange={(e) =>
                               handleMemberChange(activeMemberTab - 1, e)
                             }
-                            placeholder={members[activeMemberTab - 1]?.documentType === "PAN" ? "PAN Number" : members[activeMemberTab - 1]?.documentType === "Birth Certificate" ? "Certificate Number" : "12-digit Aadhaar number"}
-                            maxLength={members[activeMemberTab - 1]?.documentType === "Aadhaar" || !members[activeMemberTab - 1]?.documentType ? 12 : 20}
+                            placeholder={
+                              members[activeMemberTab - 1]?.documentType ===
+                              "PAN"
+                                ? "PAN Number"
+                                : members[activeMemberTab - 1]?.documentType ===
+                                    "Birth Certificate"
+                                  ? "Certificate Number"
+                                  : "12-digit Aadhaar number"
+                            }
+                            maxLength={
+                              members[activeMemberTab - 1]?.documentType ===
+                                "Aadhaar" ||
+                              !members[activeMemberTab - 1]?.documentType
+                                ? 12
+                                : 20
+                            }
                             style={{ fontFamily: "'Inter', sans-serif" }}
                             className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] uppercase"
                           />
@@ -3797,8 +3874,18 @@ const AyushCardApplicationForm = ({
                                       <input
                                         type="text"
                                         name="documentId"
-                                        inputMode={(!member.documentType || member.documentType === "Aadhaar") ? "numeric" : "text"}
-                                        maxLength={(!member.documentType || member.documentType === "Aadhaar") ? 12 : 20}
+                                        inputMode={
+                                          !member.documentType ||
+                                          member.documentType === "Aadhaar"
+                                            ? "numeric"
+                                            : "text"
+                                        }
+                                        maxLength={
+                                          !member.documentType ||
+                                          member.documentType === "Aadhaar"
+                                            ? 12
+                                            : 20
+                                        }
                                         value={member.documentId ?? ""}
                                         onChange={(e) =>
                                           handleMemberChange(idx, e)
@@ -3807,10 +3894,13 @@ const AyushCardApplicationForm = ({
                                       />
                                     ) : (
                                       <p className="text-[14px] font-semibold text-[#222222] truncate w-full pr-2">
-                                        {(!member.documentType || member.documentType === "Aadhaar") ? (member.documentId?.replace(
-                                          /(\d{4})(?=\d)/g,
-                                          "$1 ",
-                                        ) || "—") : (member.documentId || "—")}
+                                        {!member.documentType ||
+                                        member.documentType === "Aadhaar"
+                                          ? member.documentId?.replace(
+                                              /(\d{4})(?=\d)/g,
+                                              "$1 ",
+                                            ) || "—"
+                                          : member.documentId || "—"}
                                       </p>
                                     )}
                                   </div>
