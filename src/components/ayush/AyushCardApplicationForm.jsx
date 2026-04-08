@@ -130,6 +130,7 @@ const AyushCardApplicationForm = ({
   /** File input for OCR (1st document) — camera gallery + review replace */
   const ocrFileInputRef = useRef(null);
   const docBackInputRef = useRef(null);
+  const docBackCameraInputRef = useRef(null);
   const headImageInputRef = useRef(null);
   const headCameraVideoRef = useRef(null);
   const headCameraCanvasRef = useRef(null);
@@ -161,6 +162,11 @@ const AyushCardApplicationForm = ({
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const [cameraActive, setCameraActive] = useState(false);
+  const docBackVideoRef = useRef(null);
+  const docBackCanvasRef = useRef(null);
+  const docBackStreamRef = useRef(null);
+  const [docBackCameraActive, setDocBackCameraActive] = useState(false);
+  const [docBackCameraLoading, setDocBackCameraLoading] = useState(false);
 
   // Helper: compress and filter a base64 image for better OCR
   const compressBase64Image = (
@@ -446,6 +452,7 @@ const AyushCardApplicationForm = ({
     setStaffPaymentMode(null);
     setStaffCashReceiptImage(null);
     stopStaffCashCamera();
+    stopDocBackCamera();
     setFamilyHead({
       fullName: "",
       dob: "",
@@ -562,6 +569,9 @@ const AyushCardApplicationForm = ({
       if (staffCashStreamRef.current) {
         staffCashStreamRef.current.getTracks().forEach((track) => track.stop());
       }
+      if (docBackStreamRef.current) {
+        docBackStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
     };
   }, []);
 
@@ -569,6 +579,7 @@ const AyushCardApplicationForm = ({
     if (!isOpen || currentStep !== 1) {
       stopCamera();
       stopHeadCamera();
+      stopDocBackCamera();
     }
   }, [isOpen, currentStep]);
 
@@ -588,6 +599,16 @@ const AyushCardApplicationForm = ({
       videoRef.current.srcObject = streamRef.current;
     }
   }, [cameraActive]);
+
+  useEffect(() => {
+    if (
+      docBackCameraActive &&
+      docBackVideoRef.current &&
+      docBackStreamRef.current
+    ) {
+      docBackVideoRef.current.srcObject = docBackStreamRef.current;
+    }
+  }, [docBackCameraActive]);
 
   useEffect(() => {
     if (
@@ -729,6 +750,72 @@ const AyushCardApplicationForm = ({
     } finally {
       setOcrLoading(false);
       setOcrProgress(0);
+    }
+  };
+
+  const startDocBackCamera = async () => {
+    try {
+      setDocBackCameraLoading(true);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
+      docBackStreamRef.current = stream;
+      setDocBackCameraActive(true);
+    } catch (err) {
+      console.error("Camera error:", err);
+      toastWarn("Could not access camera. Please use Gallery Upload.");
+    } finally {
+      setDocBackCameraLoading(false);
+    }
+  };
+
+  const stopDocBackCamera = () => {
+    if (docBackStreamRef.current) {
+      docBackStreamRef.current.getTracks().forEach((track) => track.stop());
+      docBackStreamRef.current = null;
+    }
+    if (docBackVideoRef.current) docBackVideoRef.current.srcObject = null;
+    setDocBackCameraActive(false);
+  };
+
+  const captureDocBackPhoto = async () => {
+    if (!docBackVideoRef.current || !docBackCanvasRef.current) return;
+
+    setDocBackCameraLoading(true);
+    const video = docBackVideoRef.current;
+    const canvas = docBackCanvasRef.current;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const base64 = canvas.toDataURL("image/jpeg", 0.8);
+    stopDocBackCamera();
+
+    try {
+      const compressedBase64 = await compressBase64Image(base64, 1200, 1200, 0.7);
+      setDocBack({
+        name: "captured_back.jpg",
+        size: "Live Capture",
+        url: compressedBase64,
+        base64: compressedBase64,
+      });
+      toastSuccess("Document captured successfully!");
+    } catch (err) {
+      console.error("Doc Back Capture Error:", err);
+      setDocBack({
+        name: "captured_back.jpg",
+        size: "Live Capture",
+        url: base64,
+        base64: base64,
+      });
+    } finally {
+      setDocBackCameraLoading(false);
     }
   };
 
@@ -2397,6 +2484,14 @@ const AyushCardApplicationForm = ({
           <input
             type="file"
             accept="image/*"
+            capture="environment"
+            ref={docBackCameraInputRef}
+            className="hidden"
+            onChange={handleDocumentUpload}
+          />
+          <input
+            type="file"
+            accept="image/*"
             ref={headImageInputRef}
             className="hidden"
             onChange={handleHeadImageUpload}
@@ -2670,37 +2765,105 @@ const AyushCardApplicationForm = ({
                           2nd document — upload only
                         </h4>
 
-                        <div className="flex flex-1 items-center justify-center py-1 min-h-[100px]">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              docBackInputRef.current?.click();
-                            }}
-                            className={`w-full flex flex-col items-center justify-center py-4 px-4 rounded-lg transition-all shadow-sm ${
-                              docBack
-                                ? "bg-white border-2 border-green-500"
-                                : "bg-white border hover:border-[#fa8112]"
-                            }`}
-                          >
-                            <div
-                              className={`w-10 h-10 ${docBack ? "bg-green-500" : "bg-[#fa8112]"} rounded-full flex items-center justify-center text-white mb-3`}
-                            >
-                              {docBack ? (
-                                <Check size={20} className="text-white" />
-                              ) : (
-                                <UploadCloud size={20} />
-                              )}
+                        <div className="flex flex-1 flex-col items-center justify-center py-1 min-h-[100px]">
+                          {docBackCameraActive ? (
+                            <div className="w-full max-w-sm space-y-2 animate-in fade-in zoom-in-95">
+                              <div className="relative aspect-[4/3] max-h-[200px] sm:max-h-[220px] bg-black rounded-lg overflow-hidden shadow border border-white">
+                                <video
+                                  ref={docBackVideoRef}
+                                  autoPlay
+                                  playsInline
+                                  className="w-full h-full object-cover"
+                                />
+                                <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 border-2 border-white/50 border-dashed aspect-[1.6/1] rounded-lg"></div>
+                                {docBackCameraLoading && (
+                                  <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center p-6 transition-all animate-in fade-in">
+                                    <Loader2 className="animate-spin text-white mb-2" size={24} />
+                                    <p className="text-white text-[12px] font-bold animate-pulse">
+                                      Capturing...
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={stopDocBackCamera}
+                                  className="flex-1 py-2 text-[12px] bg-white border border-gray-200 text-gray-600 rounded-lg font-semibold transition-all"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={captureDocBackPhoto}
+                                  disabled={docBackCameraLoading}
+                                  className="flex-[2] py-2 text-[12px] bg-[#fa8112] text-white rounded-lg font-semibold shadow flex items-center justify-center gap-1.5 active:scale-95"
+                                >
+                                  {docBackCameraLoading ? (
+                                    <Loader2 className="animate-spin" size={16} />
+                                  ) : (
+                                    <Camera size={16} />
+                                  )}
+                                  Capture
+                                </button>
+                              </div>
                             </div>
-                            <span className="text-[14px] font-semibold text-[#222222]">
-                              {docBack
-                                ? "2nd document added"
-                                : "Upload 2nd document"}
-                            </span>
-                            <span className="text-[12px] text-gray-500 truncate w-full px-1 text-center max-w-[200px] mt-1">
-                              {docBack ? docBack.name : "JPG / PNG only"}
-                            </span>
-                          </button>
+                          ) : docBack ? (
+                            <div className="w-full flex flex-col items-center justify-center py-4 px-4 rounded-lg transition-all shadow-sm bg-white border-2 border-green-500">
+                              <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white mb-3">
+                                <Check size={20} className="text-white" />
+                              </div>
+                              <span className="text-[14px] font-semibold text-[#222222]">
+                                2nd document added
+                              </span>
+                              <span className="text-[12px] text-gray-500 truncate w-full px-1 text-center max-w-[200px] mt-1 mb-3">
+                                {docBack.name}
+                              </span>
+                              <div className="flex gap-2 w-full text-[12px] justify-center flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={startDocBackCamera}
+                                  className="px-3 py-2 bg-[#fa8112] text-white rounded-lg font-semibold flex items-center justify-center gap-1.5 shadow-sm hover:bg-[#e47510] transition-all"
+                                >
+                                  <Camera size={13} /> Camera
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => docBackInputRef.current?.click()}
+                                  className="px-3 py-2 bg-white border border-[#fa8112] text-[#fa8112] rounded-lg font-semibold flex items-center justify-center gap-1.5 hover:bg-orange-50 transition-all"
+                                >
+                                  <UploadCloud size={13} /> Gallery
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center group w-full">
+                              <div
+                                className="w-14 h-14 bg-white rounded-xl flex items-center justify-center shadow mb-3 cursor-pointer hover:scale-105 transition-all border border-orange-100 group-hover:border-[#fa8112]"
+                                onClick={startDocBackCamera}
+                              >
+                                <Camera size={24} className="text-[#fa8112]" />
+                              </div>
+                              <p className="text-[11px] text-gray-500 text-center mb-3 px-1">
+                                Camera or gallery to add back side.
+                              </p>
+                              <div className="flex gap-2 w-full text-[12px] justify-center flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={startDocBackCamera}
+                                  className="px-3 py-2 bg-[#fa8112] text-white rounded-lg font-semibold flex items-center justify-center gap-1.5 shadow-sm hover:bg-[#e47510] transition-all"
+                                >
+                                  <Camera size={13} /> Camera
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => docBackInputRef.current?.click()}
+                                  className="px-3 py-2 bg-white border border-[#fa8112] text-[#fa8112] rounded-lg font-semibold flex items-center justify-center gap-1.5 hover:bg-orange-50 transition-all"
+                                >
+                                  <UploadCloud size={13} /> Gallery
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                          <canvas ref={docBackCanvasRef} className="hidden" />
                         </div>
                       </div>
                     </div>
@@ -3565,16 +3728,22 @@ const AyushCardApplicationForm = ({
                                   )}
                                 </>
                               ) : (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    docBackInputRef.current?.click()
-                                  }
-                                  className="w-full h-full flex flex-col items-center justify-center text-gray-400 hover:bg-gray-50 transition-colors"
-                                >
-                                  <UploadCloud size={24} className="mb-2" />
-                                  <span className="text-xs">Upload file</span>
-                                </button>
+                                <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => docBackCameraInputRef.current?.click()}
+                                    className="px-3 py-1.5 bg-[#fa8112] text-white rounded-lg font-semibold flex items-center justify-center gap-1.5 shadow-sm hover:bg-[#e47510] transition-all text-xs w-24"
+                                  >
+                                    <Camera size={12} /> Camera
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => docBackInputRef.current?.click()}
+                                    className="px-3 py-1.5 bg-white border border-gray-300 text-gray-600 rounded-lg font-semibold flex items-center justify-center gap-1.5 hover:bg-gray-50 transition-all text-xs w-24"
+                                  >
+                                    <UploadCloud size={12} /> Gallery
+                                  </button>
+                                </div>
                               )}
                             </div>
                             <div>
