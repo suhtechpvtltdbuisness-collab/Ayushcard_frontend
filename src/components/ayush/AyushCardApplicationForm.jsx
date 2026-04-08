@@ -168,7 +168,7 @@ const AyushCardApplicationForm = ({
   const [docBackCameraActive, setDocBackCameraActive] = useState(false);
   const [docBackCameraLoading, setDocBackCameraLoading] = useState(false);
 
-  // Helper: compress and filter a base64 image for better OCR
+  // Helper: compress and binarize a base64 image to remove noise for improved OCR
   const compressBase64Image = (
     base64Src,
     maxWidth = 1200,
@@ -199,24 +199,34 @@ const AyushCardApplicationForm = ({
             try {
               const imageData = ctx.getImageData(0, 0, width, height);
               const data = imageData.data;
-              // Grayscale + Contrast boost
+              
+              // Find average brightness to use as adaptive threshold baseline
+              let totalLuma = 0;
+              for (let i = 0; i < data.length; i += 4) {
+                totalLuma += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+              }
+              const avgLuma = totalLuma / (width * height);
+              const threshold = Math.max(100, Math.min(160, avgLuma * 0.95)); 
+
+              // Binary Extraction (Binarization): everything below threshold becomes black, else white
               for (let i = 0; i < data.length; i += 4) {
                 const r = data[i],
                   g = data[i + 1],
                   b = data[i + 2];
                 // Luma formula for grayscale
                 const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-                // Simple contrast stretch: values < 100 get darker, > 160 get lighter
-                let val = gray;
-                if (gray < 110) val = Math.max(0, gray * 0.8);
-                else if (gray > 150) val = Math.min(255, gray * 1.1);
+                
+                // True binary conversion
+                const val = gray < threshold ? 0 : 255;
 
-                data[i] = data[i + 1] = data[i + 2] = val;
+                data[i] = val;     // R
+                data[i + 1] = val; // G
+                data[i + 2] = val; // B
               }
               ctx.putImageData(imageData, 0, 0);
             } catch (err) {
               console.warn(
-                "OCR Filter failed, continuing with original colors",
+                "Binary OCR Filter failed, continuing with original colors",
                 err,
               );
             }
@@ -680,31 +690,34 @@ const AyushCardApplicationForm = ({
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     const base64 = canvas.toDataURL("image/jpeg", 0.8);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.8));
     stopCamera();
 
     try {
-      // 1. Try OCR on original full-resolution image first for best accuracy
-      let results = await performOCR(base64, (p) => setOcrProgress(p));
+      // 1. Try OCR directly on the binary blob for best accuracy
+      let results = await performOCR(blob, (p) => setOcrProgress(p));
 
       // 2. Robust fallback: Use filtered version if first pass fails to find document ID
       if (!results?.docNumber) {
         try {
-          const filtered = await compressBase64Image(
+          const filteredBase64 = await compressBase64Image(
             base64,
             1400,
             1400,
             0.9,
             true,
           );
-          results = await performOCR(filtered, (p) => setOcrProgress(p));
+          const filteredBlob = await fetch(filteredBase64).then(res => res.blob());
+          results = await performOCR(filteredBlob, (p) => setOcrProgress(p));
         } catch (e) {}
       }
 
       // 3. One more fallback: Try the center crop
       if (!results?.docNumber) {
         try {
-          const cropped = await preprocessMemberImageForOCR(base64);
-          results = await performOCR(cropped, (p) => setOcrProgress(p));
+          const croppedBase64 = await preprocessMemberImageForOCR(base64);
+          const croppedBlob = await fetch(croppedBase64).then(res => res.blob());
+          results = await performOCR(croppedBlob, (p) => setOcrProgress(p));
         } catch (e) {}
       }
 
@@ -885,20 +898,21 @@ const AyushCardApplicationForm = ({
         toastWarn("Processing image... please wait.");
 
         try {
-          // 1. Try OCR on original uncompressed image first
-          let results = await performOCR(base64, (p) => setOcrProgress(p));
+          // 1. Try OCR directly on the binary file
+          let results = await performOCR(file, (p) => setOcrProgress(p));
 
           // 2. Fallback to filtered version
           if (!results?.docNumber) {
             try {
-              const filtered = await compressBase64Image(
+              const filteredBase64 = await compressBase64Image(
                 base64,
                 1400,
                 1400,
                 0.9,
                 true,
               );
-              results = await performOCR(filtered, (p) => setOcrProgress(p));
+              const filteredBlob = await fetch(filteredBase64).then(res => res.blob());
+              results = await performOCR(filteredBlob, (p) => setOcrProgress(p));
             } catch (e) {}
           }
 
@@ -1466,12 +1480,13 @@ const AyushCardApplicationForm = ({
     });
   };
 
-  const scanAndFillMember = async ({ base64Src, index }) => {
+  const scanAndFillMember = async ({ base64Src, index, binaryBlob }) => {
     setMemberOcrLoading(true);
     setMemberScanProgress(0);
     try {
-      // 1. Try OCR on original uncompressed image first
-      let details = await performOCR(base64Src, (p) =>
+      // 1. Try OCR directly on the binary blob
+      const optimalBlob = binaryBlob || await fetch(base64Src).then(res => res.blob());
+      let details = await performOCR(optimalBlob, (p) =>
         setMemberScanProgress(p),
       );
 
@@ -1480,7 +1495,8 @@ const AyushCardApplicationForm = ({
         details?.type === "aadhaar" && isLikelyMemberDocId(details?.docNumber);
       if (!details || !docAccepted) {
         const processedBase64 = await preprocessMemberImageForOCR(base64Src);
-        const details2 = await performOCR(processedBase64, (p) =>
+        const processedBlob = await fetch(processedBase64).then(res => res.blob());
+        const details2 = await performOCR(processedBlob, (p) =>
           setMemberScanProgress(p),
         );
         const docAccepted2 =
@@ -1495,14 +1511,15 @@ const AyushCardApplicationForm = ({
       // 3. Fallback to full compressed/filtered (higher quality)
       if (!details || !docAccepted) {
         try {
-          const fullFiltered = await compressBase64Image(
+          const fullFilteredBase64 = await compressBase64Image(
             base64Src,
             1400,
             1400,
             0.9,
             true,
           );
-          const details3 = await performOCR(fullFiltered, (p) =>
+          const fullFilteredBlob = await fetch(fullFilteredBase64).then(res => res.blob());
+          const details3 = await performOCR(fullFilteredBlob, (p) =>
             setMemberScanProgress(p),
           );
           const docAccepted3 =
@@ -1584,9 +1601,10 @@ const AyushCardApplicationForm = ({
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     const base64 = canvas.toDataURL("image/jpeg", 0.8);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.8));
     // Stop camera but keep `memberScanningIndex` so the UI can show progress.
     stopMemberCamera({ resetScanningIndex: false });
-    await scanAndFillMember({ base64Src: base64, index: targetIndex });
+    await scanAndFillMember({ base64Src: base64, index: targetIndex, binaryBlob: blob });
   };
 
   const handleMemberScanImage = async (e, index) => {
@@ -1607,7 +1625,7 @@ const AyushCardApplicationForm = ({
 
     setMemberScanningIndex(index);
     setMemberScanProgress(0);
-    await scanAndFillMember({ base64Src: base64String, index });
+    await scanAndFillMember({ base64Src: base64String, index, binaryBlob: file });
     e.target.value = "";
   };
 

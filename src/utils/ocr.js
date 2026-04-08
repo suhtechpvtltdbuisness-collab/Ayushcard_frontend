@@ -113,15 +113,15 @@ function findTitleCaseNamePatterns(text) {
 
 /**
  * Extracts information from Aadhaar or PAN card images using OCR.
- * @param {string} imageBase64 - The base64 string or URL of the image.
+ * @param {string|Blob|File} imageInput - The binary Blob/File or URL of the image.
  * @param {function} onProgress - Optional callback for progress updates.
  * @returns {Promise<object>} - Extracted details.
  */
-export const performOCR = async (imageBase64, onProgress = () => {}) => {
+export const performOCR = async (imageInput, onProgress = () => {}) => {
   try {
     const {
       data: { text },
-    } = await Tesseract.recognize(imageBase64, "eng", {
+    } = await Tesseract.recognize(imageInput, "eng", {
       logger: (m) => {
         if (m.status === "recognizing text" && onProgress) {
           onProgress(Math.floor(m.progress * 100));
@@ -171,11 +171,35 @@ export const performOCR = async (imageBase64, onProgress = () => {}) => {
       results.type = "pan";
       results.docNumber = text.match(panPattern)[0];
     } else {
-      const allDigits = text.replace(/\D/g, "");
-      const twelveDigitMatches = allDigits.match(/\d{12}/g);
-      if (twelveDigitMatches) {
+      // 1.5 Relaxed Pattern to catch common OCR symbol typos (l -> 1, O -> 0, S -> 5)
+      // Expecting roughly three 4-character blocks
+      const relaxedAadhaarPattern = /([0-9A-Za-z]{3,4}[\s\-]+[0-9A-Za-z]{3,4}[\s\-]+[0-9A-Za-z]{3,4})/;
+      const relaxedMatches = text.match(relaxedAadhaarPattern);
+
+      let extractedRelaxed = null;
+      if (relaxedMatches) {
+        let potentialAadhaar = relaxedMatches[0]
+          .replace(/[OoQ]/g, "0")
+          .replace(/[Il!|]/g, "1")
+          .replace(/[zZ]/g, "2")
+          .replace(/[S]/g, "5")
+          .replace(/[B]/g, "8")
+          .replace(/\D/g, "");
+        if (potentialAadhaar.length === 12) {
+          extractedRelaxed = potentialAadhaar;
+        }
+      }
+
+      if (extractedRelaxed) {
         results.type = (vidDetected && !uidDetected) ? "vid" : "aadhaar";
-        results.docNumber = twelveDigitMatches[twelveDigitMatches.length - 1];
+        results.docNumber = extractedRelaxed;
+      } else {
+        const allDigits = text.replace(/\D/g, "");
+        const twelveDigitMatches = allDigits.match(/\d{12}/g);
+        if (twelveDigitMatches) {
+          results.type = (vidDetected && !uidDetected) ? "vid" : "aadhaar";
+          results.docNumber = twelveDigitMatches[twelveDigitMatches.length - 1];
+        }
       }
     }
 
@@ -310,6 +334,11 @@ export const performOCR = async (imageBase64, onProgress = () => {}) => {
       }
 
       if (best) {
+        // Strip common trailing/leading Aadhaar OCR glitches from finalized name
+        best = best
+          .replace(/\b(El|Ei|Enr|Rfy|Dob|Yob|Vld|Vid|Male|Female|Faf|Srf|Ssrn|Oob|Th)\b/gi, "")
+          .replace(/\s{2,}/g, " ")
+          .trim();
         results.name = best;
       }
     } else if (results.type === "pan") {
