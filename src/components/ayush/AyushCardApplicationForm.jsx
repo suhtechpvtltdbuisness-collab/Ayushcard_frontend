@@ -333,6 +333,7 @@ const AyushCardApplicationForm = ({
       return;
     }
 
+    // Simplify the HTML for better thermal printer compatibility
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -340,111 +341,77 @@ const AyushCardApplicationForm = ({
           <meta charset="utf-8">
           <style>
             body { font-family: sans-serif; color: black; background: white; margin: 0; padding: 0; }
-            .public-thermal-receipt { width: 2in; box-sizing: border-box; padding: 8px; font-size: 8px; line-height: 1.2; }
+            .public-thermal-receipt { width: 58mm; box-sizing: border-box; padding: 2mm; font-size: 9px; line-height: 1.2; }
             .text-center { text-align: center; }
-            .font-black { font-weight: 900; }
             .font-bold { font-weight: bold; }
+            .font-black { font-weight: 900; }
             .font-semibold { font-weight: 600; }
             .uppercase { text-transform: uppercase; }
-            .text-\\[15px\\] { font-size: 15px; }
-            .text-\\[10px\\] { font-size: 10px; }
-            .text-\\[9px\\] { font-size: 9px; }
-            .text-\\[8px\\] { font-size: 8px; }
-            .text-\\[7px\\] { font-size: 7px; }
-            .text-\\[6px\\] { font-size: 6px; }
-            .mt-1 { margin-top: 4px; }
-            .mt-2 { margin-top: 8px; }
-            .mt-3 { margin-top: 12px; }
-            .mt-0\\.5 { margin-top: 2px; }
-            .mb-1 { margin-bottom: 4px; }
-            .mb-2 { margin-bottom: 8px; }
-            .pb-1 { padding-bottom: 4px; }
-            .pb-2 { padding-bottom: 8px; }
-            .pt-1 { padding-top: 4px; }
-            .pt-2 { padding-top: 8px; }
-            .border-b { border-bottom: 1px solid black; }
-            .border-t { border-top: 1px solid black; }
-            .border-t-2 { border-top: 2px solid black; }
-            .border-dashed { border-style: dashed; border-color: #9ca3af; }
-            .border-dotted { border-style: dotted; border-color: #d1d5db; }
-            .border-black { border-color: black; border-style: solid; }
             .flex { display: flex; }
             .justify-between { justify-content: space-between; }
+            .shrink-0 { flex-shrink: 0; }
             .text-right { text-align: right; }
             .break-all { word-break: break-all; }
             .break-words { word-break: break-word; }
             .tracking-tight { letter-spacing: -0.025em; }
             .tracking-wide { letter-spacing: 0.025em; }
             .leading-none { line-height: 1; }
-            .leading-tight { line-height: 1.25; }
-            .shrink-0 { flex-shrink: 0; }
-            .space-y-0\\.5 > * + * { margin-top: 2px; }
+            .mt-1 { margin-top: 4px; }
+            .mb-2 { margin-bottom: 8px; }
+            .pb-2 { padding-bottom: 8px; }
+            .border-b { border-bottom: 1px solid black; }
+            .border-dashed { border-style: dashed; }
+            .border-dotted { border-style: dotted; }
+            .border-gray-400 { border-color: #94A3B8; }
+            .border-gray-300 { border-color: #CBD5E1; }
             .space-y-1 > * + * { margin-top: 4px; }
-            .list-none { list-style-type: none; }
-            .p-0 { padding: 0; }
+            .space-y-0\\.5 > * + * { margin-top: 2px; }
+            /* Tailwind specific classes used in renderThermalReceipt */
+            .text-\\[15px\\] { font-size: 15px; }
+            .text-\\[10px\\] { font-size: 10px; }
+            .text-\\[9px\\] { font-size: 9px; }
+            .text-\\[8px\\] { font-size: 8px; }
+            .text-\\[7px\\] { font-size: 7px; }
             .m-0 { margin: 0; }
-            .py-0\\.5 { padding-top: 2px; padding-bottom: 2px; }
-            .border { border-width: 1px; }
+            .p-0 { padding: 0; }
+            .list-none { list-style-type: none; }
           </style>
         </head>
         <body>
-          ${receiptEl.outerHTML}
+          <div class="public-thermal-receipt">
+            ${receiptEl.innerHTML}
+          </div>
         </body>
       </html>
     `;
 
-    // Convert to base64
+    // Convert to UTF-8 base64
     const b64 = btoa(unescape(encodeURIComponent(htmlContent)));
 
-    const playStoreUrl =
-      "https://play.google.com/store/apps/details?id=ru.a402d.rawbtprinter";
-    const rawbtDeepLink = `rawbt:data:text/html;base64,${b64}`;
-    const rawbtIntent = `intent:rawbt:data:text/html;base64,${b64}#Intent;package=ru.a402d.rawbtprinter;S.browser_fallback_url=${encodeURIComponent(playStoreUrl)};end;`;
+    const playStoreUrl = "https://play.google.com/store/apps/details?id=ru.a402d.rawbtprinter";
+    
+    // Improved Intent structure for RawBT on Android Chrome
+    // S.text is the data, S.ru.a402d.rawbtprinter.EXTRA_B64 tells it the text is base64 encoded
+    const rawbtIntent = `intent:#Intent;action=ru.a402d.rawbtprinter.action.PRINT;category=android.intent.category.DEFAULT;type=text/html;S.text=${b64};S.ru.a402d.rawbtprinter.EXTRA_B64=true;S.browser_fallback_url=${encodeURIComponent(playStoreUrl)};end;`;
 
-    // In-app browsers often block external-app intents and show "waiting for browser app".
     const userAgent = navigator.userAgent || "";
     const isAndroid = /Android/i.test(userAgent);
-    const isLikelyInAppBrowser =
-      /(FBAN|FBAV|Instagram|Line|wv\)|Telegram|MiuiBrowser|EdgA)/i.test(
-        userAgent,
-      );
 
     if (!isAndroid) {
-      toastWarn(
-        "RawBT printing works on Android phones. Use normal Print on desktop.",
-      );
+      toastWarn("RawBT printing works on Android phones. Use normal Print on desktop.");
       return;
     }
 
-    let appOpened = false;
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "hidden") appOpened = true;
-    };
-    document.addEventListener("visibilitychange", onVisibilityChange, {
-      once: true,
-    });
+    // Execute the intent
+    window.location.href = rawbtIntent;
 
-    // Try direct scheme first (works best when RawBT is already installed).
-    window.location.href = rawbtDeepLink;
-
-    // If browser ignores direct scheme, retry via explicit Android intent package.
-    setTimeout(() => {
-      if (!appOpened) window.location.href = rawbtIntent;
-    }, 700);
-
-    // Show actionable hint when browser blocks app handoff.
-    setTimeout(() => {
-      if (appOpened) return;
-      if (isLikelyInAppBrowser) {
-        toastWarn(
-          "Open this page in Chrome browser, then tap RawBT Print again (in-app browsers can block RAWBT launch).",
-        );
-      } else {
-        toastWarn(
-          "Could not auto-open RAWBT. Please check RawBT default handler permissions and try again.",
-        );
-      }
-    }, 1800);
+    // Show actionable hint for in-app browsers
+    const isLikelyInAppBrowser = /(FBAN|FBAV|Instagram|Line|wv\)|Telegram|MiuiBrowser|EdgA)/i.test(userAgent);
+    if (isLikelyInAppBrowser) {
+      setTimeout(() => {
+        toastWarn("If printing doesn't start, open this page in Chrome browser for best compatibility.");
+      }, 1500);
+    }
   };
 
   const resetForm = () => {
