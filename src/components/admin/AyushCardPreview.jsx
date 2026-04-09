@@ -116,6 +116,7 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
                 const isImageLike = (path = "", mime = "") => {
                   const lower = path.toLowerCase();
                   if (/(\.jpg|\.jpeg|\.png|\.webp|\.gif)$/.test(lower)) return true;
+                  if (lower.startsWith("data:image/")) return true;
                   if (mime && typeof mime === "string" && mime.toLowerCase().startsWith("image/")) return true;
                   return false;
                 };

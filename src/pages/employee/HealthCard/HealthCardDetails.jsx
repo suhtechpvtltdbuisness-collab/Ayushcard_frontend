@@ -52,14 +52,12 @@ const apiToForm = (card) => ({
   aadhaarNumber: card.aadhaarNumber || "",
   documentFront: card.documentFront || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentFront")?.path : "") || "",
   documentBack: card.documentBack || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentBack")?.path : "") || "",
-  // On employee details page, also use documents[1] as the card photo
+ 
   profileImage:
     card.profileImage ||
-    (Array.isArray(card.documents) && card.documents.length > 1
-      ? card.documents[1].path || card.documents[1].url
-      : Array.isArray(card.documents) && card.documents.length > 0
-        ? card.documents[0].path || card.documents[0].url
-        : ""),
+    (Array.isArray(card.documents) && card.documents.length > 0
+      ? card.documents[2].path || card.documents[2].url //second index is for family head
+      : ""),
   // NGO details for preview
   ngoLocation: card.ngoLocation || "Mangla Vihar Kanpur - 208015",
   ngoPhone: card.ngoPhone || "9927384859",
@@ -328,42 +326,6 @@ const HealthCardDetails = () => {
           <h2 className="text-xl font-bold text-[#22333B]">
             Application Details
           </h2>
-        </div>
-        <div className="flex gap-3">
-          {isEditing ? (
-            <>
-              <button
-                onClick={() => {
-                  setIsEditing(false);
-                  setSaveError("");
-                }}
-                disabled={saveLoading}
-                className="px-4 py-1.5 border border-gray-200 rounded-lg text-[15px] font-medium text-[#374151] hover:bg-gray-50 bg-white disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saveLoading}
-                className="px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff702d] transition-colors flex items-center gap-2 disabled:opacity-60"
-              >
-                {saveLoading && <Loader2 size={14} className="animate-spin" />}
-                {saveLoading ? "Saving…" : "Save Changes"}
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={() => setIsEditing(true)}
-              className="px-4 py-1.5 bg-[#F68E5F] text-[#FFFCFB] rounded-lg text-[15px] font-medium hover:bg-[#ff6e2b] flex items-center gap-2 transition-colors"
-            >
-              Edit
-              <img
-                src="/admin_images/Edit 3.svg"
-                alt=""
-                className="w-3.5 h-3.5"
-              />
-            </button>
-          )}
         </div>
       </div>
 

@@ -42,22 +42,20 @@ const apiToForm = (card) => ({
   relation: card.relation || "",
   relatedPerson: card.relatedPerson || "",
   aadhaarNumber: card.aadhaarNumber || card.aadhaarNo || card.aadharNumber || "",
-  // For this details page, always use documents[1] (second document)
-  // as the card photo, falling back to documents[0] if needed.
+  // For this details page, use documents[0] (first document)
+  // as the card photo.
   profileImage:
     card.profileImage ||
-    (Array.isArray(card.documents) && card.documents.length > 1
-      ? card.documents[1].path || card.documents[1].url
-      : Array.isArray(card.documents) && card.documents.length > 0
-        ? card.documents[0].path || card.documents[0].url
-        : ""),
+    (Array.isArray(card.documents) && card.documents.length > 0
+      ? card.documents[2].path || card.documents[2].url
+      : ""),
   documentFront: card.documentFront || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentFront")?.path : "") || "",
   documentBack: card.documentBack || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentBack")?.path : "") || "",
   documents: Array.isArray(card.documents) ? card.documents : [],
   // NGO details for preview
-  ngoLocation: card.ngoLocation || "Mangla Vihar Kanpur - 208015",
-  ngoPhone: card.ngoPhone || "9927384859",
-  ngoEmail: card.ngoEmail || "baijnaathkesarbaisewatrust9625@gmail.com",
+  ngoLocation: card.ngoLocation,
+  ngoPhone: card.ngoPhone,
+  ngoEmail: card.ngoEmail,
 });
 
 // Map form fields → API payload
