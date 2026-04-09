@@ -980,7 +980,8 @@ const AyushCardApplicationForm = ({
     // Validations
     if (name === "fullName" || name === "relatedPerson")
       value = value.replace(/[0-9]/g, "");
-    if (name === "contactNumber") value = value.replace(/\D/g, "").slice(0, 10);
+    if (name === "contactNumber" || name === "alternateContact")
+      value = value.replace(/\D/g, "").slice(0, 10);
     if (name === "aadhaarNumber") value = value.replace(/\D/g, "").slice(0, 12);
     if (name === "pincode") value = value.replace(/\D/g, "").slice(0, 6);
 

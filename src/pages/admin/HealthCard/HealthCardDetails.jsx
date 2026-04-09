@@ -166,7 +166,9 @@ const HealthCardDetails = () => {
     let value = e.target.value;
     if (["applicantFirstName", "applicantMiddleName", "applicantLastName", "applicant", "relatedPerson"].includes(field))
       value = value.replace(/[^a-zA-Z\s]/g, "");
-    else if (["phone", "altPhone", "payment.totalPaid", "cardNumber", "totalMembers"].includes(field))
+    else if (["phone", "altPhone"].includes(field))
+      value = value.replace(/\D/g, "").slice(0, 10);
+    else if (["payment.totalPaid", "cardNumber", "totalMembers"].includes(field))
       value = value.replace(/[^0-9.]/g, "");
     if (field === "totalMembers" && Number(value) > 7) value = "7";
     if (field.startsWith("payment.")) {
