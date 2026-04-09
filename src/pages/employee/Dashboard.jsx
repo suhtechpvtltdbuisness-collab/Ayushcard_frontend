@@ -26,7 +26,24 @@ const Dashboard = () => {
           setStats(response.data?.stats);
         }
       } catch (err) {
-        console.error("Dashboard stats fetch failed:", err);
+        if (err?.response?.status === 403) {
+          // Fallback for employee accounts that may lack permission for global dashboard stats.
+          try {
+            const cardsResponse = await apiService.getHealthCards();
+            const rawCards = Array.isArray(cardsResponse?.data?.cards) 
+               ? cardsResponse.data.cards 
+               : (Array.isArray(cardsResponse?.data) ? cardsResponse.data : []);
+            setStats({
+               totalCards: rawCards.length,
+               totalOrganizations: 0,
+               totalEmployees: 0
+            });
+          } catch (fallbackErr) {
+             // Silently ignore fallback error
+          }
+        } else {
+          console.error("Dashboard stats fetch failed:", err);
+        }
       } finally {
         setLoading(false);
       }
