@@ -24,6 +24,7 @@ import apiService from "../../api/service";
 import { performOCR } from "../../utils/ocr";
 import { load } from "@cashfreepayments/cashfree-js";
 import AyushCardPreview from "../admin/AyushCardPreview";
+import QRCode from "react-qr-code";
 
 /** Fixed ₹160 for 1–4 people (head + members); each additional person +₹40. */
 const AYUSH_CARD_BASE_PACKAGE_RUPEES = 160;
@@ -253,6 +254,8 @@ const AyushCardApplicationForm = ({
     dob: "",
     gender: "",
     contactNumber: "",
+    alternateContact: "",
+    religion: "",
     aadhaarNumber: "",
     emailAddress: "",
     relation: "",
@@ -468,6 +471,8 @@ const AyushCardApplicationForm = ({
       dob: "",
       gender: "",
       contactNumber: "",
+      alternateContact: "",
+      religion: "",
       aadhaarNumber: "",
       emailAddress: "",
       relation: "",
@@ -1649,10 +1654,11 @@ const AyushCardApplicationForm = ({
       middleName,
       lastName,
       contact: familyHead.contactNumber,
-      alternateContact: "",
+      alternateContact: familyHead.alternateContact || "",
       email: familyHead.emailAddress,
       relation: familyHead.relation,
       relatedPerson: familyHead.relatedPerson,
+      religion: familyHead.religion || "",
       gender: familyHead.gender,
       dob: familyHead.dob,
       address: familyHead.address,
@@ -1770,11 +1776,12 @@ const AyushCardApplicationForm = ({
       lastName,
       email: familyHead.emailAddress?.trim() || "",
       contact: familyHead.contactNumber.trim(),
-      alternateContact: "",
+      alternateContact: familyHead.alternateContact?.trim() || "",
       totalAmount: fee,
       applicationDate: today,
       gender: familyHead.gender || "",
       dob: familyHead.dob || "",
+      religion: familyHead.religion || "",
       relation: familyHead.relation || "",
       relatedPerson: familyHead.relatedPerson || "",
       address: familyHead.address || "",
@@ -2385,6 +2392,17 @@ const AyushCardApplicationForm = ({
             </p>
           </div>
 
+          {/* QR Code Section */}
+          <div className="flex justify-center py-2 border-t border-dashed border-gray-400">
+             <div className="bg-white p-1">
+               <QRCode 
+                 value={displayAppId} 
+                 size={64}
+                 level="M"
+               />
+             </div>
+          </div>
+
           <div className="text-[7px] mt-3 pt-2 border-t border-dashed border-gray-400 space-y-1">
             <p className="font-bold text-center text-[8px] mb-1">
               महत्वपूर्ण सूचना
@@ -2982,6 +3000,20 @@ const AyushCardApplicationForm = ({
                       </div>
                       <div>
                         <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
+                          Alternate Number
+                        </label>
+                        <input
+                          type="tel"
+                          name="alternateContact"
+                          value={familyHead.alternateContact || ""}
+                          onChange={handleHeadChange}
+                          placeholder="10-digit mobile no. (optional)"
+                          style={{ fontFamily: "'Inter', sans-serif" }}
+                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
                           Aadhaar Number <span className="text-red-500">*</span>
                         </label>
                         <input
@@ -2997,6 +3029,27 @@ const AyushCardApplicationForm = ({
                           headAadhaarDuplicate,
                           "Aadhaar number",
                         )}
+                      </div>
+                      <div>
+                        <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
+                          Religion
+                        </label>
+                        <select
+                          name="religion"
+                          value={familyHead.religion || ""}
+                          onChange={handleHeadChange}
+                          style={{ fontFamily: "'Inter', sans-serif" }}
+                          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors appearance-none bg-white"
+                        >
+                          <option value="">Select Religion</option>
+                          <option value="Hinduism">Hinduism</option>
+                          <option value="Islam">Islam</option>
+                          <option value="Christianity">Christianity</option>
+                          <option value="Sikhism">Sikhism</option>
+                          <option value="Buddhism">Buddhism</option>
+                          <option value="Jainism">Jainism</option>
+                          <option value="Other">Other</option>
+                        </select>
                       </div>
                       <div>
                         <label className="text-[14px] text-[#222222] font-bold mb-1 block font-inter">
