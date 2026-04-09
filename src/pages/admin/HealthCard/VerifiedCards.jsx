@@ -27,9 +27,9 @@ const normalizeCard = (card) => ({
   documentFront: card.documentFront || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentFront")?.path : "") || "",
   documentBack: card.documentBack || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentBack")?.path : "") || "",
   payment: {
-    applicationFee: 120,
-    memberAddOns: (Number(card.totalMember) || 0) * 10,
-    totalPaid: card.totalAmount ?? 120,
+    applicationFee: 160,
+    memberAddOns: Math.max(0, (Number(card.totalMember) || 0) - 4) * 40,
+    totalPaid: Number(card.totalMember || 0) <= 4 ? 160 : 160 + (Number(card.totalMember || 0) - 4) * 40,
   },
   status: (() => {
     switch ((card.status || "").toLowerCase()) {

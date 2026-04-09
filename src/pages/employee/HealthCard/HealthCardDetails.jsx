@@ -41,9 +41,9 @@ const apiToForm = (card) => ({
   totalMembers: card.totalMember ?? "",
   members: Array.isArray(card.members) ? card.members : [],
   payment: {
-    applicationFee: 120,
-    memberAddOns: (Number(card.totalMember) || 0) * 10,
-    totalPaid: card.totalAmount ?? 120,
+    applicationFee: 160,
+    memberAddOns: Math.max(0, (Number(card.totalMember) || 0) - 4) * 40,
+    totalPaid: Number(card.totalMember || 0) <= 4 ? 160 : 160 + (Number(card.totalMember || 0) - 4) * 40,
   },
   // Misc
   address: card.address || "",
@@ -178,8 +178,8 @@ const HealthCardDetails = () => {
       ...prev,
       payment: {
         ...prev.payment,
-        memberAddOns: n * 10,
-        totalPaid: 120 + n * 10,
+        memberAddOns: Math.max(0, n - 4) * 40,
+        totalPaid: n <= 4 ? 160 : 160 + (n - 4) * 40,
       },
     }));
   }, [formData?.totalMembers]); // eslint-disable-line react-hooks/exhaustive-deps
