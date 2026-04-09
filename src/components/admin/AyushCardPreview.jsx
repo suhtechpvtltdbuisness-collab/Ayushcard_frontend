@@ -123,6 +123,18 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
 
                 const pickFromDocuments = (docs) => {
                   if (!Array.isArray(docs)) return null;
+                  
+                  // Try index 2 first as it's typically the profile photo/family head
+                  if (docs[2]) {
+                    const rawPath = docs[2]?.path || docs[2]?.url || "";
+                    const mime = docs[2]?.mimetype || "";
+                    if (isImageLike(rawPath, mime)) {
+                      const built = getImageUrl(rawPath);
+                      if (built) return built;
+                    }
+                  }
+
+                  // Fallback to searching all (starting from the first image)
                   for (const doc of docs) {
                     const rawPath = doc?.path || doc?.url || "";
                     const mime = doc?.mimetype || "";

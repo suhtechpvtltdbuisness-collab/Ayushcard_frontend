@@ -31,6 +31,13 @@ const normalizeCard = (card) => ({
     : Array.from({ length: Number(card.totalMember) || 0 }, (_, i) => ({
         id: i,
       })),
+  profileImage:
+    card.profileImage ||
+    (Array.isArray(card.documents) && card.documents.length > 0
+      ? card.documents[2]?.path || card.documents[2]?.url
+      : ""),
+  documentFront: card.documentFront || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentFront")?.path : "") || "",
+  documentBack: card.documentBack || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentBack")?.path : "") || "",
   payment: {
     applicationFee: 120,
     memberAddOns: (Number(card.totalMember) || 0) * 10,
