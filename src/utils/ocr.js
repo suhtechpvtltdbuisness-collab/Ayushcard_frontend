@@ -30,6 +30,21 @@ const NAME_STOPWORDS = new Set([
   "ministry",
   "personal",
   "information",
+  "nit",
+  "tet",
+  "gears",
+  "scanning",
+  "authentication",
+  "qr",
+  "code",
+  "ith",
+  "birth",
+  "identity",
+  "tie",
+  "urs",
+  "ort",
+  "vdeeeqa",
+  "ars"
 ]);
 
 /** Reject a string as a bogus "name" from bad OCR */
@@ -72,7 +87,7 @@ function extractTitleCaseNameFromLine(line) {
   // Prefer: Capitalized words before | or junk
   const pipe = s.split(/[|§]/)[0];
   const m = pipe.match(
-    /([A-Z][a-z]{1,}(?:\s+[A-Z][a-z]{1,}){0,3})(?=\s*$|\s*\d|\s*[-–—])/,
+    /([A-Z][a-z]{1,}(?:\s+[A-Z][a-z]{1,}){0,3})(?=\s*$|\s*\d|\s*[-–—]|["'.|\]])/,
   );
   if (m) return m[1].trim();
   const m2 = pipe.match(/([A-Z][a-z]{1,}(?:\s+[A-Z][a-z]{1,}){1,3})/);
@@ -86,13 +101,16 @@ function scoreNameCandidate(s) {
   let score = 0;
   for (const w of words) {
     // English Title Case
-    if (/^[A-Z][a-z]{2,14}$/.test(w)) score += 12;
-    else if (/^[A-Z][a-z]+$/.test(w)) score += 6;
-    else if (/^[A-Za-z]{3,}$/.test(w)) score += 4;
+    if (/^[A-Z][a-z]{3,14}$/.test(w)) score += 20; // 4+ letter proper words (like Mohd, Saif) get high score
+    else if (/^[A-Z][a-z]{1,2}$/.test(w)) score += 5; // Very short title case (like Ali, Ra) get lower but positive score
+    else if (/^[A-Z][a-z]+$/.test(w)) score += 10;
+    else if (/^[A-Za-z]{3,}$/.test(w)) score += 8;
     else if (/\d/.test(w)) score -= 25;
-    else score -= 3;
+    else score -= 5;
   }
-  if (words.length >= 2) score += 8;
+  if (words.length >= 2) score += 10;
+  // Penalty for very short names with short tokens
+  if (s.length < 8 && words.every(w => w.length <= 3)) score -= 30;
   if (NAME_GARBAGE_PATTERNS.test(s)) score -= 40;
   return score;
 }
@@ -150,7 +168,8 @@ export const performOCR = async (imageInput, onProgress = () => {}) => {
       .filter((l) => l.length > 1);
 
     // 1. Identify Document Type & Extract Number
-    const aadhaarPattern = /(\d{4}\D{0,10}\d{4}\D{0,10}\d{4})/;
+    const aadhaarPattern = /[2-9]{1}\d{3}\s?\d{4}\s?\d{4}/; // Standard Aadhaar pattern (12 digits, optional spaces)
+    const relaxedAadhaarPatternText = /([0-9A-Za-z]{4}[\s\-]+[0-9A-Za-z4]{4}[\s\-]+[0-9A-Za-z]{4})/;
     const panPattern = /[A-Z]{5}\d{4}[A-Z]/;
 
     const matches = text.match(aadhaarPattern);
@@ -163,10 +182,28 @@ export const performOCR = async (imageInput, onProgress = () => {}) => {
       upperText.includes("UIDAI") ||
       upperText.includes("GOVERNMENT OF INDIA");
 
-    if (matches) {
+    // Helper to check if a string is likely a document ID (mostly digits)
+    const isLikelyDocId = (s) => {
+      if (!s) return false;
+      const digits = s.replace(/\D/g, "");
+      return digits.length >= 10 && digits.length <= 12 && (digits.length / s.length > 0.6);
+    };
+
+    let aadhaarMatch = text.match(aadhaarPattern);
+    if (!aadhaarMatch || !isLikelyDocId(aadhaarMatch[0])) {
+      const allMatches = text.match(/[0-9A-Za-z]{4}[\s\-]+[0-9A-Za-z]{4}[\s\-]+[0-9A-Za-z]{4}/g);
+      if (allMatches && allMatches.length > 0) {
+        // Pick the last one (usually at the bottom of the card)
+        const lastCandidate = allMatches[allMatches.length - 1];
+        if (isLikelyDocId(lastCandidate)) {
+          aadhaarMatch = [lastCandidate];
+        }
+      }
+    }
+
+    if (aadhaarMatch) {
       results.type = (vidDetected && !uidDetected) ? "vid" : "aadhaar";
-      results.docNumber = matches[0].replace(/\D/g, ""); // Keep only digits
-      if (results.docNumber.length > 12) results.docNumber = results.docNumber.substring(0, 12);
+      results.docNumber = aadhaarMatch[0].trim();
     } else if (text.match(panPattern)) {
       results.type = "pan";
       results.docNumber = text.match(panPattern)[0];
@@ -194,31 +231,58 @@ export const performOCR = async (imageInput, onProgress = () => {}) => {
         results.type = (vidDetected && !uidDetected) ? "vid" : "aadhaar";
         results.docNumber = extractedRelaxed;
       } else {
-        const allDigits = text.replace(/\D/g, "");
-        const twelveDigitMatches = allDigits.match(/\d{12}/g);
-        if (twelveDigitMatches) {
-          results.type = (vidDetected && !uidDetected) ? "vid" : "aadhaar";
-          results.docNumber = twelveDigitMatches[twelveDigitMatches.length - 1];
+        // Final fallback: Look for any single line that has 10-12 digits
+        for (const line of lines) {
+          const cleanedLine = line.replace(/\D/g, "");
+          if (cleanedLine.length >= 10 && cleanedLine.length <= 12 && !line.includes("/")) {
+            results.type = (vidDetected && !uidDetected) ? "vid" : "aadhaar";
+            results.docNumber = line.trim(); // Keep original formatting
+            break;
+          }
         }
       }
     }
 
     // 2. Extract DOB/YOB (Custom Pattern)
-    const dobPattern = /(\d{2})[/-](\d{2})[/-](\d{4})/;
+    // Relaxed to handle noise like spaces in year: "02/04/201 9"
+    const dobPattern = /(\d{2})[/\-\s](\d{2})[/\-\s](\d{2,4}(?:\s?\d{1,2})?)/;
     const compactDobPattern = /DOB[:\s]*(\d{2})(\d{2})(\d{4})/i;
 
     const matchYob = (str) => {
-      const found = str.match(/(?:Birth|DOB|Year|ores|YOB)[^\d]*(\d+)/i);
-      if (found && found[1].length >= 4) {
-        const digits = found[1].match(/\d{4}/);
-        return digits ? digits[0] : null;
+      const found = str.match(/(?:Birth|DOB|Year|ores|YOB)[^\d]*(\d+[\s\d]*)/i);
+      if (found && found[1].replace(/\s/g, "").length >= 4) {
+        const cleaned = found[1].replace(/\s/g, "");
+        const digits = cleaned.match(/\d{4}/);
+        if (digits) {
+          const yearNum = parseInt(digits[0]);
+          const currentYear = new Date().getFullYear();
+          if (yearNum >= 1920 && yearNum <= currentYear) {
+            return digits[0];
+          }
+        }
       }
       return null;
     };
 
-    if (text.match(dobPattern)) {
-      const match = text.match(dobPattern);
-      results.dob = `${match[3]}-${match[2]}-${match[1]}`;
+    const dobMatch = text.match(dobPattern);
+    if (dobMatch) {
+      const day = dobMatch[1];
+      const month = dobMatch[2];
+      const year = dobMatch[3].replace(/\s/g, "");
+      if (year.length === 4) {
+        const yearNum = parseInt(year);
+        const currentYear = new Date().getFullYear();
+        if (yearNum >= 1920 && yearNum <= currentYear) {
+          results.dob = `${year}-${month}-${day}`;
+        }
+      } else if (year.length === 2) {
+        // Simple heuristic for 2-digit years
+        const currentYear = new Date().getFullYear();
+        const fullYear = parseInt(year) + (parseInt(year) > (currentYear % 100) ? 1900 : 2000);
+        if (fullYear >= 1920 && fullYear <= currentYear) {
+          results.dob = `${fullYear}-${month}-${day}`;
+        }
+      }
     } else if (text.match(compactDobPattern)) {
       const match = text.match(compactDobPattern);
       results.dob = `${match[3]}-${match[2]}-${match[1]}`;
@@ -247,7 +311,7 @@ export const performOCR = async (imageInput, onProgress = () => {}) => {
           line.includes("DOB") ||
           line.includes("BIRTH") ||
           line.includes("YOB") ||
-          dobPattern.test(lines[i])
+          /(\d{2})[/\-\s](\d{2})[/\-\s](\d{2,4})/.test(lines[i])
         ) {
           if (dobIndex === -1) dobIndex = i;
         }
@@ -373,6 +437,7 @@ export const performOCR = async (imageInput, onProgress = () => {}) => {
 
     if (results.name === results.docNumber) results.name = "";
 
+    console.log("DEBUG: OCR Potential Results before return:", JSON.stringify(results, null, 2));
     return results;
   } catch (error) {
     console.error("OCR Error:", error);

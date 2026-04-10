@@ -94,7 +94,7 @@ function thermalMemberLabel(m) {
 
 function thermalMemberDocId(m) {
   const raw = m?.documentId ?? m?.docId ?? "";
-  return String(raw).replace(/\D/g, "");
+  return String(raw);
 }
 
 const generateApplicationId = () =>
@@ -690,25 +690,43 @@ const AyushCardApplicationForm = ({
         try {
           const croppedBase64 = await preprocessMemberImageForOCR(base64);
           const croppedBlob = await fetch(croppedBase64).then(res => res.blob());
-          results = await performOCR(croppedBlob, (p) => setOcrProgress(p));
+          const fallbackResults = await performOCR(croppedBlob, (p) => setOcrProgress(p));
+          if (fallbackResults) {
+             const pass1NameScore = getNameConfidenceScore(results?.name || results?.fullName);
+             const fallbackNameScore = getNameConfidenceScore(fallbackResults.name || fallbackResults.fullName);
+             results = {
+               ...results,
+               name: (fallbackNameScore > pass1NameScore) ? fallbackResults.name : (results?.name || results?.fullName),
+               docNumber: fallbackResults.docNumber || results?.docNumber,
+               dob: results?.dob || fallbackResults.dob,
+               gender: results?.gender || fallbackResults.gender,
+               type: fallbackResults.type !== "unknown" ? fallbackResults.type : results?.type,
+             };
+          }
         } catch (e) {}
       }
 
       if (results) {
-        setFamilyHead((prev) => ({
-          ...prev,
-          fullName: results.name || results.fullName || prev.fullName || "",
-          gender: results.gender || prev.gender || "",
-          dob: results.dob || prev.dob || "",
-          pincode: results.pincode || prev.pincode || "",
-          address: results.address || prev.address || "",
-          aadhaarNumber:
-            (results.type === "aadhaar" || results.type === "vid"
-              ? results.docNumber
-              : prev.aadhaarNumber) ||
-            prev.aadhaarNumber ||
-            "",
-        }));
+        setFamilyHead((prev) => {
+          const rawNextName = results.name || results.fullName;
+          const nextName = isLikelyMemberName(rawNextName) ? rawNextName : "";
+          const nextAadhaar = (results.type === "aadhaar" || results.type === "vid")
+            ? results.docNumber : "";
+
+          const prevScore = getNameConfidenceScore(prev.fullName);
+          const nextScore = getNameConfidenceScore(nextName);
+
+          console.log("Setting Family Head. Prev:", prev, "Next:", { nextName, nextAadhaar, results });
+          return {
+            ...prev,
+            fullName: (nextName && (!prev.fullName || nextScore > prevScore)) ? nextName : prev.fullName,
+            gender: (results.gender && !prev.gender) ? results.gender : prev.gender,
+            dob: (results.dob && !prev.dob) ? results.dob : prev.dob,
+            pincode: results.pincode || prev.pincode || "",
+            address: results.address || prev.address || "",
+            aadhaarNumber: (nextAadhaar && !prev.aadhaarNumber) ? nextAadhaar : prev.aadhaarNumber,
+          };
+        });
 
         // ALWAYS compress for storage/request to keep payload small
         let storageBase64 = base64;
@@ -874,36 +892,57 @@ const AyushCardApplicationForm = ({
           // 1. Try OCR directly on the binary file
           let results = await performOCR(file, (p) => setOcrProgress(p));
 
-          // 2. Fallback to filtered version
+          // 2. Fallback to filtered version if Aadhaar number is missing
           if (!results?.docNumber) {
+            console.log("First OCR pass missed Aadhaar, trying fallback...");
             try {
-              const filteredBase64 = await compressBase64Image(
-                base64,
-                1400,
-                1400,
-                0.9,
-                true,
-              );
+              const filteredBase64 = await compressBase64Image(base64, 1400, 1400, 0.9, true);
               const filteredBlob = await fetch(filteredBase64).then(res => res.blob());
-              results = await performOCR(filteredBlob, (p) => setOcrProgress(p));
-            } catch (e) {}
-          }
+              const fallbackResults = await performOCR(filteredBlob, (p) => setOcrProgress(p));
+              if (fallbackResults) {
+                console.log("Fallback OCR Results found:", fallbackResults);
+                // Smart Merge between Pass 1 and Pass 2
+                const pass1NameScore = getNameConfidenceScore(results?.name || results?.fullName);
+                const fallbackNameScore = getNameConfidenceScore(fallbackResults.name || fallbackResults.fullName);
 
+                results = {
+                  ...results,
+                  // Keep primary name if fallback is worse quality
+                  name: (fallbackNameScore > pass1NameScore) ? fallbackResults.name : (results?.name || results?.fullName),
+                  // Prefer fallback docNumber if primary was empty
+                  docNumber: fallbackResults.docNumber || results?.docNumber,
+                  // Prefer primary DOB if fallback is empty
+                  dob: results?.dob || fallbackResults.dob,
+                  gender: results?.gender || fallbackResults.gender,
+                  type: fallbackResults.type !== "unknown" ? fallbackResults.type : results?.type,
+                };
+              }
+            } catch (fallbackErr) {
+              console.error("Fallback OCR failed:", fallbackErr);
+            }
+          }
           if (results) {
-            setFamilyHead((prev) => ({
-              ...prev,
-              fullName: results.name || results.fullName || prev.fullName || "",
-              aadhaarNumber:
-                (results.type === "aadhaar" || results.type === "vid"
-                  ? results.docNumber
-                  : prev.aadhaarNumber) ||
-                prev.aadhaarNumber ||
-                "",
-              gender: results.gender || prev.gender || "",
-              dob: results.dob || prev.dob || "",
-              pincode: results.pincode || prev.pincode || "",
-              address: results.address || prev.address || "",
-            }));
+            console.log("Gallery OCR results for Family Head:", results);
+            setFamilyHead((prev) => {
+              const rawNextName = results.name || results.fullName;
+              const nextName = isLikelyMemberName(rawNextName) ? rawNextName : "";
+              const nextAadhaar = (results.type === "aadhaar" || results.type === "vid")
+                ? results.docNumber : "";
+
+              const prevScore = getNameConfidenceScore(prev.fullName);
+              const nextScore = getNameConfidenceScore(nextName);
+
+              console.log("Setting Family Head (Gallery). Prev:", prev, "Next:", { nextName, nextAadhaar, results });
+              return {
+                ...prev,
+                fullName: (nextName && (!prev.fullName || nextScore > prevScore)) ? nextName : prev.fullName,
+                gender: (results.gender && !prev.gender) ? results.gender : prev.gender,
+                dob: (results.dob && !prev.dob) ? results.dob : prev.dob,
+                pincode: results.pincode || prev.pincode || "",
+                address: results.address || prev.address || "",
+                aadhaarNumber: (nextAadhaar && !prev.aadhaarNumber) ? nextAadhaar : prev.aadhaarNumber,
+              };
+            });
 
             // ALWAYS compress for storage/request
             let compressedBase64 = base64;
@@ -950,7 +989,7 @@ const AyushCardApplicationForm = ({
       value = value.replace(/[0-9]/g, "");
     if (name === "contactNumber" || name === "alternateContact")
       value = value.replace(/\D/g, "").slice(0, 10);
-    if (name === "aadhaarNumber") value = value.replace(/\D/g, "").slice(0, 12);
+    if (name === "aadhaarNumber") value = value.trim();
     if (name === "pincode") value = value.replace(/\D/g, "").slice(0, 6);
 
     if (name === "dob") {
@@ -1115,11 +1154,11 @@ const AyushCardApplicationForm = ({
     // Validations
     if (name === "fullName") value = value.replace(/[0-9]/g, "");
     if (name === "contactNumber") value = value.replace(/\D/g, "").slice(0, 10);
-    if (name === "aadhaarNumber") value = value.replace(/\D/g, "").slice(0, 12);
+    if (name === "aadhaarNumber") value = value.trim();
     if (name === "documentId") {
       const docType = updatedMembers[index]?.documentType || "Aadhaar";
       if (docType === "Aadhaar") {
-        value = value.replace(/\D/g, "").slice(0, 12);
+        value = value.trim();
       } else {
         value = value.toUpperCase();
       }
@@ -1393,19 +1432,33 @@ const AyushCardApplicationForm = ({
   const normalizeDigits = (s) => String(s || "").replace(/\D/g, "");
   const isLikelyMemberName = (s) => {
     const t = String(s || "").trim();
-    if (t.length < 3 || t.length > 80) return false;
-    const words = t.split(/\s+/).filter(Boolean);
-    if (words.length < 1) return false;
-    // Require at least one "real" word token.
-    return words.some((w) => /^[A-Za-z]{3,}$/.test(w));
+    const result = t.length >= 3 && t.length <= 80 && !/(Aadhar|Card|India|Govt|Unique)/i.test(t);
+    console.log("DEBUG: isLikelyMemberName for", t, "is", result);
+    return result;
+  };
+
+  const getNameConfidenceScore = (s) => {
+    if (!s) return 0;
+    const words = s.trim().split(/\s+/).filter(Boolean);
+    let score = 0;
+    for (const w of words) {
+      if (/^[A-Z][a-z]{3,}$/.test(w)) score += 25; // 4+ letter title case (Mohd, Saif)
+      else if (/^[A-Z][a-z]{1,2}$/.test(w)) score += 10; // 2-3 letter title case (Ali, Ram)
+      else if (/^[A-Za-z]{3,}$/.test(w)) score += 10;
+      if (w.length >= 4) score += 5;
+    }
+    if (words.length >= 2) score += 10; 
+    // Moderate penalty for very short single words, but multi-word names are usually okay
+    if (s.length < 8 && words.length < 2) score -= 30;
+    return score;
   };
 
   const isLikelyMemberDocId = (docNumber) => {
     const digits = normalizeDigits(docNumber);
-    // Member doc is Aadhaar: accept ONLY exactly 12 digits.
-    if (digits.length !== 12) return "";
+    // Member doc is Aadhaar: accept 10 or 12 digits (as per user request earlier).
+    if (digits.length !== 12 && digits.length !== 10) return "";
     // Ignore obvious junk like "000000000000" or "111111111111".
-    if (/^(\d)\1{11}$/.test(digits)) return "";
+    if (/^(\d)\1{9,11}$/.test(digits)) return "";
     return digits;
   };
 
@@ -1530,11 +1583,16 @@ const AyushCardApplicationForm = ({
       setMembers((prev) => {
         const updatedMembers = [...prev];
         const target = updatedMembers[index] || {};
+        
+        const nextScore = getNameConfidenceScore(nextName);
+        const prevScore = getNameConfidenceScore(target.fullName);
+        const currentAadhaarValid = target.documentId && target.documentId.replace(/\D/g, "").length >= 10;
+        
         updatedMembers[index] = {
           ...target,
-          fullName: nextName ? nextName : target.fullName,
-          age: nextAge ? nextAge : target.age,
-          documentId: nextDocIdAccepted ? nextDocIdAccepted : target.documentId,
+          fullName: (nextName && (!target.fullName || nextScore > prevScore)) ? nextName : target.fullName,
+          age: (nextAge && !target.age) ? nextAge : target.age,
+          documentId: (nextDocIdAccepted && !currentAadhaarValid) ? nextDocIdAccepted : target.documentId,
           scannedImage: storageBase64,
         };
         return updatedMembers;
@@ -1680,7 +1738,7 @@ const AyushCardApplicationForm = ({
       members: members.map((m) => {
         const docType = m.documentType || "Aadhaar";
         let docId = m.documentId || "";
-        if (docType === "Aadhaar") docId = docId.replace(/\D/g, "");
+        if (docType === "Aadhaar") docId = docId; // Verbatim
         return {
           name: m.fullName,
           relation: m.relation || "Family Member",
@@ -1755,7 +1813,7 @@ const AyushCardApplicationForm = ({
       relatedPerson: familyHead.relatedPerson || "",
       address: familyHead.address || "",
       pincode: familyHead.pincode || "",
-      aadhaarNumber: familyHead.aadhaarNumber?.replace(/\D/g, "") || "",
+      aadhaarNumber: familyHead.aadhaarNumber || "",
       cardNo: `${Math.floor(100000000000 + Math.random() * 900000000000)}`,
       cardIssueDate: today,
       cardExpiredDate: cardExpiryDate,
@@ -1765,7 +1823,7 @@ const AyushCardApplicationForm = ({
       members: members.map((m) => {
         const docType = m.documentType || "Aadhaar";
         let docId = m.documentId || "";
-        if (docType === "Aadhaar") docId = docId.replace(/\D/g, "");
+        if (docType === "Aadhaar") docId = docId; // Verbatim
         return {
           name: m.fullName,
           relation: m.relation || "Family Member",
@@ -2006,8 +2064,9 @@ const AyushCardApplicationForm = ({
         toastWarn("Contact number must be 10 digits.");
         return;
       }
-      if (fg.aadhaarNumber.replace(/\D/g, "").length < 12) {
-        toastWarn("Aadhaar number must be 12 digits.");
+      const adDigits = fg.aadhaarNumber.replace(/\D/g, "");
+      if (adDigits.length < 8) {
+        toastWarn("Please enter a valid Aadhaar number (at least 8-12 digits).");
         return;
       }
       if (fg.pincode.replace(/\D/g, "").length < 6) {
@@ -2034,10 +2093,10 @@ const AyushCardApplicationForm = ({
         const pType = p.documentType || "Aadhaar";
         if (
           pType === "Aadhaar" &&
-          (p.documentId || "").replace(/\D/g, "").length < 12
+          (p.documentId || "").replace(/\D/g, "").length < 8
         ) {
           toastWarn(
-            `Please enter a valid 12-digit Aadhaar ID for Member ${i + 1}`,
+            `Please enter a valid Aadhaar ID for Member ${i + 1}`,
           );
           return;
         } else if (pType !== "Aadhaar" && !(p.documentId || "").trim()) {
@@ -2129,7 +2188,7 @@ const AyushCardApplicationForm = ({
     members: members.map((m) => {
       const docType = m.documentType || "Aadhaar";
       let docId = m.documentId || "";
-      if (docType === "Aadhaar") docId = docId.replace(/\D/g, "");
+      if (docType === "Aadhaar") docId = docId; // Verbatim
       return {
         name: m.fullName,
         relation: m.relation || "Family Member",
@@ -2201,7 +2260,7 @@ const AyushCardApplicationForm = ({
     const displayPhone = rec?.contact ?? familyHead.contactNumber ?? "—";
     const displayAadhaarRaw = String(
       rec?.aadhaarNumber ?? familyHead.aadhaarNumber ?? "",
-    ).replace(/\D/g, "");
+    );
     const displayAddress = rec?.address ?? familyHead.address ?? "";
     const displayPin = rec?.pincode ?? familyHead.pincode ?? "—";
     const receiptTotal =
@@ -2996,7 +3055,8 @@ const AyushCardApplicationForm = ({
                           name="aadhaarNumber"
                           value={familyHead.aadhaarNumber}
                           onChange={handleHeadChange}
-                          placeholder="12-digit Aadhaar number"
+                          placeholder="Aadhaar number"
+                          autoComplete="off"
                           style={{ fontFamily: "'Inter', sans-serif" }}
                           className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
                         />
