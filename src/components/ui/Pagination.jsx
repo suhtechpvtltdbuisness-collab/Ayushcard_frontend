@@ -1,5 +1,5 @@
-import React from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import React, { useState } from "react";
+import { ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 
 /**
  * Common Pagination component for all admin tables
@@ -79,33 +79,76 @@ const Pagination = ({
 
   return (
     <div className="flex flex-col md:flex-row items-center justify-between px-3 sm:px-4 md:px-6 py-3 md:py-4 border-t border-gray-100 bg-[#FFFFFF] shrink-0 gap-3 md:gap-4">
-      {/* Items info & Rows per page */}
-      <div className="flex flex-col md:flex-row items-center gap-3 md:gap-6 w-full md:w-auto">
-        <span className="hidden md:block text-sm font-medium text-[#6B7280] order-2 md:order-1">
+      {/* Mobile-only Layout */}
+      <div className="flex flex-col w-full gap-3 md:hidden">
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-1.5">
+            <label htmlFor="items-per-page-mob" className="text-xs text-[#9CA3AF] font-medium">
+              Rows:
+            </label>
+            <CustomSelect
+              value={itemsPerPage}
+              onChange={onItemsPerPageChange}
+              options={[10, 25, 50]}
+              mobile={true}
+            />
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage <= 1}
+              className={`p-1 flex items-center justify-center rounded-md ${
+                currentPage <= 1 ? "text-gray-300" : "text-[#4B5563] bg-gray-50 active:bg-gray-200"
+              }`}
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <span className="text-xs font-semibold text-[#4B5563]">
+              {currentPage} / {totalPages}
+            </span>
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage >= totalPages}
+              className={`p-1 flex items-center justify-center rounded-md ${
+                currentPage >= totalPages ? "text-gray-300" : "text-[#4B5563] bg-gray-50 active:bg-gray-200"
+              }`}
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
+        </div>
+        
+        <div className="flex justify-center w-full">
+          <span className="text-xs font-medium text-[#6B7280]">
+            Showing <span className="text-[#22333B]">{totalItems > 0 ? startIndex + 1 : 0}</span> to{" "}
+            <span className="text-[#22333B]">{Math.min(startIndex + itemsPerPage, totalItems)}</span> of{" "}
+            <span className="text-[#22333B] font-bold">{totalItems}</span> results
+          </span>
+        </div>
+      </div>
+
+      {/* Desktop-only Layout */}
+      <div className="hidden md:flex items-center gap-6 w-auto">
+        <span className="text-sm font-medium text-[#6B7280]">
           Showing <span className="text-[#22333B]">{totalItems > 0 ? startIndex + 1 : 0}</span> to{" "}
           <span className="text-[#22333B]">{Math.min(startIndex + itemsPerPage, totalItems)}</span> of{" "}
           <span className="text-[#22333B] font-bold">{totalItems}</span> results
         </span>
 
-        <div className="hidden sm:flex items-center gap-2 order-1 md:order-2">
+        <div className="flex items-center gap-2">
           <label htmlFor="items-per-page" className="text-sm text-[#9CA3AF] font-medium">
             Rows per page:
           </label>
-          <select
-            id="items-per-page"
+          <CustomSelect
             value={itemsPerPage}
-            onChange={(e) => onItemsPerPageChange(Number(e.target.value))}
-            className="bg-[#F9FAFB] border border-[#E5E7EB] text-[#374151] text-sm rounded-lg focus:ring-[#F68E5F] focus:border-[#F68E5F] block px-2.5 py-1.5 outline-none cursor-pointer hover:bg-gray-50 transition-colors"
-          >
-            <option value={10}>10</option>
-            <option value={25}>25</option>
-            <option value={50}>50</option>
-          </select>
+            onChange={onItemsPerPageChange}
+            options={[10, 25, 50]}
+          />
         </div>
       </div>
 
-      {/* Navigation Controls */}
-      <div className="flex items-center justify-between md:justify-end gap-1 w-full md:w-auto">
+      <div className="hidden md:flex items-center justify-end gap-1 w-auto">
         <button
           onClick={() => handlePageChange(currentPage - 1)}
           disabled={currentPage <= 1}
@@ -120,11 +163,7 @@ const Pagination = ({
           <span className="hidden xl:inline text-sm font-semibold pr-1">Previous</span>
         </button>
 
-        <div className="sm:hidden text-sm font-semibold text-[#4B5563] px-2">
-          {currentPage} / {totalPages}
-        </div>
-
-        <div className="hidden sm:flex items-center gap-1 mx-2">
+        <div className="flex items-center gap-1 mx-2">
           {renderPaginationButtons()}
         </div>
 
@@ -142,12 +181,46 @@ const Pagination = ({
           <ChevronRight size={20} />
         </button>
       </div>
+    </div>
+  );
+};
 
-      <span className="md:hidden text-xs font-medium text-[#6B7280]">
-        Showing <span className="text-[#22333B]">{totalItems > 0 ? startIndex + 1 : 0}</span> to{" "}
-        <span className="text-[#22333B]">{Math.min(startIndex + itemsPerPage, totalItems)}</span> of{" "}
-        <span className="text-[#22333B] font-bold">{totalItems}</span>
-      </span>
+const CustomSelect = ({ value, onChange, options, mobile = false }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="relative inline-block text-left">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`bg-[#F9FAFB] border border-[#E5E7EB] text-[#374151] font-medium rounded-md focus:ring-1 focus:ring-[#F68E5F] focus:border-[#F68E5F] outline-none cursor-pointer flex items-center justify-between gap-1 hover:bg-gray-50 transition-colors ${
+          mobile ? "text-xs px-1.5 py-1 min-w-[50px]" : "text-sm px-2.5 py-1.5 min-w-[60px]"
+        }`}
+      >
+        <span>{value}</span>
+        <ChevronDown size={mobile ? 12 : 14} className="text-gray-500" />
+      </button>
+
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)}></div>
+          <div className="absolute bottom-full mb-1 left-0 min-w-full bg-white border border-gray-200 rounded-md shadow-lg z-50 overflow-hidden">
+            {options.map((opt) => (
+              <div
+                key={opt}
+                onClick={() => {
+                  onChange(Number(opt));
+                  setIsOpen(false);
+                }}
+                className={`px-3 py-1.5 text-xs md:text-sm cursor-pointer hover:bg-orange-50 transition-colors ${
+                  value === opt ? "bg-orange-50 text-[#F68E5F] font-bold" : "text-gray-700 font-medium"
+                }`}
+              >
+                {opt}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 };
