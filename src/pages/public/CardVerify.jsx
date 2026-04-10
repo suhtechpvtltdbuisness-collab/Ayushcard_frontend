@@ -119,7 +119,7 @@ export default function CardVerify() {
   const name      = [card.firstName, card.middleName, card.lastName].filter(Boolean).join(" ");
   const s         = (card.status || "").toLowerCase();
   const isVerified = s === "approved" || s === "active" || s === "verified";
-  const cardNo    = card.cardNo || card.applicationId || card._id || cardId;
+  const cardNo    = card.applicationId || card._id || cardId;
   const ngoLocation = card.ngoLocation || "Mangla Vihar Kanpur - 208015";
   const ngoPhone    = card.ngoPhone    || "9927384859";
   const ngoEmail    = card.ngoEmail    || "baijnaathkesarbaisewatrust9625@gmail.com";
@@ -150,7 +150,7 @@ export default function CardVerify() {
                   <p className="text-[13px] font-bold leading-tight">BAIJNAATH KESAR</p>
                   <p className="text-[13px] font-bold leading-tight">BAI SEWA TRUST</p>
                 </div>
-                <p className="text-[11px] text-white/80">Card No: {cardNo}</p>
+                <p className="text-[11px] text-white/80">Card ID: {cardNo}</p>
               </div>
             </div>
             <div className="text-right">
@@ -208,7 +208,7 @@ export default function CardVerify() {
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-xs font-bold">BAIJNAATH KESAR BAI SEWA TRUST</p>
-                <p className="text-[10px] text-white/70">Card No: {cardNo}</p>
+                <p className="text-[10px] text-white/70">card ID: {cardNo}</p>
               </div>
               <p className="text-base font-extrabold">AYUSH CARD</p>
             </div>

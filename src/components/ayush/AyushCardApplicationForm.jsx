@@ -341,7 +341,7 @@ const AyushCardApplicationForm = ({
           <meta charset="utf-8">
           <style>
             body { font-family: sans-serif; color: black; background: white; margin: 0; padding: 0; }
-            .public-thermal-receipt { width: 58mm; box-sizing: border-box; padding: 2mm; font-size: 9px; line-height: 1.2; }
+            .public-thermal-receipt { width: 58mm; box-sizing: border-box; padding: 2mm; font-size: 6px; line-height: 1.2; }
             .text-center { text-align: center; }
             .font-bold { font-weight: bold; }
             .font-black { font-weight: 900; }
@@ -367,19 +367,20 @@ const AyushCardApplicationForm = ({
             .space-y-1 > * + * { margin-top: 4px; }
             .space-y-0\\.5 > * + * { margin-top: 2px; }
             /* Tailwind specific classes used in renderThermalReceipt */
-            .text-\\[15px\\] { font-size: 15px; }
-            .text-\\[10px\\] { font-size: 10px; }
-            .text-\\[9px\\] { font-size: 9px; }
-            .text-\\[8px\\] { font-size: 8px; }
-            .text-\\[7px\\] { font-size: 7px; }
+            .text-\\[15px\\] { font-size: 0px; }
+            .text-\\[10px\\] { font-size: 6px; }
+            .text-\\[9px\\] { font-size: 6px; }
+            .text-\\[8px\\] { font-size: 6px; }
+            .text-\\[7px\\] { font-size: 6px; }
             .m-0 { margin: 0; }
             .p-0 { padding: 0; }
             .list-none { list-style-type: none; }
+            .thermal-logo { width: 40px; height: 40px; margin: 0 auto 8px; display: block; object-fit: contain; }
           </style>
         </head>
         <body>
           <div class="public-thermal-receipt">
-            ${receiptEl.innerHTML}
+            ${receiptEl.innerHTML.replace('/logo1.svg', window.location.origin + '/logo1.svg')}
           </div>
         </body>
       </html>
@@ -2227,7 +2228,13 @@ const AyushCardApplicationForm = ({
           className="public-thermal-receipt w-[2in] max-w-[2in] box-border bg-white p-2 font-sans text-black leading-tight"
         >
           <div className="text-center border-b border-dashed border-black pb-2 mb-2">
-            <h1 className="font-black text-[15px] uppercase tracking-tight leading-none">
+            <img 
+              src="/logo1.svg" 
+              alt="logo" 
+              className="w-10 h-10 mx-auto mb-2 object-contain"
+              style={{ display: 'block', margin: '0 auto 8px', width: '40px', height: '40px' }}
+            />
+            <h1 className="font-black text-[12px] uppercase tracking-tight leading-none">
               BKBS
             </h1>
             <p className="text-[7px] font-semibold mt-1 uppercase tracking-wide">
@@ -2266,7 +2273,7 @@ const AyushCardApplicationForm = ({
 
           <div className="text-[8px] mb-2 border-b border-dashed border-gray-400 pb-2">
             <p className="font-bold uppercase mb-1">Family head</p>
-            <p className="font-bold text-[9px] uppercase break-words">
+            <p className="font-bold text-[6px] uppercase break-words">
               {displayName}
             </p>
             <p className="mt-0.5">Ph: {displayPhone || "—"}</p>
@@ -2346,7 +2353,7 @@ const AyushCardApplicationForm = ({
                 </div>
               </>
             )}
-            <div className="flex justify-between font-black text-[10px] border-t-2 border-black pt-1 mt-1">
+            <div className="flex justify-between font-black text-[6px] border-t-2 border-black pt-1 mt-1">
               <span>TOTAL</span>
               <span>₹{receiptTotal}.00</span>
             </div>
@@ -2372,7 +2379,7 @@ const AyushCardApplicationForm = ({
           </div>
 
           <div className="text-[7px] mt-3 pt-2 border-t border-dashed border-gray-400 space-y-1">
-            <p className="font-bold text-center text-[8px] mb-1">
+            <p className="font-bold text-center text-[6px] mb-1">
               महत्वपूर्ण सूचना
             </p>
             <p className="text-[6px] leading-tight">

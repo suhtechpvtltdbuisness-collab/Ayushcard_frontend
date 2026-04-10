@@ -80,7 +80,7 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
                   <h2 className="text-[16px] font-bold">BAI SEWA TRUST</h2>
                 </div>
                 <p className="text-[11px]">
-                  Card No: {data?.cardNo || data?.cardNumber || data?.id || "—"}
+                  Card ID: {data?.applicationId}
                 </p>
               </div>
             </div>
@@ -292,9 +292,9 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
                     </h2>
                   </div>
                   <p className="text-[8px] m-0 font-medium">
-                    Card No:{" "}
-                    {data?.cardNo || data?.cardNumber || data?.id || "—"}
-                  </p>
+                    Card ID:{" "}
+                    {data?.applicationId || "—"}
+                  </p>  
                 </div>
               </div>
               <div className="text-right flex flex-col justify-center">
