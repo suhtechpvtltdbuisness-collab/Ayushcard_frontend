@@ -711,7 +711,7 @@ const AyushCardApplicationForm = ({
           const rawNextName = results.name || results.fullName;
           const nextName = isLikelyMemberName(rawNextName) ? rawNextName : "";
           const nextAadhaar = (results.type === "aadhaar" || results.type === "vid")
-            ? results.docNumber : "";
+            ? normalizeDigits(results.docNumber) : "";
 
           const prevScore = getNameConfidenceScore(prev.fullName);
           const nextScore = getNameConfidenceScore(nextName);
@@ -927,7 +927,7 @@ const AyushCardApplicationForm = ({
               const rawNextName = results.name || results.fullName;
               const nextName = isLikelyMemberName(rawNextName) ? rawNextName : "";
               const nextAadhaar = (results.type === "aadhaar" || results.type === "vid")
-                ? results.docNumber : "";
+                ? normalizeDigits(results.docNumber) : "";
 
               const prevScore = getNameConfidenceScore(prev.fullName);
               const nextScore = getNameConfidenceScore(nextName);
@@ -989,7 +989,7 @@ const AyushCardApplicationForm = ({
       value = value.replace(/[0-9]/g, "");
     if (name === "contactNumber" || name === "alternateContact")
       value = value.replace(/\D/g, "").slice(0, 10);
-    if (name === "aadhaarNumber") value = value.trim();
+    if (name === "aadhaarNumber") value = value.replace(/\s/g, "");
     if (name === "pincode") value = value.replace(/\D/g, "").slice(0, 6);
 
     if (name === "dob") {
@@ -1154,11 +1154,11 @@ const AyushCardApplicationForm = ({
     // Validations
     if (name === "fullName") value = value.replace(/[0-9]/g, "");
     if (name === "contactNumber") value = value.replace(/\D/g, "").slice(0, 10);
-    if (name === "aadhaarNumber") value = value.trim();
+    if (name === "aadhaarNumber") value = value.replace(/\s/g, "");
     if (name === "documentId") {
       const docType = updatedMembers[index]?.documentType || "Aadhaar";
       if (docType === "Aadhaar") {
-        value = value.trim();
+        value = value.replace(/\s/g, "");
       } else {
         value = value.toUpperCase();
       }
@@ -1690,7 +1690,7 @@ const AyushCardApplicationForm = ({
       dob: familyHead.dob,
       address: familyHead.address,
       pincode: familyHead.pincode,
-      aadhaarNumber: familyHead.aadhaarNumber,
+      aadhaarNumber: (familyHead.aadhaarNumber || "").replace(/\s/g, ""),
       cardIssueDate: today,
       cardExpiredDate: cardExpiryDate,
       verificationDate: today,
@@ -1738,7 +1738,7 @@ const AyushCardApplicationForm = ({
       members: members.map((m) => {
         const docType = m.documentType || "Aadhaar";
         let docId = m.documentId || "";
-        if (docType === "Aadhaar") docId = docId; // Verbatim
+        if (docType === "Aadhaar") docId = (docId || "").replace(/\s/g, "");
         return {
           name: m.fullName,
           relation: m.relation || "Family Member",
@@ -1813,7 +1813,7 @@ const AyushCardApplicationForm = ({
       relatedPerson: familyHead.relatedPerson || "",
       address: familyHead.address || "",
       pincode: familyHead.pincode || "",
-      aadhaarNumber: familyHead.aadhaarNumber || "",
+      aadhaarNumber: (familyHead.aadhaarNumber || "").replace(/\s/g, ""),
       cardNo: `${Math.floor(100000000000 + Math.random() * 900000000000)}`,
       cardIssueDate: today,
       cardExpiredDate: cardExpiryDate,
@@ -1823,7 +1823,7 @@ const AyushCardApplicationForm = ({
       members: members.map((m) => {
         const docType = m.documentType || "Aadhaar";
         let docId = m.documentId || "";
-        if (docType === "Aadhaar") docId = docId; // Verbatim
+        if (docType === "Aadhaar") docId = (docId || "").replace(/\s/g, "");
         return {
           name: m.fullName,
           relation: m.relation || "Family Member",
