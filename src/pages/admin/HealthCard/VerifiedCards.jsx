@@ -238,17 +238,17 @@ export default function VerifiedCards() {
       className="flex flex-col h-[calc(100vh-170px)]"
       style={{ fontFamily: "Inter, sans-serif" }}
     >
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 shrink-0 gap-4 sm:gap-0">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 shrink-0 gap-3 sm:gap-0">
         <h2 className="text-xl font-bold text-[#22333B]">Verified Cards</h2>
         <button
           onClick={handleExportClick}
-          className="px-4 py-1.5 border border-[#F68E5F] bg-[#ffffff] rounded-lg text-[15px] font-medium text-[#F68E5F] flex items-center gap-2 transition-colors hover:bg-orange-50"
+          className="w-full sm:w-auto px-4 py-2 border border-[#F68E5F] bg-[#ffffff] rounded-lg text-[15px] font-medium text-[#F68E5F] flex items-center justify-center gap-2 transition-colors hover:bg-orange-50"
         >
           Export +
         </button>
       </div>
 
-      <div className="flex items-center justify-between gap-4 mb-4 shrink-0">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-4 shrink-0">
         <div className="relative w-full xl:w-70">
           <input
             type="text"
@@ -275,7 +275,7 @@ export default function VerifiedCards() {
           </div>
         ) : paginatedData.length > 0 ? (
           <div className="overflow-y-auto overflow-x-auto flex-1">
-            <table className="w-full text-left border-collapse relative">
+            <table className="w-full min-w-[820px] text-left border-collapse relative">
               <thead className="sticky top-0 z-10 bg-[#FFFFFF]">
                 <tr>
                   <th className="py-3 px-4 w-12 text-center">
@@ -295,16 +295,16 @@ export default function VerifiedCards() {
                   <th className="py-3 px-4 text-sm font-semibold text-[#22333B]">
                     Card ID
                   </th>
-                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B]">
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] min-w-[180px]">
                     Applicant
                   </th>
-                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B]">
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] hidden md:table-cell">
                     Phone
                   </th>
-                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] text-center">
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] text-center hidden lg:table-cell">
                     Members
                   </th>
-                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] text-right">
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] text-right hidden lg:table-cell">
                     Amount
                   </th>
                   <th className="py-3 px-4 text-sm font-semibold text-[#22333B]">
@@ -340,13 +340,13 @@ export default function VerifiedCards() {
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
                         {row.applicant}
                       </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
+                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap hidden md:table-cell">
                         {row.phone}
                       </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] text-center">
+                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] text-center hidden lg:table-cell">
                         {row.members?.length || 0}
                       </td>
-                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] text-right whitespace-nowrap">
+                      <td className="py-3 px-4 text-sm font-normal text-[#22333B] text-right whitespace-nowrap hidden lg:table-cell">
                         ₹{Number(row.payment?.totalPaid || 0).toFixed(2)}
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">

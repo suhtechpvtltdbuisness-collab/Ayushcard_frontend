@@ -255,14 +255,14 @@ export default function ExportPrintModal({ isOpen, onClose, selectedData, onExpo
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 text-[#1E293B]"
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 text-[#1E293B] p-2 sm:p-4"
       style={{ fontFamily: "Inter, sans-serif" }}
     >
-      <div className="bg-white rounded-2xl w-[92%] max-w-5xl h-[88vh] flex flex-col shadow-2xl overflow-hidden">
+      <div className="bg-white rounded-2xl w-full sm:w-[92%] max-w-5xl h-[92vh] sm:h-[88vh] flex flex-col shadow-2xl overflow-hidden">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-          <h2 className="text-[20px] font-bold">Export for Printing</h2>
+        <div className="flex items-start sm:items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200 shrink-0 gap-3">
+          <h2 className="text-[18px] sm:text-[20px] font-bold leading-tight">Export for Printing</h2>
           <button
             onClick={onClose}
             disabled={downloading}
@@ -274,47 +274,47 @@ export default function ExportPrintModal({ isOpen, onClose, selectedData, onExpo
 
         {/* Progress bar */}
         {downloading && progress && (
-          <div className="px-6 py-2 bg-orange-50 border-b border-orange-100 flex items-center gap-2 shrink-0">
+          <div className="px-4 sm:px-6 py-2 bg-orange-50 border-b border-orange-100 flex items-center gap-2 shrink-0">
             <Loader2 size={14} className="animate-spin text-orange-500 shrink-0" />
             <span className="text-sm text-orange-700 font-medium truncate">{progress}</span>
           </div>
         )}
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
 
           {/* Batch info row */}
-          <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-5 gap-3">
+            <div className="flex items-center gap-3 min-w-0">
               <span className="w-8 h-8 rounded-lg bg-[#22333B] text-white flex items-center justify-center font-bold text-sm">
                 {currentChunkIndex + 1}
               </span>
               <div>
-                <h3 className="font-bold text-[16px]">Batch {currentChunkIndex + 1} of {totalChunks}</h3>
-                <p className="text-sm text-gray-500">
+                <h3 className="font-bold text-[16px] sm:text-[16px]">Batch {currentChunkIndex + 1} of {totalChunks}</h3>
+                <p className="text-sm text-gray-500 leading-snug">
                   Cards {currentChunkIndex * 25 + 1} –{" "}
                   {Math.min((currentChunkIndex + 1) * 25, selectedData.length)} · Front + Back Sheet pair
                 </p>
               </div>
             </div>
 
-            <div className="flex gap-2 items-center flex-wrap">
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:flex-wrap w-full lg:w-auto">
               {totalChunks > 1 && (
                 <>
                   <button onClick={() => setCurrentChunkIndex((p) => Math.max(0, p - 1))}
                     disabled={currentChunkIndex === 0 || downloading}
-                    className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40">
+                    className="px-3 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 w-full sm:w-auto">
                     ← Prev
                   </button>
                   <button onClick={() => setCurrentChunkIndex((p) => Math.min(totalChunks - 1, p + 1))}
                     disabled={currentChunkIndex === totalChunks - 1 || downloading}
-                    className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40">
+                    className="px-3 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 w-full sm:w-auto">
                     Next →
                   </button>
                 </>
               )}
               <button onClick={handleDownloadBoth} disabled={downloading}
-                className="flex items-center gap-2 px-4 py-2 bg-[#22333B] text-white rounded-lg text-sm font-medium hover:bg-[#1a2830] disabled:opacity-50">
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-[#22333B] text-white rounded-lg text-sm font-medium hover:bg-[#1a2830] disabled:opacity-50 w-full sm:w-auto">
                 {downloading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
                 Download Both
               </button>
@@ -322,17 +322,17 @@ export default function ExportPrintModal({ isOpen, onClose, selectedData, onExpo
           </div>
 
           {/* Front / Back grid pair */}
-          <div className="grid grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-5">
             {/* FRONT */}
-            <div className="border border-gray-200 rounded-xl p-4 flex flex-col gap-3 h-[520px]">
-              <div className="flex items-center justify-between shrink-0">
+            <div className="border border-gray-200 rounded-xl p-3 sm:p-4 flex flex-col gap-3 min-h-[420px] sm:h-[520px]">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between shrink-0 gap-3">
                 <div>
-                  <span className="px-2 py-0.5 bg-[#22333B] text-white rounded text-xs font-bold mr-2">FRONT</span>
+                  <span className="px-2 py-0.5 bg-[#22333B] text-white rounded text-xs font-bold mr-2 inline-block">FRONT</span>
                   <span className="font-bold text-sm">Sheet {currentChunkIndex + 1}</span>
                   <p className="text-xs text-gray-400 mt-0.5">{currentCards.length} cards · 12x18 in</p>
                 </div>
                 <button onClick={() => handleDownloadSide("front")} disabled={downloading}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#3E3E3E] text-white rounded-lg text-xs font-medium hover:bg-gray-700 disabled:opacity-50">
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 bg-[#3E3E3E] text-white rounded-lg text-xs font-medium hover:bg-gray-700 disabled:opacity-50 w-full sm:w-auto">
                   {downloading ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} Download
                 </button>
               </div>
@@ -341,15 +341,15 @@ export default function ExportPrintModal({ isOpen, onClose, selectedData, onExpo
             </div>
 
             {/* BACK */}
-            <div className="border border-gray-200 rounded-xl p-4 flex flex-col gap-3 h-[520px]">
-              <div className="flex items-center justify-between shrink-0">
+            <div className="border border-gray-200 rounded-xl p-3 sm:p-4 flex flex-col gap-3 min-h-[420px] sm:h-[520px]">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between shrink-0 gap-3">
                 <div>
-                  <span className="px-2 py-0.5 bg-gray-500 text-white rounded text-xs font-bold mr-2">BACK</span>
+                  <span className="px-2 py-0.5 bg-gray-500 text-white rounded text-xs font-bold mr-2 inline-block">BACK</span>
                   <span className="font-bold text-sm">Sheet {currentChunkIndex + 1}</span>
                   <p className="text-xs text-gray-400 mt-0.5">{currentCards.length} cards · 12x18 in</p>
                 </div>
                 <button onClick={() => handleDownloadSide("back")} disabled={downloading}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#3E3E3E] text-white rounded-lg text-xs font-medium hover:bg-gray-700 disabled:opacity-50">
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 bg-[#3E3E3E] text-white rounded-lg text-xs font-medium hover:bg-gray-700 disabled:opacity-50 w-full sm:w-auto">
                   {downloading ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} Download
                 </button>
               </div>
@@ -360,22 +360,22 @@ export default function ExportPrintModal({ isOpen, onClose, selectedData, onExpo
         </div>
 
         {/* Footer */}
-        <div className="border-t border-gray-200 bg-white px-6 py-4 flex items-center justify-between shrink-0">
-          <span className="text-sm font-medium text-gray-500">
+        <div className="border-t border-gray-200 bg-white px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
+          <span className="text-sm font-medium text-gray-500 text-center sm:text-left">
             {downloadedCount} of {totalChunks * 2} sheets downloaded
           </span>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
             <button
               onClick={() => { setDownloadedCount(0); setCurrentChunkIndex(0); }}
               disabled={downloading}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50"
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50 w-full sm:w-auto"
             >
               Reset
             </button>
             <button
               onClick={handleDownloadAll}
               disabled={downloading}
-              className="px-6 py-2 bg-[#F68E5F] hover:bg-[#ff702d] text-white rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm disabled:opacity-60"
+              className="px-6 py-2 bg-[#F68E5F] hover:bg-[#ff702d] text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 shadow-sm disabled:opacity-60 w-full sm:w-auto"
             >
               {downloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
               {downloading ? "Processing…" : "Download All"}
