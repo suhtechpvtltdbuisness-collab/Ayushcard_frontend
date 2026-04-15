@@ -12,8 +12,8 @@ import { getEmployees } from "../../../../data/mockData";
 const CardStatusBadge = ({ status }) => {
   const map = {
     "Not verified": { bg: "bg-[#FFA10033]", dot: "bg-[#FFA100]", text: "text-[#FFA100]" },
-    "Verified":    { bg: "bg-[#76DB1E33]", dot: "bg-[#76DB1E]", text: "text-[#76DB1E]" },
-    "Expired":     { bg: "bg-[#FF383C33]", dot: "bg-[#FF383C]", text: "text-[#FF383C]" },
+    "Verified": { bg: "bg-[#76DB1E33]", dot: "bg-[#76DB1E]", text: "text-[#76DB1E]" },
+    "Expired": { bg: "bg-[#FF383C33]", dot: "bg-[#FF383C]", text: "text-[#FF383C]" },
   };
   const style = map[status] || { bg: "bg-gray-100", dot: "bg-gray-400", text: "text-gray-600" };
   return (
@@ -40,20 +40,20 @@ const normalizeCard = (card) => ({
   status: (() => {
     switch ((card.status || "").toLowerCase()) {
       case "approved": return "Verified";
-      case "active":   return "Verified";
-      case "pending":  return "Not verified";
+      case "active": return "Verified";
+      case "pending": return "Not verified";
       case "rejected": return "Not verified";
-      case "expired":  return "Expired";
-      default:         return card.status || "Not verified";
+      case "expired": return "Expired";
+      default: return card.status || "Not verified";
     }
   })(),
 });
 
 /* ── Employee Cards Panel ──────────────────────────────────────────── */
 const EmployeeCardsPanel = ({ employee, onClose }) => {
-  const [cards, setCards]   = useState([]);
+  const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError]   = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const fetchCards = async () => {
@@ -64,10 +64,10 @@ const EmployeeCardsPanel = ({ employee, onClose }) => {
         const raw = Array.isArray(res?.data?.cards)
           ? res.data.cards
           : Array.isArray(res?.data)
-          ? res.data
-          : Array.isArray(res)
-          ? res
-          : [];
+            ? res.data
+            : Array.isArray(res)
+              ? res
+              : [];
 
         // Filter cards whose createdBy matches this employee's _id / id
         const empId = employee._rawId || employee.id;
@@ -205,12 +205,12 @@ const ActionButtons = ({ item, navigate, onDelete, onViewCards }) => {
 const Employees = () => {
   const navigate = useNavigate();
   const { toastWarn, toastSuccess, toastError } = useToast();
-  const [employees, setEmployees]     = useState([]);
-  const [loading, setLoading]         = useState(true);
+  const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("All"); // Keep for logic but UI removed
   const [currentPage, setCurrentPage] = useState(1);
-  const [sortConfig, setSortConfig]   = useState({ key: null, direction: "asc" });
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [itemToDelete, setItemToDelete] = useState(null);
   const [selectedRows, setSelectedRows] = useState([]);
   const [selectedEmployee, setSelectedEmployee] = useState(null); // for card panel
@@ -232,8 +232,8 @@ const Employees = () => {
       const rawData = res.data || res;
 
       let list = Array.isArray(rawData) ? rawData : [];
-      if (!list.length && rawData?.data  && Array.isArray(rawData.data))      list = rawData.data;
-      if (!list.length && rawData?.users && Array.isArray(rawData.users))     list = rawData.users;
+      if (!list.length && rawData?.data && Array.isArray(rawData.data)) list = rawData.data;
+      if (!list.length && rawData?.users && Array.isArray(rawData.users)) list = rawData.users;
       if (!list.length && rawData?.employees && Array.isArray(rawData.employees)) list = rawData.employees;
 
       const mapped = list.map((u, i) => ({
@@ -252,11 +252,11 @@ const Employees = () => {
         _rawId: u._id,
       }));
       setEmployees(mapped.reverse());
-      
+
       const pagination = res?.pagination || res?.data?.pagination || {};
       const total = pagination.total ?? res?.total ?? res?.count ?? res?.data?.total ?? mapped.length;
       const pages = pagination.pages ?? (Math.ceil(total / itemsPerPage) || 1);
-      
+
       setTotalItems(Number(total));
       setTotalPages(Number(pages));
     } catch (err) {
@@ -326,7 +326,7 @@ const Employees = () => {
 
   // totalPages is now managed via state from backend response
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedData = processedData.length > itemsPerPage 
+  const paginatedData = processedData.length > itemsPerPage
     ? processedData.slice(startIndex, startIndex + itemsPerPage)
     : processedData;
 
@@ -355,9 +355,8 @@ const Employees = () => {
   const renderSortableHeader = (title, sortKey, align = "left", className = "") => (
     <th className={`py-3 px-4 text-sm font-semibold text-[#22333B] whitespace-nowrap ${className}`}>
       <div
-        className={`flex items-center gap-1 cursor-pointer hover:text-gray-600 ${
-          align === "center" ? "justify-center" : align === "right" ? "justify-end" : "justify-start"
-        }`}
+        className={`flex items-center gap-1 cursor-pointer hover:text-gray-600 ${align === "center" ? "justify-center" : align === "right" ? "justify-end" : "justify-start"
+          }`}
         onClick={() => handleSort(sortKey)}
       >
         {title}
@@ -477,8 +476,8 @@ const Employees = () => {
                       <td className="py-3 px-4 text-sm font-normal text-[#4B5563] whitespace-nowrap">{row.email}</td>
                       <td className="py-3 px-4 text-sm font-normal text-[#4B5563] whitespace-nowrap">{row.dateOfJoining}</td>
                       <td className="py-3 px-4 text-sm font-normal text-[#4B5563] whitespace-nowrap">
-                        <div 
-                          className="max-w-[140px] truncate" 
+                        <div
+                          className="max-w-[140px] truncate"
                           title={row.location}
                         >
                           {row.location}

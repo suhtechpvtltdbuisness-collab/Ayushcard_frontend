@@ -32,12 +32,18 @@ const Login = () => {
       let userRole = userData?.role || activeTab;
       userRole = userRole.charAt(0).toUpperCase() + userRole.slice(1).toLowerCase();
 
+      const isEmployee = userRole === "Employee";
+      const isEditor = userRole === "Editor";
+      const isAdmin = userRole === "Admin";
+
       // Ensure the user is logging in from the correct tab based on their actual role
-      if (activeTab === "Employee" && userRole !== "Employee") {
+      // Employee tab should allow both Employee and Editor
+      if (activeTab === "Employee" && !isEmployee && !isEditor) {
         throw new Error("Access denied: You are an Admin. Please login from the Admin tab.");
       }
-      if (activeTab === "Admin" && userRole === "Employee") {
-        throw new Error("Access denied: You are an Employee. Please login from the Employee tab.");
+      // Admin tab should only allow Admin
+      if (activeTab === "Admin" && !isAdmin) {
+        throw new Error("Access denied: You are an Employee/Editor. Please login from the Employee tab.");
       }
 
       // Save to localStorage (keep logged in) or sessionStorage (session only)
@@ -45,29 +51,31 @@ const Login = () => {
       store.setItem("token", accessToken);
       store.setItem("user", JSON.stringify(userData));
       if (refreshToken) store.setItem("refreshToken", refreshToken);
-      
+
       localStorage.setItem("userRole", userRole);
 
-      if (userRole === "Employee") {
+      if (isEmployee) {
         navigate("/employee");
-      } else {
+      } else if (isAdmin || isEditor) {
         navigate("/admin");
+      } else {
+        navigate("/login");
       }
     } catch (err) {
       let message = 'Invalid email or password. Please try again.';
-      
+
       if (err.response?.data?.message) {
-          message = err.response.data.message;
+        message = err.response.data.message;
       } else if (err.response?.data?.error) {
-          if (typeof err.response.data.error === 'string') {
-              message = err.response.data.error;
-          } else if (err.response.data.error.message) {
-              message = err.response.data.error.message;
-          }
+        if (typeof err.response.data.error === 'string') {
+          message = err.response.data.error;
+        } else if (err.response.data.error.message) {
+          message = err.response.data.error.message;
+        }
       } else if (err.message) {
-          message = err.message;
+        message = err.message;
       }
-      
+
       setError(message);
     } finally {
       setIsLoading(false);
@@ -121,11 +129,10 @@ const Login = () => {
           >
             <button
               type="button"
-              className={`flex-1 py-2 text-[16px] font-semibold rounded-xl transition-colors duration-200 ${
-                activeTab === "Admin"
+              className={`flex-1 py-2 text-[16px] font-semibold rounded-xl transition-colors duration-200 ${activeTab === "Admin"
                   ? "bg-[#F68E5F] text-white shadow-sm"
                   : "text-[#F68E5F] bg-transparent"
-              }`}
+                }`}
               onClick={() => {
                 setActiveTab("Admin");
                 setError("");
@@ -135,11 +142,10 @@ const Login = () => {
             </button>
             <button
               type="button"
-              className={`flex-1 py-2 text-[16px] font-semibold rounded-xl transition-colors duration-200 ${
-                activeTab === "Employee"
+              className={`flex-1 py-2 text-[16px] font-semibold rounded-xl transition-colors duration-200 ${activeTab === "Employee"
                   ? "bg-[#F68E5F] text-white shadow-sm"
                   : "text-[#F68E5F] bg-transparent"
-              }`}
+                }`}
               onClick={() => {
                 setActiveTab("Employee");
                 setError("");

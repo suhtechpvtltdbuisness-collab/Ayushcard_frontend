@@ -9,14 +9,15 @@ const ProtectedRoute = ({ allowedRole }) => {
     const getUserRole = () => {
         const storedRole = localStorage.getItem("userRole");
         if (storedRole) return storedRole.charAt(0).toUpperCase() + storedRole.slice(1).toLowerCase();
-        
+
         const user = JSON.parse(localStorage.getItem("user") || "{}");
         if (user.role) return user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase();
-        
+
         return null;
     };
 
     const userRole = getUserRole();
+    const isAdminLike = userRole === "Admin" || userRole === "Editor";
 
     // ── Helper: clear tokens and go to /login ────────────────────────────────
     const logout = (reason = "") => {
@@ -32,12 +33,19 @@ const ProtectedRoute = ({ allowedRole }) => {
         }
 
         // Role check
-        if (allowedRole && userRole !== allowedRole) {
-            console.error(`[ProtectedRoute] Access denied. Required: ${allowedRole}, Found: ${userRole}`);
-            if (userRole === "Admin") navigate("/admin", { replace: true });
-            else if (userRole === "Employee") navigate("/employee", { replace: true });
-            else navigate("/login", { replace: true });
-            return;
+        if (allowedRole) {
+            const hasAccess =
+                allowedRole === "Admin"
+                    ? isAdminLike
+                    : userRole === allowedRole;
+
+            if (!hasAccess) {
+                console.error(`[ProtectedRoute] Access denied. Required: ${allowedRole}, Found: ${userRole}`);
+                if (isAdminLike) navigate("/admin", { replace: true });
+                else if (userRole === "Employee") navigate("/employee", { replace: true });
+                else navigate("/login", { replace: true });
+                return;
+            }
         }
 
         const handleStorage = (e) => {
@@ -63,8 +71,21 @@ const ProtectedRoute = ({ allowedRole }) => {
     }
 
     // Role check for initial render
-    if (allowedRole && userRole !== allowedRole) {
-        return <Navigate to={userRole === "Admin" ? "/admin" : (userRole === "Employee" ? "/employee" : "/login")} replace />;
+    if (allowedRole) {
+        const hasAccess =
+            allowedRole === "Admin"
+                ? isAdminLike
+                : userRole === allowedRole;
+
+        if (!hasAccess) {
+            const target =
+                userRole === "Admin" || userRole === "Editor"
+                    ? "/admin"
+                    : userRole === "Employee"
+                        ? "/employee"
+                        : "/login";
+            return <Navigate to={target} replace />;
+        }
     }
 
     return <Outlet />;

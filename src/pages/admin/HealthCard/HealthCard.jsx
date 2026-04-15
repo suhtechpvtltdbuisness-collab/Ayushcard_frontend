@@ -29,8 +29,8 @@ const normalizeCard = (card) => ({
   members: Array.isArray(card.members)
     ? card.members
     : Array.from({ length: Number(card.totalMember) || 0 }, (_, i) => ({
-        id: i,
-      })),
+      id: i,
+    })),
   profileImage:
     card.profileImage ||
     (Array.isArray(card.documents) && card.documents.length > 0
@@ -109,11 +109,10 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
             state: { editMode: true },
           })
         }
-        className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-          isExpired
+        className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${isExpired
             ? "bg-[#F68E5F] text-white hover:bg-[#ff7535]"
             : "bg-[#2C2C2C] text-[#FFFCFB] hover:bg-[#1F2937]"
-        }`}
+          }`}
       >
         {isExpired ? "Renew" : "Edit"}
         {isExpired ? (
@@ -231,8 +230,8 @@ const HealthCard = () => {
       );
       setDeleteError(
         err?.response?.data?.message ||
-          err?.message ||
-          "Delete failed. Please try again.",
+        err?.message ||
+        "Delete failed. Please try again.",
       );
     } finally {
       setDeleteLoading(false);
@@ -427,11 +426,10 @@ const HealthCard = () => {
                   setActiveFilter(filter);
                   setCurrentPage(1);
                 }}
-                className={`px-3 sm:px-4 py-2 whitespace-nowrap text-[15px] rounded-lg text-sm font-medium transition-colors text-center ${
-                  activeFilter === filter
+                className={`px-3 sm:px-4 py-2 whitespace-nowrap text-[15px] rounded-lg text-sm font-medium transition-colors text-center ${activeFilter === filter
                     ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
                     : "text-[#6B7280] hover:text-[#22333B]"
-                }`}
+                  }`}
               >
                 {filter}
               </button>

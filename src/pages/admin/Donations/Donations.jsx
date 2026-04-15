@@ -61,11 +61,11 @@ const Donations = () => {
         time: item.time || (item.createdAt ? new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '')
       }));
       setDonations(mappedData);
-      
+
       const pagination = res?.pagination || res?.data?.pagination || {};
       const total = pagination.total ?? res?.total ?? res?.count ?? res?.data?.total ?? mappedData.length;
       const pages = pagination.pages ?? (Math.ceil(total / itemsPerPage) || 1);
-      
+
       setTotalItems(Number(total));
       setTotalPages(Number(pages));
     } catch (error) {
@@ -154,7 +154,7 @@ const Donations = () => {
 
   // totalPages is now managed via state from backend response
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedData = processedData.length > itemsPerPage 
+  const paginatedData = processedData.length > itemsPerPage
     ? processedData.slice(startIndex, startIndex + itemsPerPage)
     : processedData;
 
@@ -325,8 +325,8 @@ const Donations = () => {
                       <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">{row.date}</td>
                       <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">{row.time}</td>
                       <td className="py-2 px-4 text-sm font-normal text-[#22333B] text-center">
-                        <div 
-                          className="max-w-[140px] truncate mx-auto" 
+                        <div
+                          className="max-w-[140px] truncate mx-auto"
                           title={row.location}
                         >
                           {row.location}

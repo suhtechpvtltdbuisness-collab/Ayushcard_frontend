@@ -67,16 +67,16 @@ const Partners = () => {
       const raw = Array.isArray(res?.data?.organizations)
         ? res.data.organizations
         : Array.isArray(res?.data)
-        ? res.data
-        : Array.isArray(res)
-        ? res
-        : [];
+          ? res.data
+          : Array.isArray(res)
+            ? res
+            : [];
       setPartners(raw);
-      
+
       const pagination = res?.pagination || res?.data?.pagination || {};
       const total = pagination.total ?? res?.total ?? res?.count ?? res?.data?.total ?? raw.length;
       const pages = pagination.pages ?? (Math.ceil(total / itemsPerPage) || 1);
-      
+
       setTotalItems(Number(total));
       setTotalPages(Number(pages));
     } catch (err) {
@@ -149,7 +149,7 @@ const Partners = () => {
 
   // totalPages is now managed via state from backend response
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedData = processedData.length > itemsPerPage 
+  const paginatedData = processedData.length > itemsPerPage
     ? processedData.slice(startIndex, startIndex + itemsPerPage)
     : processedData;
 
@@ -318,8 +318,8 @@ const Partners = () => {
                       </td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.contact || row.primaryContact}</td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
-                        <div 
-                          className="max-w-[150px] truncate" 
+                        <div
+                          className="max-w-[150px] truncate"
                           title={row.location}
                         >
                           {row.location}

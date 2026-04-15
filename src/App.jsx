@@ -86,60 +86,60 @@ function App() {
     <Router>
       <ScrollToTop />
       <ApplyAyushCardModalProvider>
-      <Routes>
-        {/* Auth routes */}
-        <Route path="/login" element={<Login />} />
+        <Routes>
+          {/* Auth routes */}
+          <Route path="/login" element={<Login />} />
 
-        {/* Public QR verification page (no login required) */}
-        <Route path="/verify/:cardId" element={<CardVerify />} />
+          {/* Public QR verification page (no login required) */}
+          <Route path="/verify/:cardId" element={<CardVerify />} />
 
-        {/* Home Page */}
-        <Route
-          path="/"
-          element={
-            <>
-              <Navbar />
-              <HeroSection />
-              <About />
-              <ServicesSection />
-              <DonateSection />
-              <TestimonialsSection />
-              <CertificationsSection />
-              <Faqs />
-              <Footer />
-            </>
-          }
-        />
-        {/* About Page */}
-        <Route
-          path="/about"
-          element={
-            <>
-              <Navbar />
-              <AboutHero />
-              <TeamSection />
-              <FocusAreas />
-              <ImageGallery />
-              <Members />
-              <Footer />
-            </>
-          }
-        />
-        {/* Associated Hospitals Page */}
-        <Route
-          path="/associated-hospitals"
-          element={
-            <>
-              <Navbar />
-              <AssociatedHospitalsHero />
-              <Footer />
-            </>
-          }
-        />
-        {/* Ayush Card Page */}
-        <Route path="/ayush-card" element={<AyushCardPage />} />
-        {/* Hospital Detail Page */}
-        {/* <Route
+          {/* Home Page */}
+          <Route
+            path="/"
+            element={
+              <>
+                <Navbar />
+                <HeroSection />
+                <About />
+                <ServicesSection />
+                <DonateSection />
+                <TestimonialsSection />
+                <CertificationsSection />
+                <Faqs />
+                <Footer />
+              </>
+            }
+          />
+          {/* About Page */}
+          <Route
+            path="/about"
+            element={
+              <>
+                <Navbar />
+                <AboutHero />
+                <TeamSection />
+                <FocusAreas />
+                <ImageGallery />
+                <Members />
+                <Footer />
+              </>
+            }
+          />
+          {/* Associated Hospitals Page */}
+          <Route
+            path="/associated-hospitals"
+            element={
+              <>
+                <Navbar />
+                <AssociatedHospitalsHero />
+                <Footer />
+              </>
+            }
+          />
+          {/* Ayush Card Page */}
+          <Route path="/ayush-card" element={<AyushCardPage />} />
+          {/* Hospital Detail Page */}
+          {/* <Route
           path="/hospitals/:id"
           element={
             <>
@@ -157,74 +157,74 @@ function App() {
             </>
           }
         /> */}
-        {/* Contact us Page */}
-        {/* Contact us Page */}
-        <Route
-          path="/contact"
-          element={
-            <>
-              <Navbar />
-              <ContactUs />
-              <Footer />
-            </>
-          }
-        />
+          {/* Contact us Page */}
+          {/* Contact us Page */}
+          <Route
+            path="/contact"
+            element={
+              <>
+                <Navbar />
+                <ContactUs />
+                <Footer />
+              </>
+            }
+          />
 
-        {/* Admin Dashboard — requires valid (non-expired) JWT and Admin role */}
-        <Route element={<ProtectedRoute allowedRole="Admin" />}>
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="health-card" element={<HealthCard />} />
-            <Route
-              path="health-card/verified"
-              element={<AdminVerifiedCards />}
-            />
-            <Route
-              path="health-card/exported"
-              element={<AdminExportedCards />}
-            />
-            <Route path="health-card/create" element={<CreateHealthCard />} />
-            <Route path="health-card/:id" element={<HealthCardDetails />} />
-            <Route path="partners" element={<Partners />} />
-            <Route path="partners/create" element={<CreatePartner />} />
-            <Route path="partners/:id" element={<PartnerDetails />} />
-            <Route path="donations" element={<Donations />} />
-            <Route path="donations/:id" element={<DonationDetails />} />
-            <Route path="hr/employees" element={<Employees />} />
-            <Route path="hr/employees/create" element={<CreateEmployee />} />
-            <Route path="hr/employees/:id" element={<EmployeeDetails />} />
-            <Route path="hr/salary" element={<Salary />} />
-            <Route path="hr/salary/create" element={<CreateSalary />} />
-            <Route path="hr/salary/:id" element={<SalaryDetails />} />
-            <Route path="reports" element={<Reports />} />
-            <Route path="help-support" element={<HelpSupport />} />
+          {/* Admin Dashboard — requires valid (non-expired) JWT and Admin role */}
+          <Route element={<ProtectedRoute allowedRole="Admin" />}>
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="health-card" element={<HealthCard />} />
+              <Route
+                path="health-card/verified"
+                element={<AdminVerifiedCards />}
+              />
+              <Route
+                path="health-card/exported"
+                element={<AdminExportedCards />}
+              />
+              <Route path="health-card/create" element={<CreateHealthCard />} />
+              <Route path="health-card/:id" element={<HealthCardDetails />} />
+              <Route path="partners" element={<Partners />} />
+              <Route path="partners/create" element={<CreatePartner />} />
+              <Route path="partners/:id" element={<PartnerDetails />} />
+              <Route path="donations" element={<Donations />} />
+              <Route path="donations/:id" element={<DonationDetails />} />
+              <Route path="hr/employees" element={<Employees />} />
+              <Route path="hr/employees/create" element={<CreateEmployee />} />
+              <Route path="hr/employees/:id" element={<EmployeeDetails />} />
+              <Route path="hr/salary" element={<Salary />} />
+              <Route path="hr/salary/create" element={<CreateSalary />} />
+              <Route path="hr/salary/:id" element={<SalaryDetails />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="help-support" element={<HelpSupport />} />
+            </Route>
           </Route>
-        </Route>
-        {/* Employee Dashboard */}
-        {/* Employee Dashboard — requires valid (non-expired) JWT and Employee role */}
-        <Route element={<ProtectedRoute allowedRole="Employee" />}>
-          <Route path="/employee" element={<AdminLayout />}>
-            <Route index element={<EmployeeDashboard />} />
-            <Route path="health-card" element={<EmployeeHealthCard />} />
-            <Route path="health-card/verified" element={<VerifiedCards />} />
-            <Route
-              path="health-card/create"
-              element={<EmployeeCreateHealthCard />}
-            />
-            <Route
-              path="health-card/:id"
-              element={<EmployeeHealthCardDetails />}
-            />
-            <Route path="partners" element={<EmployeePartners />} />
-            <Route path="partners/create" element={<EmployeeCreatePartner />} />
-            <Route path="partners/:id" element={<EmployeePartnerDetails />} />
-            <Route path="donations" element={<EmployeeDonations />} />
-            <Route path="donations/:id" element={<EmployeeDonationDetails />} />
-            <Route path="reports" element={<EmployeeReports />} />
-            <Route path="help-support" element={<EmployeeHelpSupport />} />
+          {/* Employee Dashboard */}
+          {/* Employee Dashboard — requires valid (non-expired) JWT and Employee role */}
+          <Route element={<ProtectedRoute allowedRole="Employee" />}>
+            <Route path="/employee" element={<AdminLayout />}>
+              <Route index element={<EmployeeDashboard />} />
+              <Route path="health-card" element={<EmployeeHealthCard />} />
+              <Route path="health-card/verified" element={<VerifiedCards />} />
+              <Route
+                path="health-card/create"
+                element={<EmployeeCreateHealthCard />}
+              />
+              <Route
+                path="health-card/:id"
+                element={<EmployeeHealthCardDetails />}
+              />
+              <Route path="partners" element={<EmployeePartners />} />
+              <Route path="partners/create" element={<EmployeeCreatePartner />} />
+              <Route path="partners/:id" element={<EmployeePartnerDetails />} />
+              <Route path="donations" element={<EmployeeDonations />} />
+              <Route path="donations/:id" element={<EmployeeDonationDetails />} />
+              <Route path="reports" element={<EmployeeReports />} />
+              <Route path="help-support" element={<EmployeeHelpSupport />} />
+            </Route>
           </Route>
-        </Route>
-      </Routes>
+        </Routes>
       </ApplyAyushCardModalProvider>
     </Router>
   );
