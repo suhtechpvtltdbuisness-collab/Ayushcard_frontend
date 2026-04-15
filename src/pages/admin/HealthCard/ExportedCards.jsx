@@ -17,8 +17,8 @@ const normalizeCard = (card) => ({
   members: Array.isArray(card.members)
     ? card.members
     : Array.from({ length: Number(card.totalMember) || 0 }, (_, i) => ({
-        id: i,
-      })),
+      id: i,
+    })),
   profileImage:
     card.profileImage ||
     (Array.isArray(card.documents) && card.documents.length > 0
@@ -133,11 +133,11 @@ export default function ExportedCards() {
             : [];
       const normalized = raw.map(normalizeCard);
       setHealthCards(normalized);
-      
+
       const pagination = res?.pagination || res?.data?.pagination || {};
       const total = pagination.total ?? res?.total ?? res?.count ?? res?.data?.total ?? normalized.length;
       const pages = pagination.pages ?? (Math.ceil(total / itemsPerPage) || 1);
-      
+
       setTotalItems(Number(total));
       setTotalPages(Number(pages));
     } catch (err) {
@@ -183,7 +183,7 @@ export default function ExportedCards() {
 
   // totalPages is now managed via state from backend response
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedData = processedData.length > itemsPerPage 
+  const paginatedData = processedData.length > itemsPerPage
     ? processedData.slice(startIndex, startIndex + itemsPerPage)
     : processedData;
 

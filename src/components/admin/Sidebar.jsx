@@ -105,10 +105,9 @@ const Sidebar = () => {
             to={item.subItems ? item.subItems[0].path : item.path}
             end={item.path === basePath}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 mx-4 rounded-lg text-sm font-medium transition-colors ${
-                isActive || isParentActive
-                  ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
-                  : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
+              `flex items-center gap-3 px-4 py-3 mx-4 rounded-lg text-sm font-medium transition-colors ${isActive || isParentActive
+                ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
+                : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
               }`
             }
           >
@@ -151,10 +150,9 @@ const Sidebar = () => {
                     to={subItem.path}
                     end={subItem.path === `${basePath}/health-card`}
                     className={({ isActive }) =>
-                      `pl-12 py-1.5 text-sm font-medium transition-colors border-l-2 ml-4 ${
-                        isActive
-                          ? "text-[#F68E5F] border-[#F68E5F]"
-                          : "text-[#6B7280] border-transparent hover:text-[#F68E5F]"
+                      `pl-12 py-1.5 text-sm font-medium transition-colors border-l-2 ml-4 ${isActive
+                        ? "text-[#F68E5F] border-[#F68E5F]"
+                        : "text-[#6B7280] border-transparent hover:text-[#F68E5F]"
                       }`
                     }
                   >
@@ -261,10 +259,9 @@ const Sidebar = () => {
                       item.path === `${basePath}/health-card`
                     }
                     className={({ isActive }) =>
-                      `flex justify-center items-center w-10 h-10 rounded-lg transition-colors ${
-                        isActive || isParentActive
-                          ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
-                          : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
+                      `flex justify-center items-center w-10 h-10 rounded-lg transition-colors ${isActive || isParentActive
+                        ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
+                        : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
                       }`
                     }
                   >
@@ -309,10 +306,9 @@ const Sidebar = () => {
                   to={item.path}
                   end={item.path === basePath}
                   className={({ isActive }) =>
-                    `flex justify-center items-center w-10 h-10 rounded-lg transition-colors ${
-                      isActive
-                        ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
-                        : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
+                    `flex justify-center items-center w-10 h-10 rounded-lg transition-colors ${isActive
+                      ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
+                      : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
                     }`
                   }
                 >

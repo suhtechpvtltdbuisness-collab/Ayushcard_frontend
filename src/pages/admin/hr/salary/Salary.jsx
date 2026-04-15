@@ -162,11 +162,10 @@ const Salary = () => {
         <button
           key={idx}
           onClick={() => setCurrentPage(page)}
-          className={`w-7 h-7 flex items-center justify-center rounded-md text-sm font-medium transition-colors ${
-            currentPage === page
+          className={`w-7 h-7 flex items-center justify-center rounded-md text-sm font-medium transition-colors ${currentPage === page
               ? "bg-[#374151] text-[#FFFCFB]"
               : "text-[#4B5563] hover:bg-gray-100"
-          }`}
+            }`}
         >
           {page}
         </button>
@@ -279,11 +278,10 @@ const Salary = () => {
                   setActiveFilter(filter);
                   setCurrentPage(1);
                 }}
-                className={`px-4 py-1.5 whitespace-nowrap text-[15px] rounded-lg text-sm font-medium transition-colors ${
-                  activeFilter === filter
+                className={`px-4 py-1.5 whitespace-nowrap text-[15px] rounded-lg text-sm font-medium transition-colors ${activeFilter === filter
                     ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
                     : "text-[#6B7280] hover:text-[#22333B]"
-                }`}
+                  }`}
               >
                 {filter}
               </button>

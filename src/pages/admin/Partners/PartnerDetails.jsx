@@ -174,8 +174,8 @@ const AddDoctorModal = ({ isOpen, onClose, onAdd, saving }) => {
                   type="button"
                   onClick={() => handleDayToggle(day)}
                   className={`flex-1 min-w-[40px] py-1.5 rounded-md text-xs font-medium transition-colors border ${formData.days.includes(day)
-                      ? 'bg-[#F68E5F] border-[#ff6e2b] text-[#FFFCFB]'
-                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                    ? 'bg-[#F68E5F] border-[#ff6e2b] text-[#FFFCFB]'
+                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                     }`}
                 >
                   {dayLabels[day]}
@@ -443,7 +443,7 @@ const PartnerDetails = () => {
                   <select
                     name="type"
                     value={details.type || data.type}
-                    onChange={(e) => setData(prev => ({...prev, type: e.target.value}))}
+                    onChange={(e) => setData(prev => ({ ...prev, type: e.target.value }))}
                     className="bg-transparent focus:outline-none"
                   >
                     <option value="Hospital">Hospital</option>

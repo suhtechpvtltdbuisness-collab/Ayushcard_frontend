@@ -73,7 +73,7 @@ const CreateEmployee = () => {
         name: formData.name,
         email: formData.email,
         password: password,
-        role: "employee",
+        role: formData.role,
         contact: formData.phone || "",
         location: formData.location || "",
         pincode: formData.pincode || "",
@@ -306,8 +306,8 @@ const CreateEmployee = () => {
               className="w-full border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-[15px] font-medium text-[#22333B] bg-white focus:outline-none focus:border-[#F68E5F] focus:ring-1 focus:ring-[#F68E5F]"
             >
               <option value="employee">Employee</option>
-              <option value="admin">Admin</option>
-              <option value="manager">Manager</option>
+              {/* <option value="admin">Admin</option> */}
+              <option value="editor">Editor</option>
             </select>
           </div>
         </div>
