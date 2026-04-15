@@ -86,6 +86,7 @@ const formToApi = (f) => ({
   aadhaarNumber: f.aadhaarNumber,
   documentFront: f.documentFront,
   documentBack: f.documentBack,
+  members: f.members,
 });
 
 const HealthCardDetails = () => {
@@ -488,19 +489,7 @@ const HealthCardDetails = () => {
             ></textarea>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
-            <div>
-              <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
-                Card Number
-              </label>
-              <input
-                type="text"
-                value={formData.cardNumber || ""}
-                onChange={(e) => handleChange(e, "cardNumber")}
-                disabled={!isEditing}
-                className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`}
-              />
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
             <div>
               <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
                 Card Issue Date
@@ -740,6 +729,9 @@ const HealthCardDetails = () => {
                   <th className="py-4 px-6 text-[12px] font-bold text-[#64748B] uppercase tracking-wider min-w-25">
                     AGE
                   </th>
+                  <th className="py-4 px-6 text-[12px] font-bold text-[#64748B] uppercase tracking-wider min-w-37.5">
+                    DOCUMENT ID
+                  </th>
                   {isEditing && (
                     <th className="py-4 px-6 text-[12px] font-bold text-[#64748B] uppercase tracking-wider w-24">
                       ACTIONS
@@ -810,6 +802,25 @@ const HealthCardDetails = () => {
                         </span>
                       )}
                     </td>
+                    <td className="py-4 px-6">
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={m.docId || m.documentId || ""}
+                          placeholder="Document ID"
+                          onChange={(e) => {
+                            const nm = [...formData.members];
+                            nm[i] = { ...nm[i], docId: e.target.value };
+                            setFormData({ ...formData, members: nm });
+                          }}
+                          className="w-full rounded px-3 py-2 text-[14px]"
+                        />
+                      ) : (
+                        <span className="text-[14px] text-[#475569]">
+                          {m.docId || m.documentId || "—"}
+                        </span>
+                      )}
+                    </td>
                     {isEditing && (
                       <td className="py-4 px-6">
                         <button
@@ -832,7 +843,7 @@ const HealthCardDetails = () => {
                 {(!formData.members || formData.members.length === 0) && (
                   <tr>
                     <td
-                      colSpan={isEditing ? 5 : 4}
+                      colSpan={isEditing ? 6 : 5}
                       className="py-8 text-center text-gray-400"
                     >
                       No members added yet.

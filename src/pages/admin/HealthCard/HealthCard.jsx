@@ -52,7 +52,7 @@ const normalizeCard = (card) => ({
       case "pending":
         return "Not verified";
       case "rejected":
-        return "Not verified";
+        return "Rejected";
       case "expired":
         return "Expired";
       default:
@@ -61,23 +61,29 @@ const normalizeCard = (card) => ({
   })(),
 });
 
-const StatusBadge = ({ status }) => {
+const StatusBadge = ({ status, onStatusChange, isLoading }) => {
   let bg = "";
   let dot = "";
   let text = "";
 
   switch (status) {
     case "Not verified":
+    case "pending":
       bg = "bg-[#FFA10033]";
       dot = "bg-[#FFA100]";
       text = "text-[#FFA100]";
       break;
     case "Verified":
+    case "approved":
+    case "active":
       bg = "bg-[#76DB1E33]";
       dot = "bg-[#76DB1E]";
       text = "text-[#76DB1E]";
       break;
     case "Expired":
+    case "expired":
+    case "Rejected":
+    case "rejected":
       bg = "bg-[#FF383C33]";
       dot = "bg-[#FF383C]";
       text = "text-[#FF383C]";
@@ -86,6 +92,33 @@ const StatusBadge = ({ status }) => {
       bg = "bg-gray-100";
       dot = "bg-gray-400";
       text = "text-gray-600";
+  }
+
+  if (onStatusChange) {
+    return (
+      <div className="relative inline-flex items-center">
+        <select
+          value={status.toLowerCase() === "verified" ? "approved" : status.toLowerCase() === "not verified" ? "pending" : status.toLowerCase()}
+          onChange={(e) => onStatusChange(e.target.value)}
+          disabled={isLoading}
+          className={`appearance-none cursor-pointer pl-6 pr-8 py-1 rounded-full text-xs font-normal border-none focus:outline-none focus:ring-0 ${bg} ${text} ${isLoading ? 'opacity-50' : ''}`}
+        >
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+          <option value="expired">Expired</option>
+        </select>
+        <span className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full ${dot}`}></span>
+        <svg
+          className={`absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 ${text}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </div>
+    );
   }
 
   return (
@@ -97,6 +130,7 @@ const StatusBadge = ({ status }) => {
     </span>
   );
 };
+
 
 const ActionButtons = ({ item, navigate, onDelete }) => {
   const isExpired = (item.status || "").toLowerCase().includes("expir");
@@ -235,6 +269,31 @@ const HealthCard = () => {
       );
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  const [statusUpdateLoading, setStatusUpdateLoading] = useState(null);
+
+  const handleStatusChange = async (id, newStatus) => {
+    if (!id) return;
+    setStatusUpdateLoading(id);
+    try {
+      await apiService.updateHealthCardStatus(id, newStatus);
+      // Immediately update local state to reflect the change
+      setHealthCards((prev) =>
+        prev.map((card) => {
+          if (card._id === id || card.id === id) {
+            // Need to apply normalizeCard-like transformations so badges work
+            return normalizeCard({ ...card, status: newStatus });
+          }
+          return card;
+        })
+      );
+    } catch (error) {
+      console.error("Failed to update status:", error);
+      toastWarn(error?.response?.data?.message || "Failed to update status.");
+    } finally {
+      setStatusUpdateLoading(null);
     }
   };
 
@@ -416,22 +475,21 @@ const HealthCard = () => {
 
           {/* Status Tabs */}
           <div
-            className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1.5 bg-[#F7F7F7] rounded-xl w-full lg:w-auto"
+            className="grid grid-cols-2 lg:flex lg:flex-nowrap gap-1.5 p-1.5 bg-[#F7F7F7] rounded-xl w-full lg:w-auto overflow-x-auto custom-scrollbar"
             style={{ fontFamily: "ABeeZee, sans-serif" }}
           >
-            {["All", "Verified", "Not Verified", "Expired"].map((filter) => (
+            {["All", "Verified", "Not Verified", "Rejected", "Expired"].map((filter) => (
               <button
                 key={filter}
                 onClick={() => {
                   setActiveFilter(filter);
                   setCurrentPage(1);
                 }}
-                className={`px-3 sm:px-4 py-2 whitespace-nowrap text-[15px] rounded-lg text-sm font-medium transition-colors text-center ${activeFilter === filter
+                className={`px-3 sm:px-4 py-2 whitespace-nowrap text-[15px] rounded-lg text-sm font-medium transition-colors text-center shrink-0 ${activeFilter === filter
                     ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
                     : "text-[#6B7280] hover:text-[#22333B]"
                   }`}
-              >
-                {filter}
+              >                {filter}
               </button>
             ))}
           </div>
@@ -502,7 +560,7 @@ const HealthCard = () => {
                     "Status",
                     "status",
                     "left",
-                    "w-[140px]",
+                    "w-[160px]",
                   )}
                   <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-32.5">
                     Actions
@@ -552,7 +610,11 @@ const HealthCard = () => {
                         {row.pincode || "—"}
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
-                        <StatusBadge status={row.status} />
+                        <StatusBadge 
+                          status={row.status} 
+                          isLoading={statusUpdateLoading === row._id}
+                          onStatusChange={(newStatus) => handleStatusChange(row._id, newStatus)} 
+                        />
                       </td>
                       <td className="py-3 px-4">
                         <ActionButtons
