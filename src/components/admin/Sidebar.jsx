@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, CreditCard, HelpCircle, LogOut, Tent, ClipboardCheck } from "lucide-react";
+import { LayoutDashboard, CreditCard, HelpCircle, LogOut, Tent, ClipboardCheck, ClipboardList } from "lucide-react";
 
 const Sidebar = () => {
   const [isHovered, setIsHovered] = useState(false);
@@ -58,6 +58,12 @@ const Sidebar = () => {
       path: `${basePath}/donations`,
     },
     {
+      name: "Attendance",
+      icon: ClipboardList,
+      path: `${basePath}/attendance`,
+      adminOnly: true,
+    },
+    {
       name: "HR & Payroll",
       customIcon: "/admin_images/hr_payroll.svg",
       path: `${basePath}/hr`,
@@ -70,15 +76,10 @@ const Sidebar = () => {
 
   const filteredMainMenuItems = mainMenuItems
     .filter((item) => {
-      if (item.name === "HR & Payroll" && userRole === "Employee") {
-        return false;
-      }
-      if (item.name === "Donations" && userRole === "Employee") {
-        return false;
-      }
-      if (item.employeeOnly && userRole !== "Employee") {
-        return false;
-      }
+      if (item.name === "HR & Payroll" && userRole === "Employee") return false;
+      if (item.name === "Donations" && userRole === "Employee") return false;
+      if (item.employeeOnly && userRole !== "Employee") return false;
+      if (item.adminOnly && userRole !== "Admin") return false;
       return true;
     })
     .map((item) => {

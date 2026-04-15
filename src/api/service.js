@@ -609,6 +609,12 @@ const apiService = {
         return response.data;
     },
 
+    // GET /api/attendance  (admin — all employees, filterable by date)
+    getAttendance: async (params = {}) => {
+        const response = await api.get('/api/attendance', { params });
+        return response.data;
+    },
+
     // GET /api/attendance/users/:id?date=&fromDate=&toDate=
     getUserAttendance: async (userId, params = {}) => {
         const response = await api.get(`/api/attendance/users/${userId}`, { params });

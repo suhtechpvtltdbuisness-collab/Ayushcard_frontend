@@ -59,6 +59,7 @@ import Donations from "./pages/admin/Donations/Donations";
 import DonationDetails from "./pages/admin/Donations/DonationDetails";
 import HelpSupport from "./pages/admin/HelpSupport/HelpSupport";
 import Reports from "./pages/admin/Reports/Reports";
+import AdminAttendance from "./pages/admin/Attendance/Attendance";
 
 // Employee Interface
 import EmployeeDashboard from "./pages/employee/Dashboard";
@@ -198,6 +199,7 @@ function App() {
               <Route path="camps/:id" element={<AdminCreateCamp />} />
               <Route path="donations" element={<Donations />} />
               <Route path="donations/:id" element={<DonationDetails />} />
+              <Route path="attendance" element={<AdminAttendance />} />
               <Route path="hr/employees" element={<Employees />} />
               <Route path="hr/employees/create" element={<CreateEmployee />} />
               <Route path="hr/employees/:id" element={<EmployeeDetails />} />
