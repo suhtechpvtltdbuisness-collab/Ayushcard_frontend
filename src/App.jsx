@@ -53,6 +53,8 @@ import AdminExportedCards from "./pages/admin/HealthCard/ExportedCards";
 import Partners from "./pages/admin/Partners/Partners";
 import PartnerDetails from "./pages/admin/Partners/PartnerDetails";
 import CreatePartner from "./pages/admin/Partners/CreatePartner";
+import AdminCamps from "./pages/admin/Camps/Camps";
+import AdminCreateCamp from "./pages/admin/Camps/CreateCamp";
 import Donations from "./pages/admin/Donations/Donations";
 import DonationDetails from "./pages/admin/Donations/DonationDetails";
 import HelpSupport from "./pages/admin/HelpSupport/HelpSupport";
@@ -67,10 +69,13 @@ import VerifiedCards from "./pages/employee/HealthCard/VerifiedCards";
 import EmployeePartners from "./pages/employee/Partners/Partners";
 import EmployeePartnerDetails from "./pages/employee/Partners/PartnerDetails";
 import EmployeeCreatePartner from "./pages/employee/Partners/CreatePartner";
+import EmployeeCamps from "./pages/employee/Camps/Camps";
+import EmployeeCreateCamp from "./pages/employee/Camps/CreateCamp";
 import EmployeeDonations from "./pages/employee/Donations/Donations";
 import EmployeeDonationDetails from "./pages/employee/Donations/DonationDetails";
 import EmployeeHelpSupport from "./pages/employee/HelpSupport/HelpSupport";
 import EmployeeReports from "./pages/employee/Reports/Reports";
+import EmployeeAttendance from "./pages/employee/Attendance/Attendance";
 
 // HR & Payroll
 import Employees from "./pages/admin/hr/employees/Employees";
@@ -188,6 +193,9 @@ function App() {
               <Route path="partners" element={<Partners />} />
               <Route path="partners/create" element={<CreatePartner />} />
               <Route path="partners/:id" element={<PartnerDetails />} />
+              <Route path="camps" element={<AdminCamps />} />
+              <Route path="camps/create" element={<AdminCreateCamp />} />
+              <Route path="camps/:id" element={<AdminCreateCamp />} />
               <Route path="donations" element={<Donations />} />
               <Route path="donations/:id" element={<DonationDetails />} />
               <Route path="hr/employees" element={<Employees />} />
@@ -218,9 +226,13 @@ function App() {
               <Route path="partners" element={<EmployeePartners />} />
               <Route path="partners/create" element={<EmployeeCreatePartner />} />
               <Route path="partners/:id" element={<EmployeePartnerDetails />} />
+              <Route path="camps" element={<EmployeeCamps />} />
+              <Route path="camps/create" element={<EmployeeCreateCamp />} />
+              <Route path="camps/:id" element={<EmployeeCreateCamp />} />
               <Route path="donations" element={<EmployeeDonations />} />
               <Route path="donations/:id" element={<EmployeeDonationDetails />} />
               <Route path="reports" element={<EmployeeReports />} />
+              <Route path="attendance" element={<EmployeeAttendance />} />
               <Route path="help-support" element={<EmployeeHelpSupport />} />
             </Route>
           </Route>

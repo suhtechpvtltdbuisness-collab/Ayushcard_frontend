@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, CreditCard, HelpCircle, LogOut } from "lucide-react";
+import { LayoutDashboard, CreditCard, HelpCircle, LogOut, Tent, ClipboardCheck } from "lucide-react";
 
 const Sidebar = () => {
   const [isHovered, setIsHovered] = useState(false);
@@ -42,6 +42,17 @@ const Sidebar = () => {
       path: `${basePath}/partners`,
     },
     {
+      name: "Camps",
+      icon: Tent,
+      path: `${basePath}/camps`,
+    },
+    {
+      name: "Attendance",
+      icon: ClipboardCheck,
+      path: `${basePath}/attendance`,
+      employeeOnly: true,
+    },
+    {
       name: "Donations",
       customIcon: "/admin_images/donations.svg",
       path: `${basePath}/donations`,
@@ -63,6 +74,9 @@ const Sidebar = () => {
         return false;
       }
       if (item.name === "Donations" && userRole === "Employee") {
+        return false;
+      }
+      if (item.employeeOnly && userRole !== "Employee") {
         return false;
       }
       return true;

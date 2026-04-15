@@ -532,6 +532,38 @@ const apiService = {
         return response.data;
     },
 
+    // ─── CAMPS ────────────────────────────────────────────────────────────
+
+    // POST /api/camps
+    createCamp: async (campData) => {
+        const response = await api.post('/api/camps', campData);
+        return response.data;
+    },
+
+    // GET /api/camps
+    getCamps: async (params = {}) => {
+        const response = await api.get('/api/camps', { params });
+        return response.data;
+    },
+
+    // GET /api/camps/:id
+    getCampById: async (id) => {
+        const response = await api.get(`/api/camps/${id}`);
+        return response.data;
+    },
+
+    // PUT /api/camps/:id
+    updateCamp: async (id, campData) => {
+        const response = await api.put(`/api/camps/${id}`, campData);
+        return response.data;
+    },
+
+    // DELETE /api/camps/:id
+    deleteCamp: async (id) => {
+        const response = await api.delete(`/api/camps/${id}`);
+        return response.data;
+    },
+
     // ─── UTILITY ──────────────────────────────────────────────────────────
 
 
@@ -566,6 +598,20 @@ const apiService = {
     // POST /api/payments/webhook
     webhookPayment: async (payload) => {
         const response = await api.post('/api/payments/webhook', payload);
+        return response.data;
+    },
+
+    // ─── ATTENDANCE ───────────────────────────────────────────────────────────
+
+    // POST /api/attendance  { campId, currentLat, currentLong }
+    markAttendance: async (payload) => {
+        const response = await api.post('/api/attendance', payload);
+        return response.data;
+    },
+
+    // GET /api/attendance/users/:id?date=&fromDate=&toDate=
+    getUserAttendance: async (userId, params = {}) => {
+        const response = await api.get(`/api/attendance/users/${userId}`, { params });
         return response.data;
     },
 
