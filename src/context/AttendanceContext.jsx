@@ -13,6 +13,8 @@ export function AttendanceProvider({ children }) {
   const [showModal, setShowModal] = useState(false);
   const [checking, setChecking] = useState(true);
   const [lastMarkedAt, setLastMarkedAt] = useState(null);
+  const [todayCampId, setTodayCampId] = useState("");
+  const [todayCampName, setTodayCampName] = useState("");
 
   useEffect(() => {
     const userRole = localStorage.getItem("userRole") || sessionStorage.getItem("userRole");
@@ -37,8 +39,13 @@ export function AttendanceProvider({ children }) {
 
       if (list.length > 0) {
         // Confirmed on backend
+        const todayAt = list[0];
+        const cid = todayAt.campId?._id || todayAt.campId || "";
+        const cname = todayAt.campId?.name || "";
         sessionStorage.setItem(TODAY_KEY(), "true");
         setAttendanceMarked(true);
+        setTodayCampId(cid);
+        setTodayCampName(cname);
       } else {
         // Clear any stale cache and prompt
         sessionStorage.removeItem(TODAY_KEY());
@@ -55,9 +62,11 @@ export function AttendanceProvider({ children }) {
     }
   };
 
-  const markSuccessful = useCallback(() => {
+  const markSuccessful = useCallback((campId = "", campName = "") => {
     sessionStorage.setItem(TODAY_KEY(), "true");
     setAttendanceMarked(true);
+    setTodayCampId(campId);
+    setTodayCampName(campName);
     setShowModal(false);
     setLastMarkedAt(Date.now());
   }, []);
@@ -67,7 +76,7 @@ export function AttendanceProvider({ children }) {
 
   return (
     <AttendanceContext.Provider
-      value={{ attendanceMarked, showModal, checking, lastMarkedAt, openModal, closeModal, markSuccessful }}
+      value={{ attendanceMarked, todayCampId, todayCampName, showModal, checking, lastMarkedAt, openModal, closeModal, markSuccessful }}
     >
       {children}
     </AttendanceContext.Provider>
@@ -76,6 +85,7 @@ export function AttendanceProvider({ children }) {
 
 export function useAttendance() {
   const ctx = useContext(AttendanceContext);
-  if (!ctx) throw new Error("useAttendance must be used within AttendanceProvider");
+  // Fallback for public use (where AttendanceProvider might be missing, e.g. home page modal)
+  if (!ctx) return { attendanceMarked: false, todayCampId: "", todayCampName: "" };
   return ctx;
 }

@@ -42,6 +42,7 @@ const apiToForm = (card) => ({
   relation: card.relation || "",
   relatedPerson: card.relatedPerson || "",
   aadhaarNumber: card.aadhaarNumber || card.aadhaarNo || card.aadharNumber || "",
+  campName: card.campId?.name || card.campName || "",
   // For this details page, use documents[0] (first document)
   // as the card photo.
   profileImage:
@@ -459,6 +460,13 @@ const HealthCardDetails = () => {
                 onChange={(e) => handleChange(e, "relatedPerson")} disabled={!isEditing}
                 className={`w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none ${!isEditing ? "bg-gray-50" : "bg-white"}`} />
             </div>
+            {formData.campName && (
+              <div>
+                <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">Camp</label>
+                <input type="text" value={formData.campName} readOnly
+                  className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none bg-[#F8FAFC]" />
+              </div>
+            )}
           </div>
 
           <div className="mb-5">

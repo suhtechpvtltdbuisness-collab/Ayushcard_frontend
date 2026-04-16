@@ -356,7 +356,7 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
               </table>
             </div>
             {/* Instructions & Dates */}
-            <div className="flex-1 flex flex-col self-stretch pb-2">
+            <div className="flex-1 flex flex-col self-stretch pb-6">
               <div>
                 <h3 className="font-semibold text-[11px] uppercase mb-1.5 text-center tracking-wide drop-shadow-sm">
                   Important Information / Instructions
@@ -388,6 +388,15 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
                   </div>
                 </div>
               </div>
+
+              {(data?.campName || data?.campId?.name || data?.camp) && (
+                <div className="mt-auto pt-2 mb-2 flex items-center justify-center gap-1.5 border-t border-white/20">
+                  <span className="text-[8px] font-bold uppercase tracking-wider text-white/80">Issued Camp:</span>
+                  <span className="text-[9px] font-bold text-white drop-shadow-sm">
+                    {data.campName || data.campId?.name || data.camp}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>

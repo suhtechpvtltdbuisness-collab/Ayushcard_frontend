@@ -50,6 +50,7 @@ const apiToForm = (card) => ({
   gender: card.gender || "",
   dob: card.dob || "",
   aadhaarNumber: card.aadhaarNumber || "",
+  campName: card.campId?.name || card.campName || "",
   documentFront: card.documentFront || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentFront")?.path : "") || "",
   documentBack: card.documentBack || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentBack")?.path : "") || "",
  
@@ -436,6 +437,22 @@ const HealthCardDetails = () => {
               />
             </div>
           </div>
+
+          {formData.campName && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
+              <div>
+                <label className="block text-[13px] font-medium text-[#4B5563] mb-1.5">
+                  Camp
+                </label>
+                <input
+                  type="text"
+                  value={formData.campName}
+                  readOnly
+                  className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[14px] text-[#22333B] focus:outline-none bg-[#F8FAFC]"
+                />
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
             <div>

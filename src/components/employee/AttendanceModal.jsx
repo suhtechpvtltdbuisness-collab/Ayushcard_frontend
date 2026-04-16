@@ -117,7 +117,7 @@ const AttendanceModal = () => {
       });
       setStep(STEPS.SUCCESS);
       setTimeout(() => {
-        markSuccessful();
+        markSuccessful(selectedCamp._id, selectedCamp.name);
       }, 1800);
     } catch (err) {
       setSubmitError(err.response?.data?.message || "Failed to mark attendance. Please try again.");

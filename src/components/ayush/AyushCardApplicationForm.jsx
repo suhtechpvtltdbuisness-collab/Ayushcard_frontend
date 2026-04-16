@@ -25,6 +25,7 @@ import { performOCR } from "../../utils/ocr";
 import { load } from "@cashfreepayments/cashfree-js";
 import AyushCardPreview from "../admin/AyushCardPreview";
 import QRCode from "react-qr-code";
+import { useAttendance } from "../../context/AttendanceContext";
 
 /** Fixed ₹160 for 1–4 people (head + members); each additional person +₹40. */
 const AYUSH_CARD_BASE_PACKAGE_RUPEES = 160;
@@ -124,6 +125,7 @@ const AyushCardApplicationForm = ({
   /** Server `data` from last successful card create — drives receipt / print */
   const [submissionReceipt, setSubmissionReceipt] = useState(null);
   const { toastWarn, toastError, toastSuccess } = useToast();
+  const { todayCampId, todayCampName } = useAttendance();
   const [submitting, setSubmitting] = useState(false);
   // Step 1 State
   const [docFront, setDocFront] = useState(null);
@@ -1758,6 +1760,7 @@ const AyushCardApplicationForm = ({
         date: new Date().toISOString(),
         orderId: orderId || "",
       },
+      campId: (localStorage.getItem("userRole") || sessionStorage.getItem("userRole")) === "Employee" ? (todayCampId || "") : "",
     };
 
     try {
@@ -1874,6 +1877,7 @@ const AyushCardApplicationForm = ({
         customerPhone: familyHead.contactNumber.trim(),
         date: new Date().toISOString(),
       },
+      campId: (localStorage.getItem("userRole") || sessionStorage.getItem("userRole")) === "Employee" ? (todayCampId || "") : "",
     };
   };
 
@@ -2188,6 +2192,7 @@ const AyushCardApplicationForm = ({
     dob: familyHead.dob || "",
     phone: familyHead.contactNumber || "",
     aadhaarNumber: familyHead.aadhaarNumber || "",
+    campName: todayCampName,
     dateApplied: todayFormatted,
     applicationDate: todayFormatted,
     members: members.map((m) => {
@@ -2334,6 +2339,12 @@ const AyushCardApplicationForm = ({
                 })}
               </span>
             </div>
+            {todayCampName && (
+              <div className="flex justify-between gap-1 border-t border-dotted border-gray-300 pt-0.5 mt-0.5">
+                <span className="font-bold shrink-0">Camp</span>
+                <span className="text-right break-words">{todayCampName}</span>
+              </div>
+            )}
           </div>
 
           <div className="text-[8px] mb-2 border-b border-dashed border-gray-400 pb-2">
@@ -4282,33 +4293,6 @@ const AyushCardApplicationForm = ({
                       </button>
                     </div>
 
-                    {staffCashCameraActive && (
-                      <div className="max-w-lg mx-auto mb-8 space-y-3">
-                        <video
-                          ref={staffCashVideoRef}
-                          autoPlay
-                          playsInline
-                          muted
-                          className="w-full rounded-xl border-2 border-[#fa8112] bg-black max-h-72 object-cover"
-                        />
-                        <div className="flex flex-wrap gap-2 justify-center">
-                          <button
-                            type="button"
-                            onClick={captureStaffCashReceipt}
-                            className="flex-1 min-w-[140px] bg-[#fa8112] text-white font-bold py-3 rounded-xl hover:bg-[#e0720f]"
-                          >
-                            Capture receipt
-                          </button>
-                          <button
-                            type="button"
-                            onClick={stopStaffCashCamera}
-                            className="px-6 py-3 border border-gray-300 rounded-xl font-semibold text-gray-700 hover:bg-gray-50"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    )}
 
                     {staffPaymentMode === "cash" &&
                       staffCashReceiptImage &&
@@ -4866,6 +4850,66 @@ const AyushCardApplicationForm = ({
                   >
                     <ArrowLeft size={18} />
                     {variant === "page" ? "Back to list" : "Return to Home"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {staffCashCameraActive && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+              <div 
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
+                onClick={stopStaffCashCamera}
+              />
+              <div className="relative w-full max-w-xl bg-white rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+                {/* Header */}
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white">
+                  <div>
+                    <h3 className="text-xl font-bold text-[#222222]">Capture Cash Receipt</h3>
+                    <p className="text-sm text-gray-500">Align the receipt within the frame</p>
+                  </div>
+                  <button 
+                    onClick={stopStaffCashCamera}
+                    className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                {/* Camera Container */}
+                <div className="relative aspect-[4/3] bg-black">
+                  <video
+                    ref={staffCashVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                  />
+                  {/* Decorative corner borders */}
+                  <div className="absolute inset-8 border-2 border-white/30 rounded-2xl pointer-events-none">
+                    <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-[#fa8112] rounded-tl-lg" />
+                    <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-[#fa8112] rounded-tr-lg" />
+                    <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-[#fa8112] rounded-bl-lg" />
+                    <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-[#fa8112] rounded-br-lg" />
+                  </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="p-6 bg-gray-50 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={stopStaffCashCamera}
+                    className="flex-1 px-6 py-4 border border-gray-200 bg-white rounded-2xl font-bold text-gray-600 hover:bg-gray-100 transition-all active:scale-95"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={captureStaffCashReceipt}
+                    className="flex-[2] bg-[#fa8112] text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-[#e0720f] transition-all active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <Camera size={20} />
+                    Capture Photo
                   </button>
                 </div>
               </div>
