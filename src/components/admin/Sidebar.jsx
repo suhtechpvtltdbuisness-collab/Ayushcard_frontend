@@ -237,91 +237,36 @@ const Sidebar = () => {
         {sidebarContent}
       </aside>
 
-      {/* iPad Mini / Mobile Collapsed Sidebar */}
+      {/* iPad Mini / Mobile Horizontal Sidebar */}
       <aside
-        className="flex lg:hidden shrink-0 w-16 bg-[#FFFFFF] border-r border-gray-200 flex-col items-center relative z-50"
+        className="flex lg:hidden shrink-0 w-full bg-[#FFFFFF] border-b border-gray-200 flex-row items-center overflow-x-auto relative z-40 py-2 custom-scrollbar shadow-sm"
         style={{ fontFamily: "Inter, sans-serif" }}
       >
-        <div
-          className="h-full w-full absolute inset-0 cursor-pointer flex flex-col items-center"
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-        >
-          {/* The trigger icon / Logo */}
-          <div className="flex justify-center pt-8 overflow-hidden w-full px-4">
-            <img
-              src="/logo1.svg"
-              alt="Logo"
-              className="h-15 max-w-none ml-2 object-left object-cover"
-            />
-          </div>
+        <div className="flex items-center pl-4 pr-2 shrink-0">
+          <img src="/logo1.svg" alt="Logo" className="h-8 max-w-none object-contain" />
+        </div>
+        
+        <div className="w-px h-8 bg-gray-200 mx-2 shrink-0 hidden sm:block"></div>
 
-          {/* Collapsed Navigation Icons */}
-          <nav className="flex flex-col gap-6 w-full items-center mt-14">
-            <div className="flex flex-col gap-2 w-full px-3">
-              {filteredMainMenuItems.map((item) => {
-                const isParentActive =
-                  item.subItems &&
-                  (location.pathname === item.path ||
-                    location.pathname.startsWith(item.path + "/"));
+        {/* Horizontal Navigation Icons */}
+        <nav className="flex flex-row gap-2 px-2 items-center shrink-0">
+          <div className="flex flex-row gap-2 shrink-0">
+            {filteredMainMenuItems.map((item) => {
+              const isParentActive =
+                item.subItems &&
+                (location.pathname === item.path ||
+                  location.pathname.startsWith(item.path + "/"));
 
-                return (
-                  <NavLink
-                    key={item.name}
-                    to={item.subItems ? item.subItems[0].path : item.path}
-                    end={
-                      item.path === basePath ||
-                      item.path === `${basePath}/health-card`
-                    }
-                    className={({ isActive }) =>
-                      `flex justify-center items-center w-10 h-10 rounded-lg transition-colors ${isActive || isParentActive
-                        ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
-                        : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
-                      }`
-                    }
-                  >
-                    {({ isActive }) => (
-                      <>
-                        {item.customIcon ? (
-                          <img
-                            src={item.customIcon}
-                            alt={item.name}
-                            className="w-5 h-5"
-                            style={
-                              isActive || isParentActive
-                                ? { filter: "brightness(0) invert(1)" }
-                                : { filter: "brightness(0)" }
-                            }
-                          />
-                        ) : (
-                          item.icon && (
-                            <item.icon
-                              size={20}
-                              className={
-                                isActive || isParentActive
-                                  ? "text-[#FFFCFB]"
-                                  : "text-[#22333B]"
-                              }
-                            />
-                          )
-                        )}
-                      </>
-                    )}
-                  </NavLink>
-                );
-              })}
-            </div>
-
-            <div className="w-8 h-px bg-gray-200"></div>
-
-            <div className="flex flex-col gap-2 w-full px-3">
-              {systemItems.map((item) => (
+              return (
                 <NavLink
                   key={item.name}
-                  to={item.path}
-                  end={item.path === basePath}
+                  to={item.subItems ? item.subItems[0].path : item.path}
+                  end={
+                    item.path === basePath ||
+                    item.path === `${basePath}/health-card`
+                  }
                   className={({ isActive }) =>
-                    `flex justify-center items-center w-10 h-10 rounded-lg transition-colors ${isActive
+                    `flex justify-center items-center w-10 h-10 shrink-0 rounded-lg transition-colors ${isActive || isParentActive
                       ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
                       : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
                     }`
@@ -335,7 +280,7 @@ const Sidebar = () => {
                           alt={item.name}
                           className="w-5 h-5"
                           style={
-                            isActive
+                            isActive || isParentActive
                               ? { filter: "brightness(0) invert(1)" }
                               : { filter: "brightness(0)" }
                           }
@@ -345,7 +290,9 @@ const Sidebar = () => {
                           <item.icon
                             size={20}
                             className={
-                              isActive ? "text-[#FFFCFB]" : "text-[#22333B]"
+                              isActive || isParentActive
+                                ? "text-[#FFFCFB]"
+                                : "text-[#22333B]"
                             }
                           />
                         )
@@ -353,17 +300,54 @@ const Sidebar = () => {
                     </>
                   )}
                 </NavLink>
-              ))}
-            </div>
-          </nav>
-
-          {/* The Overlay Sidebar */}
-          <div
-            className={`fixed left-0 top-0 h-screen w-64 bg-[#FFFFFF] shadow-[4px_0_24px_rgba(0,0,0,0.1)] border-r border-gray-200 transition-transform duration-300 ease-in-out flex flex-col justify-between cursor-default z-100 ${isHovered ? "translate-x-0" : "-translate-x-full"}`}
-          >
-            {sidebarContent}
+              );
+            })}
           </div>
-        </div>
+
+          <div className="w-px h-8 bg-gray-200 mx-2 shrink-0"></div>
+
+          <div className="flex flex-row gap-2 shrink-0 pr-4">
+            {systemItems.map((item) => (
+              <NavLink
+                key={item.name}
+                to={item.path}
+                end={item.path === basePath}
+                className={({ isActive }) =>
+                  `flex justify-center items-center w-10 h-10 shrink-0 rounded-lg transition-colors ${isActive
+                    ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
+                    : "text-[#4B5563] hover:bg-gray-100 hover:text-[#4B5563]"
+                  }`
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    {item.customIcon ? (
+                      <img
+                        src={item.customIcon}
+                        alt={item.name}
+                        className="w-5 h-5"
+                        style={
+                          isActive
+                            ? { filter: "brightness(0) invert(1)" }
+                            : { filter: "brightness(0)" }
+                        }
+                      />
+                    ) : (
+                      item.icon && (
+                        <item.icon
+                          size={20}
+                          className={
+                            isActive ? "text-[#FFFCFB]" : "text-[#22333B]"
+                          }
+                        />
+                      )
+                    )}
+                  </>
+                )}
+              </NavLink>
+            ))}
+          </div>
+        </nav>
       </aside>
     </>
   );

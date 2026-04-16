@@ -6,31 +6,35 @@ import ExportPrintModal from "../../../components/admin/ExportPrintModal";
 import { useToast } from "../../../components/ui/Toast";
 import Pagination from "../../../components/ui/Pagination";
 
-const normalizeCard = (card) => ({
-  ...card,
-  id: card.applicationId || card._id || "",
-  applicant:
-    [card.firstName, card.middleName, card.lastName]
-      .filter(Boolean)
-      .join(" ") || "",
-  phone: card.contact || "",
-  members: Array.isArray(card.members)
-    ? card.members
-    : Array.from({ length: Number(card.totalMember) || 0 }, (_, i) => ({
-      id: i,
-    })),
-  profileImage:
-    card.profileImage ||
-    (Array.isArray(card.documents) && card.documents.length > 0
-      ? card.documents[2]?.path || card.documents[2]?.url
-      : ""),
-  documentFront: card.documentFront || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentFront")?.path : "") || "",
-  documentBack: card.documentBack || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentBack")?.path : "") || "",
-  payment: {
-    applicationFee: 160,
-    memberAddOns: Math.max(0, (Number(card.totalMember) || 0) - 4) * 40,
-    totalPaid: Number(card.totalMember || 0) <= 4 ? 160 : 160 + (Number(card.totalMember || 0) - 4) * 40,
-  },
+const normalizeCard = (card) => {
+  const totalCount = (Number(card.totalMembers ?? card.totalMember) || 0);
+
+  return {
+    ...card,
+    id: card.applicationId || card._id || "",
+    applicant:
+      [card.firstName, card.middleName, card.lastName]
+        .filter(Boolean)
+        .join(" ") || "",
+    phone: card.contact || "",
+    totalMembers: totalCount,
+    members: Array.isArray(card.members)
+      ? card.members
+      : Array.from({ length: totalCount }, (_, i) => ({
+        id: i,
+      })),
+    profileImage:
+      card.profileImage ||
+      (Array.isArray(card.documents) && card.documents.length > 0
+        ? card.documents[2]?.path || card.documents[2]?.url
+        : ""),
+    documentFront: card.documentFront || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentFront")?.path : "") || "",
+    documentBack: card.documentBack || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentBack")?.path : "") || "",
+    payment: {
+      applicationFee: 160,
+      memberAddOns: Math.max(0, totalCount - 4) * 40,
+      totalPaid: totalCount <= 4 ? 160 : 160 + (totalCount - 4) * 40,
+    },
   status: (() => {
     switch ((card.status || "").toLowerCase()) {
       case "approved":
@@ -49,7 +53,8 @@ const normalizeCard = (card) => ({
         return card.status || "Not verified";
     }
   })(),
-});
+  };
+};
 
 const StatusBadge = ({ status }) => {
   let bg = "bg-gray-100";
@@ -319,7 +324,7 @@ export default function ExportedCards() {
                         {row.phone}
                       </td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] text-center">
-                        {row.members?.length || 0}
+                          {row.totalMembers ?? ((row.members?.length || 0) + 1)}
                       </td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] text-right whitespace-nowrap">
                         ₹{Number(row.payment?.totalPaid || 0).toFixed(2)}

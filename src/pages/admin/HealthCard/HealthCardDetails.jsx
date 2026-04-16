@@ -28,12 +28,12 @@ const apiToForm = (card) => ({
   expiryDate: card.cardExpiredDate || "",
   verificationDate: card.verificationDate || "",
   // Members / payment
-  totalMembers: card.totalMember ?? "",
+  totalMembers: card.totalMembers ?? card.totalMember ?? "",
   members: Array.isArray(card.members) ? card.members : [],
   payment: {
     applicationFee: 160,
-    memberAddOns: Math.max(0, (Number(card.totalMember) || 0) - 4) * 40,
-    totalPaid: Number(card.totalMember || 0) <= 4 ? 160 : 160 + (Number(card.totalMember || 0) - 4) * 40,
+    memberAddOns: Math.max(0, (Number(card.totalMembers ?? card.totalMember) || 0) - 4) * 40,
+    totalPaid: Number((card.totalMembers ?? card.totalMember) || 0) <= 4 ? 160 : 160 + (Number((card.totalMembers ?? card.totalMember) || 0) - 4) * 40,
   },
   // Misc
   address: card.address || "",

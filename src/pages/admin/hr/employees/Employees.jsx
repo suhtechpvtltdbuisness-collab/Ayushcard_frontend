@@ -25,18 +25,22 @@ const CardStatusBadge = ({ status }) => {
 };
 
 /* ── Normalise a raw card from API ─────────────────────────────────── */
-const normalizeCard = (card) => ({
-  ...card,
-  id: card.applicationId || card._id || "",
-  applicant: [card.firstName, card.middleName, card.lastName].filter(Boolean).join(" ") || "",
-  phone: card.contact || "",
-  pincode: card.pincode || "",
-  members: Array.isArray(card.members)
-    ? card.members
-    : Array.from({ length: Number(card.totalMember) || 0 }, (_, i) => ({ id: i })),
-  payment: {
-    totalPaid: card.totalAmount ?? 120,
-  },
+const normalizeCard = (card) => {
+  const totalCount = (Number(card.totalMembers ?? card.totalMember) || 0);
+
+  return {
+    ...card,
+    id: card.applicationId || card._id || "",
+    applicant: [card.firstName, card.middleName, card.lastName].filter(Boolean).join(" ") || "",
+    phone: card.contact || "",
+    pincode: card.pincode || "",
+    totalMembers: totalCount,
+    members: Array.isArray(card.members)
+      ? card.members
+      : Array.from({ length: totalCount }, (_, i) => ({ id: i })),
+    payment: {
+      totalPaid: card.totalAmount ?? 120,
+    },
   status: (() => {
     switch ((card.status || "").toLowerCase()) {
       case "approved": return "Verified";
@@ -47,7 +51,8 @@ const normalizeCard = (card) => ({
       default: return card.status || "Not verified";
     }
   })(),
-});
+  };
+};
 
 /* ── Employee Cards Panel ──────────────────────────────────────────── */
 const EmployeeCardsPanel = ({ employee, onClose }) => {
@@ -147,7 +152,7 @@ const EmployeeCardsPanel = ({ employee, onClose }) => {
                       <div className="flex items-center gap-4 mt-1.5 text-[12px] text-gray-500 flex-wrap">
                         {card.phone && <span>📞 {card.phone}</span>}
                         {card.pincode && <span>📍 {card.pincode}</span>}
-                        <span>👥 {(card.members?.length || 0) + 1} member{(card.members?.length || 0) + 1 !== 1 ? "s" : ""}</span>
+                        <span>👥 {card.totalMembers || (card.members?.length || 0) + 1} member{(card.totalMembers || (card.members?.length || 0) + 1) !== 1 ? "s" : ""}</span>
                         <span>₹{Number(card.payment?.totalPaid || 0).toFixed(2)}</span>
                       </div>
                     </div>

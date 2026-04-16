@@ -138,6 +138,9 @@ const AyushCardApplicationForm = ({
   const headCameraStreamRef = useRef(null);
   const paymentInputRef = useRef(null);
 
+  const todayForDob = new Date();
+  const maxDobForAdult = `${todayForDob.getFullYear() - 18}-${String(todayForDob.getMonth() + 1).padStart(2, '0')}-${String(todayForDob.getDate()).padStart(2, '0')}`;
+
   const [paymentScreenshot, setPaymentScreenshot] = useState(null);
   const [isEditingReview, setIsEditingReview] = useState(false);
   const [declarationAccepted, setDeclarationAccepted] = useState(false);
@@ -1694,6 +1697,7 @@ const AyushCardApplicationForm = ({
       cardIssueDate: today,
       cardExpiredDate: cardExpiryDate,
       verificationDate: today,
+      totalMembers: 1 + members.length,
       totalMember: 1 + members.length,
       totalAmount: estimatedFee,
       documents: [
@@ -1819,6 +1823,7 @@ const AyushCardApplicationForm = ({
       cardExpiredDate: cardExpiryDate,
       verificationDate: today,
       status: "pending",
+      totalMembers: totalMembersCount,
       totalMember: totalMembersCount,
       members: members.map((m) => {
         const docType = m.documentType || "Aadhaar";
@@ -2271,12 +2276,13 @@ const AyushCardApplicationForm = ({
       Array.isArray(rec?.members) && rec.members.length > 0
         ? rec.members
         : members;
+    const rawDateStr = rec?.applicationDate != null ? String(rec.applicationDate).trim() : "";
     const receiptDate =
-      rec?.applicationDate != null && String(rec.applicationDate).trim() !== ""
+      rawDateStr !== ""
         ? new Date(
-            String(rec.applicationDate).length <= 10
-              ? `${rec.applicationDate}T12:00:00`
-              : rec.applicationDate,
+            rawDateStr.length <= 10
+              ? `${rawDateStr}T12:00:00`
+              : rawDateStr.replace(/(Z|\+00:00)$/, "")
           )
         : new Date();
 
@@ -2738,9 +2744,9 @@ const AyushCardApplicationForm = ({
                                 ref={videoRef}
                                 autoPlay
                                 playsInline
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-cover scale-[1.4]"
                               />
-                              <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 border-2 border-white/50 border-dashed aspect-[1.6/1] rounded-lg"></div>
+                              <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 border-2 border-white/50 border-dashed aspect-[1.6/1] rounded-lg pointer-events-none"></div>
                               {ocrLoading && (
                                 <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center p-6 transition-all animate-in fade-in">
                                   <div className="w-full max-w-[160px] h-1.5 bg-white/20 rounded-full overflow-hidden mb-3 relative">
@@ -2855,6 +2861,7 @@ const AyushCardApplicationForm = ({
                             type="date"
                             name="dob"
                             value={familyHead.dob}
+                            max={maxDobForAdult}
                             onChange={handleHeadChange}
                             style={{ fontFamily: "'Inter', sans-serif" }}
                             className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112] transition-colors"
@@ -3197,6 +3204,7 @@ const AyushCardApplicationForm = ({
                               type="date"
                               name="dob"
                               value={familyHead.dob}
+                              max={maxDobForAdult}
                               onChange={handleHeadChange}
                               style={{ fontFamily: "'Inter', sans-serif" }}
                               className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[15px] outline-none focus:border-[#FA8112]"
@@ -3310,12 +3318,12 @@ const AyushCardApplicationForm = ({
                           <div className="md:col-span-2 bg-orange-50 border border-[#FBD7B0] rounded-lg p-3 mb-3">
                             {memberCameraActive ? (
                               <div className="space-y-3">
-                                <div className="relative w-full">
+                                <div className="relative w-full overflow-hidden rounded-lg">
                                   <video
                                     ref={memberVideoRef}
                                     autoPlay
                                     playsInline
-                                    className="w-full rounded-lg border border-[#F6B579] max-h-64 object-cover"
+                                    className="w-full rounded-lg border border-[#F6B579] max-h-64 object-cover scale-[1.4]"
                                   />
                                   <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 border-2 border-white/50 border-dashed aspect-[1.6/1] w-[70%] rounded-lg pointer-events-none" />
                                 </div>
@@ -3892,6 +3900,7 @@ const AyushCardApplicationForm = ({
                                 type="date"
                                 name="dob"
                                 value={familyHead.dob}
+                                max={maxDobForAdult}
                                 onChange={handleHeadChange}
                                 className="w-full border-b border-gray-300 focus:border-[#fa8112] outline-none py-1 text-[14px] font-semibold text-[#222222]"
                               />
@@ -4782,9 +4791,11 @@ const AyushCardApplicationForm = ({
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-500">Total Members</span>
                         <span className="font-semibold text-[#222222]">
-                          {submissionReceipt?.totalMember != null
-                            ? Number(submissionReceipt.totalMember)
-                            : totalMembersCount}
+                          {submissionReceipt?.totalMembers != null
+                            ? Number(submissionReceipt.totalMembers)
+                            : submissionReceipt?.totalMember != null
+                              ? Number(submissionReceipt.totalMember)
+                              : totalMembersCount}
                         </span>
                       </div>
                     </div>
