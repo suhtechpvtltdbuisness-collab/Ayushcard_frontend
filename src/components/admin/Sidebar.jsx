@@ -349,6 +349,42 @@ const Sidebar = () => {
           </div>
         </nav>
       </aside>
+
+      {/* Mobile Sub-Menu Bar — shown below the top bar when a parent with subItems is active */}
+      {(() => {
+        const activeParent = filteredMainMenuItems.find(
+          (item) =>
+            item.subItems &&
+            (location.pathname === item.path ||
+              location.pathname.startsWith(item.path + "/"))
+        );
+        if (!activeParent) return null;
+        return (
+          <div
+            className="flex lg:hidden w-full bg-white border-b border-gray-100 overflow-x-auto custom-scrollbar z-30"
+            style={{ fontFamily: "Inter, sans-serif" }}
+          >
+            <nav className="flex flex-row gap-1 px-4 py-1.5 items-center">
+              {activeParent.subItems.map((subItem) => (
+                <NavLink
+                  key={subItem.name}
+                  to={subItem.path}
+                  end={subItem.path === `${basePath}/health-card`}
+                  className={({ isActive }) =>
+                    `px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors shrink-0 ${
+                      isActive
+                        ? "bg-[#F68E5F] text-white shadow-sm"
+                        : "text-[#6B7280] hover:bg-orange-50 hover:text-[#F68E5F]"
+                    }`
+                  }
+                >
+                  {subItem.name}
+                </NavLink>
+              ))}
+            </nav>
+          </div>
+        );
+      })()}
     </>
   );
 };
