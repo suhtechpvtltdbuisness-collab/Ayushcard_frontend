@@ -236,6 +236,12 @@ const apiService = {
         return response.data;
     },
 
+    // GET /api/users/:id
+    getEmployeeById: async (id) => {
+        const response = await api.get(`/api/users/${id}`);
+        return response.data;
+    },
+
     // DELETE /api/users/:id
     deleteEmployee: async (id) => {
         const response = await api.delete(`/api/users/${id}`);

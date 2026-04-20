@@ -12,19 +12,58 @@ const EmployeeDetails = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Load data — try API first, fall back to mock
+  // Load data — try GET /api/users/:id first, fall back to list scan, then mock
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       try {
-        // Try fetching all employees and find the one matching our id
-        const res = await apiService.getEmployees();
-        const rawList = res?.data || res?.users || res?.employees || (Array.isArray(res) ? res : []);
-        const list = Array.isArray(rawList) ? rawList : (Array.isArray(res?.data) ? res.data : []);
+        // ── Strategy 1: direct GET /api/users/:id ────────────────────────
+        const res = await apiService.getEmployeeById(id);
+        // Possible shapes: { data: {...} } | { user: {...} } | { data: { user: {...} } } | raw object
+        const u =
+          res?.data?.user ||
+          res?.user ||
+          res?.data ||
+          (res && typeof res === "object" && !Array.isArray(res) && res._id ? res : null);
 
-        const matched = list.find(
-          (u) => u._id === id || u.employeeId === id
-        );
+        if (u && (u._id || u.employeeId)) {
+          setFormData({
+            _rawId: u._id,
+            id: u.employeeId || u._id,
+            name: u.name || "",
+            phone: u.contact || "",
+            email: u.email || "",
+            dateOfJoining: u.dateOfJoining
+              ? new Date(u.dateOfJoining).toLocaleDateString()
+              : "",
+            location: u.location || "",
+            pincode: u.pincode || "",
+            salary: u.salary ? String(u.salary) : "0",
+            workingHoursFrom: u.workStartTime || "10:00 AM",
+            workingHoursTo: u.workEndTime || "6:00 PM",
+            role: u.role || "employee",
+            status: u.status || "Verified",
+          });
+          setLoading(false);
+          return;
+        }
+      } catch (err) {
+        console.warn("[EmployeeDetails] Direct fetch failed, trying list scan:", err?.message);
+      }
+
+      // ── Strategy 2: fetch all and search ─────────────────────────────
+      try {
+        const res = await apiService.getEmployees();
+        const rawList =
+          res?.data?.users ||
+          res?.users ||
+          res?.data?.employees ||
+          res?.employees ||
+          (Array.isArray(res?.data) ? res.data : null) ||
+          (Array.isArray(res) ? res : []);
+        const list = Array.isArray(rawList) ? rawList : [];
+
+        const matched = list.find((u) => u._id === id || u.employeeId === id);
 
         if (matched) {
           setFormData({
@@ -44,15 +83,16 @@ const EmployeeDetails = () => {
             role: matched.role || "employee",
             status: matched.status || "Verified",
           });
+          setLoading(false);
           return;
         }
       } catch (err) {
-        console.warn("[EmployeeDetails] API fetch failed, using mock:", err?.message);
+        console.warn("[EmployeeDetails] List scan failed, using mock:", err?.message);
       } finally {
         setLoading(false);
       }
 
-      // Fallback: local mock data
+      // ── Strategy 3: local mock data ──────────────────────────────────
       const employees = getEmployees();
       const data = employees.find((e) => e.id === id) || employees[0];
       if (data) setFormData(data);
