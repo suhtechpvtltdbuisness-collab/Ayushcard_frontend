@@ -2282,14 +2282,16 @@ const AyushCardApplicationForm = ({
         ? rec.members
         : members;
     const rawDateStr = rec?.applicationDate != null ? String(rec.applicationDate).trim() : "";
-    const receiptDate =
-      rawDateStr !== ""
-        ? new Date(
-            rawDateStr.length <= 10
-              ? `${rawDateStr}T12:00:00`
-              : rawDateStr.replace(/(Z|\+00:00)$/, "")
-          )
-        : new Date();
+    // Prefer full ISO timestamps (createdAt / updatedAt) from the API — they carry the real time.
+    // applicationDate is often a date-only string ("YYYY-MM-DD") sent back from the server,
+    // which previously caused the hardcoded T12:00:00 workaround and the "always 12:00 pm" bug.
+    const receiptDate = (() => {
+      const fullTs = rec?.createdAt || rec?.updatedAt;
+      if (fullTs) return new Date(fullTs);
+      if (rawDateStr.length > 10) return new Date(rawDateStr.replace(/(Z|\+00:00)$/, ""));
+      if (rawDateStr.length === 10) return new Date(); // date-only → use submission time
+      return new Date();
+    })();
 
     return (
       <div className="public-thermal-receipt-wrap hidden print:block">
@@ -4746,23 +4748,23 @@ const AyushCardApplicationForm = ({
                             : "Payment Date"}
                         </span>
                         <span className="font-semibold text-[#222222]">
-                          {(submissionReceipt?.applicationDate != null &&
-                          String(submissionReceipt.applicationDate).trim() !==
-                            ""
-                            ? new Date(
-                                String(submissionReceipt.applicationDate)
-                                  .length <= 10
-                                  ? `${submissionReceipt.applicationDate}T12:00:00`
-                                  : submissionReceipt.applicationDate,
-                              )
-                            : new Date()
-                          ).toLocaleDateString("en-IN", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                          {(() => {
+                            const rec = submissionReceipt;
+                            const fullTs = rec?.createdAt || rec?.updatedAt;
+                            const rawDs = rec?.applicationDate != null ? String(rec.applicationDate).trim() : "";
+                            const d = fullTs
+                              ? new Date(fullTs)
+                              : rawDs.length > 10
+                                ? new Date(rawDs.replace(/(Z|\+00:00)$/, ""))
+                                : new Date(); // date-only or missing → actual submission time
+                            return d.toLocaleString("en-IN", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            });
+                          })()}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
