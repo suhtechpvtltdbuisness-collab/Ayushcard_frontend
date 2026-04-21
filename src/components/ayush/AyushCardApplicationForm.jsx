@@ -724,12 +724,12 @@ const AyushCardApplicationForm = ({
           console.log("Setting Family Head. Prev:", prev, "Next:", { nextName, nextAadhaar, results });
           return {
             ...prev,
-            fullName: (nextName && (!prev.fullName || nextScore > prevScore)) ? nextName : prev.fullName,
-            gender: (results.gender && !prev.gender) ? results.gender : prev.gender,
-            dob: (results.dob && !prev.dob) ? results.dob : prev.dob,
+            fullName: (nextName && (!prev.fullName || nextScore >= prevScore)) ? nextName : prev.fullName,
+            gender: results.gender || prev.gender,
+            dob: results.dob || prev.dob,
             pincode: results.pincode || prev.pincode || "",
             address: results.address || prev.address || "",
-            aadhaarNumber: (nextAadhaar && !prev.aadhaarNumber) ? nextAadhaar : prev.aadhaarNumber,
+            aadhaarNumber: nextAadhaar || prev.aadhaarNumber,
           };
         });
 
@@ -940,12 +940,12 @@ const AyushCardApplicationForm = ({
               console.log("Setting Family Head (Gallery). Prev:", prev, "Next:", { nextName, nextAadhaar, results });
               return {
                 ...prev,
-                fullName: (nextName && (!prev.fullName || nextScore > prevScore)) ? nextName : prev.fullName,
-                gender: (results.gender && !prev.gender) ? results.gender : prev.gender,
-                dob: (results.dob && !prev.dob) ? results.dob : prev.dob,
+                fullName: (nextName && (!prev.fullName || nextScore >= prevScore)) ? nextName : prev.fullName,
+                gender: results.gender || prev.gender,
+                dob: results.dob || prev.dob,
                 pincode: results.pincode || prev.pincode || "",
                 address: results.address || prev.address || "",
-                aadhaarNumber: (nextAadhaar && !prev.aadhaarNumber) ? nextAadhaar : prev.aadhaarNumber,
+                aadhaarNumber: nextAadhaar || prev.aadhaarNumber,
               };
             });
 
@@ -1595,9 +1595,9 @@ const AyushCardApplicationForm = ({
         
         updatedMembers[index] = {
           ...target,
-          fullName: (nextName && (!target.fullName || nextScore > prevScore)) ? nextName : target.fullName,
-          age: (nextAge && !target.age) ? nextAge : target.age,
-          documentId: (nextDocIdAccepted && !currentAadhaarValid) ? nextDocIdAccepted : target.documentId,
+          fullName: (nextName && (!target.fullName || nextScore >= prevScore)) ? nextName : target.fullName,
+          age: nextAge || target.age,
+          documentId: nextDocIdAccepted || target.documentId,
           scannedImage: storageBase64,
         };
         return updatedMembers;
