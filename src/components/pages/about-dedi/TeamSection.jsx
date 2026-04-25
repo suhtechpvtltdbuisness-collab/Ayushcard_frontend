@@ -3,26 +3,26 @@ import React from "react";
 const teamMembers = [
   {
     id: 1,
-    name: "Mateo Rossi",
-    role: "CFO",
+    name: "Abhishek Shukla",
+    role: "General Secretary",
     org: "BKBS Trust",
-    image: "/team1.svg",
+    image: "/assets/team/team2.jpg",
     featured: false,
   },
   {
     id: 2,
-    name: "Liam Carter",
-    role: "CEO",
+    name: "Vivek Mishra",
+    role: "president trusty",
     org: "BKBS Trust",
-    image: "/team2.svg",
+    image: "/assets/team/team1.jpg",
     featured: true,
   },
   {
     id: 3,
-    name: "Stephanie Moore",
-    role: "CTO",
+    name: "Pushpa Devi",
+    role: "Director General",
     org: "BKBS Trust",
-    image: "/team3.svg",
+    image: "/assets/team/team3.jpg",
     featured: false,
   },
 ];
@@ -54,19 +54,19 @@ const TeamSection = () => {
           {teamMembers.map((member) => (
             <div
               key={member.id}
-              className="flex flex-col items-center w-full sm:w-auto max-w-[280px]"
+              className="flex flex-col items-center w-full sm:w-auto"
               style={{
-                width: member.featured ? "min(260px, 100%)" : "min(220px, 100%)",
+                width: member.featured ? "min(280px, 100%)" : "min(240px, 100%)",
               }}
             >
               {/* Avatar Circle */}
               <div
-                className="rounded-full overflow-hidden mb-0 flex-shrink-0"
+                className="rounded-full overflow-hidden mb-0 flex-shrink-0 border-4 border-white shadow-md"
                 style={{
-                  width: member.featured ? "180px" : "160px",
-                  height: member.featured ? "180px" : "160px",
+                  width: member.featured ? "200px" : "180px",
+                  height: member.featured ? "200px" : "180px",
                   backgroundColor: member.featured ? "#F68E5F" : "#d1d5db",
-                  filter: member.featured ? "none" : "grayscale(100%)",
+                  filter: "none",
                 }}
               >
                 <img
