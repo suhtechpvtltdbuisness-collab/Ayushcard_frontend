@@ -44,7 +44,7 @@ const About = () => {
         <div className="p-4 rounded-2xl md:p-0">
           <h4 className="text-gray-800 font-semibold mb-2">Healthcare</h4>
           <h2 className="text-4xl md:text-5xl font-bold text-[#F68E5F] mb-3">
-            500+
+            4000+
           </h2>
           <p className="text-gray-500 text-sm leading-relaxed">
             Helping families access Ayushman Bharat healthcare services and hospital support.
@@ -56,7 +56,7 @@ const About = () => {
             Economic development
           </h4>
           <h2 className="text-4xl md:text-5xl font-bold text-[#F68E5F] mb-3">
-            200K+
+            2200+
           </h2>
           <p className="text-gray-500 text-sm leading-relaxed">
             Assisting citizens in accessing government welfare schemes and financial benefits.
@@ -68,7 +68,7 @@ const About = () => {
             Environmental initiatives
           </h4>
           <h2 className="text-4xl md:text-5xl font-bold text-[#F68E5F] mb-3">
-            180K+
+            1800+
           </h2>
           <p className="text-gray-500 text-sm leading-relaxed">
             Promoting sustainable practices and community-driven environmental awareness programs.

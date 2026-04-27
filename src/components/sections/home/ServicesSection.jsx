@@ -31,14 +31,14 @@ const ServicesSection = () => {
       icon: "/service_img_4.svg",
       title: "Healthcare Access",
       description:
-        "Access cashless treatment at 100+ empanelled hospitals statewide.",
+        "Avail discounts on treatment at Associated and listed hospitals.",
     },
   ];
 
   const stats = [
     {
       id: 1,
-      value: "20K+",
+      value: "8000+",
       label: "Cards Processed",
       bgColor: "bg-white",
       textColor: "text-[#F68E5F]",
@@ -66,7 +66,7 @@ const ServicesSection = () => {
     },
     {
       id: 5,
-      value: "10K+",
+      value: "6000+",
       label: "Happy Families",
       bgColor: "bg-[#F68E5F]",
       textColor: "text-white",

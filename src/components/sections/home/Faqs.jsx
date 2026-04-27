@@ -23,7 +23,7 @@ const faqsByCategory = {
       id: 1,
       question: "Who is eligible for the Ayush Card?",
       answer:
-        "The Ayush Ayush Card is available for individuals of all age groups.",
+        "The Ayush Ayush Card is available for person of all age groups.",
     },
     {
       id: 2,
@@ -147,11 +147,10 @@ const Faqs = () => {
                     setActiveCategory(cat.id);
                     setOpenFaq(null);
                   }}
-                  className={`flex items-center gap-3 px-5 py-3 md:py-4 rounded-xl text-sm font-semibold transition-all duration-200 whitespace-nowrap min-w-fit shadow-sm ${
-                    isActive
-                      ? "bg-[#F68E5F] text-white"
-                      : "bg-white text-gray-700 hover:bg-gray-50 hover:text-[#F68E5F]"
-                  }`}
+                  className={`flex items-center gap-3 px-5 py-3 md:py-4 rounded-xl text-sm font-semibold transition-all duration-200 whitespace-nowrap min-w-fit shadow-sm ${isActive
+                    ? "bg-[#F68E5F] text-white"
+                    : "bg-white text-gray-700 hover:bg-gray-50 hover:text-[#F68E5F]"
+                    }`}
                 >
                   <Icon className="w-4 h-4 shrink-0" />
                   {cat.label}
