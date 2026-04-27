@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { Search, Eye, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import apiService from "../../../api/service";
+import Pagination from "../../../components/ui/Pagination";
 
 const normalizeCard = (card) => {
   const totalCount = (Number(card.totalMembers ?? card.totalMember) || 0);
@@ -93,8 +94,7 @@ export default function VerifiedCards() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-
-  const ITEMS_PER_PAGE = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(50);
 
   useEffect(() => {
     fetchCards();
@@ -132,11 +132,11 @@ export default function VerifiedCards() {
     });
   }, [healthCards, searchQuery]);
 
-  const totalPages = Math.ceil(processedData.length / ITEMS_PER_PAGE) || 1;
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const totalPages = Math.ceil(processedData.length / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedData = processedData.slice(
     startIndex,
-    startIndex + ITEMS_PER_PAGE,
+    startIndex + itemsPerPage,
   );
 
   return (
@@ -253,6 +253,19 @@ export default function VerifiedCards() {
           </div>
         )}
       </div>
+
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={setCurrentPage}
+        itemsPerPage={itemsPerPage}
+        onItemsPerPageChange={(val) => {
+          setItemsPerPage(val);
+          setCurrentPage(1);
+        }}
+        totalItems={processedData.length}
+        pageSizeOptions={[50, 100, 150]}
+      />
     </div>
   );
 }

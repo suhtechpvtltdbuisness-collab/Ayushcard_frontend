@@ -132,7 +132,7 @@ export default function VerifiedCards() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState("");
 
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -389,6 +389,7 @@ export default function VerifiedCards() {
           setCurrentPage(1);
         }}
         totalItems={totalItems}
+        pageSizeOptions={[50, 100, 150]}
       />
 
       {/* Export Modal */}

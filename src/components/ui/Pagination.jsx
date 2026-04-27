@@ -12,6 +12,7 @@ const Pagination = ({
   itemsPerPage,
   onItemsPerPageChange,
   totalItems,
+  pageSizeOptions = [10, 25, 50],
 }) => {
   const currentPage = Number(rawCurrentPage) || 1;
   const totalPages = Number(rawTotalPages) || 1;
@@ -89,7 +90,7 @@ const Pagination = ({
             <CustomSelect
               value={itemsPerPage}
               onChange={onItemsPerPageChange}
-              options={[10, 25, 50]}
+              options={pageSizeOptions}
               mobile={true}
             />
           </div>
@@ -143,7 +144,7 @@ const Pagination = ({
           <CustomSelect
             value={itemsPerPage}
             onChange={onItemsPerPageChange}
-            options={[10, 25, 50]}
+            options={pageSizeOptions}
           />
         </div>
       </div>
