@@ -23,7 +23,7 @@ const faqsByCategory = {
       id: 1,
       question: "Who is eligible for the Ayush Card?",
       answer:
-        "The Ayush Ayush Card is available for person of all age groups.",
+        "The Ayush Card is available for person of all age groups.",
     },
     {
       id: 2,

@@ -31,7 +31,7 @@ const ServicesSection = () => {
       icon: "/service_img_4.svg",
       title: "Healthcare Access",
       description:
-        "Avail discounts on treatment at Associated and listed hospitals.",
+        "Await discount on treatment at associated and registered hospitals.",
     },
   ];
 

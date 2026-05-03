@@ -15,7 +15,7 @@ const DonateSection = () => {
       id: 2,
       icon: "/donate_img_2.svg",
       title: "Tax Benefits (80G)",
-      description: "Get 50% tax deduction under 80G with official receipt.",
+      description: "Tax benefit 80G",
     },
     {
       id: 3,

@@ -142,7 +142,7 @@ const Footer = () => {
                     href="tel:+919918802030"
                     className="hover:text-orange-400 transition-colors"
                   >
-                    +91 99188 02030
+                    +91 8303902030
                   </a>
                 </li>
                 <li className="flex items-center gap-2">
@@ -151,7 +151,7 @@ const Footer = () => {
                     href="https://wa.me/919918802030"
                     className="hover:text-orange-400 transition-colors"
                   >
-                    +91 99188 02030
+                    +91 8303902030
                   </a>
                 </li>
                 <li className="flex items-center gap-2">
@@ -160,7 +160,7 @@ const Footer = () => {
                     href="mailto:mishravivek5789@gmail.com"
                     className="hover:text-orange-400 transition-colors"
                   >
-                    mishravivek5789@gmail.com
+                   bkbsewatrust@gmail.com
                   </a>
                 </li>
                 <li className="flex items-start gap-2">
