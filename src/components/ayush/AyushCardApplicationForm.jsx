@@ -3474,8 +3474,7 @@ const AyushCardApplicationForm = ({
                             <option value="Mother">Mother</option>
                             <option value="Brother">Brother</option>
                             <option value="Sister">Sister</option>
-                            <option value="Grandfather">Grandfather</option>
-                            <option value="Grandmother">Grandmother</option>
+                           
                             <option value="Other">Other</option>
                           </select>
                         </div>
@@ -4124,12 +4123,6 @@ const AyushCardApplicationForm = ({
                                         <option value="Mother">Mother</option>
                                         <option value="Brother">Brother</option>
                                         <option value="Sister">Sister</option>
-                                        <option value="Grandfather">
-                                          Grandfather
-                                        </option>
-                                        <option value="Grandmother">
-                                          Grandmother
-                                        </option>
                                         <option value="Other">Other</option>
                                       </select>
                                     ) : (
