@@ -21,6 +21,7 @@ export function ApplyAyushCardModalProvider({ children }) {
 export function useApplyAyushCardModal() {
   const ctx = useContext(ApplyAyushCardModalContext);
   if (!ctx) {
+
     throw new Error(
       "useApplyAyushCardModal must be used within ApplyAyushCardModalProvider",
     );
