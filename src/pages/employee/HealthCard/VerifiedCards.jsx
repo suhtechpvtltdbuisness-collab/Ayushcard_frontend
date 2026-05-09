@@ -3,6 +3,8 @@ import { Search, Eye, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import apiService from "../../../api/service";
 import Pagination from "../../../components/ui/Pagination";
+import ExportPrintModal from "../../../components/admin/ExportPrintModal";
+import { useToast } from "../../../components/ui/Toast";
 
 const normalizeCard = (card) => {
   const totalCount = (Number(card.totalMembers ?? card.totalMember) || 0);
@@ -89,12 +91,15 @@ const ActionButtons = ({ item, navigate }) => {
 
 export default function VerifiedCards() {
   const navigate = useNavigate();
+  const { toastWarn } = useToast();
 
   const [healthCards, setHealthCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
+  const [selectedRows, setSelectedRows] = useState([]);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   useEffect(() => {
     fetchCards();
@@ -139,6 +144,33 @@ export default function VerifiedCards() {
     startIndex + itemsPerPage,
   );
 
+  const handleSelectAll = (e) => {
+    if (e.target.checked) setSelectedRows(processedData.map((_, idx) => idx));
+    else setSelectedRows([]);
+  };
+
+  const handleSelectRow = (globalIndex) => {
+    setSelectedRows((prev) =>
+      prev.includes(globalIndex)
+        ? prev.filter((i) => i !== globalIndex)
+        : [...prev, globalIndex],
+    );
+  };
+
+  const handleExportClick = () => {
+    if (selectedRows.length === 0) {
+      toastWarn("Please select at least one verified card to export for printing.");
+      return;
+    }
+    setIsExportModalOpen(true);
+  };
+
+  const handleExportSuccess = () => {
+    setSelectedRows([]);
+    fetchCards();
+    setIsExportModalOpen(false);
+  };
+
   return (
     <div
       className="flex flex-col h-[calc(100vh-170px)]"
@@ -146,6 +178,12 @@ export default function VerifiedCards() {
     >
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 shrink-0 gap-3 sm:gap-0">
         <h2 className="text-xl font-bold text-[#22333B]">Verified Cards</h2>
+        <button
+          onClick={handleExportClick}
+          className="w-full sm:w-auto px-4 py-2 border border-[#F68E5F] bg-[#ffffff] rounded-lg text-[15px] font-medium text-[#F68E5F] flex items-center justify-center gap-2 transition-colors hover:bg-orange-50"
+        >
+          Export +
+        </button>
       </div>
 
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-4 shrink-0">
@@ -178,6 +216,17 @@ export default function VerifiedCards() {
             <table className="w-full min-w-[820px] text-left border-collapse relative">
               <thead className="sticky top-0 z-10 bg-[#FFFFFF]">
                 <tr>
+                  <th className="py-3 px-4 w-12 text-center">
+                    <input
+                      type="checkbox"
+                      onChange={handleSelectAll}
+                      checked={
+                        processedData.length > 0 &&
+                        selectedRows.length === processedData.length
+                      }
+                      className="w-4 h-4 rounded border-[#D1D5DB] border text-[#22333B] focus:ring-[#111827]"
+                    />
+                  </th>
                   <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-17.5">
                     Sr.no
                   </th>
@@ -212,6 +261,14 @@ export default function VerifiedCards() {
                       key={index}
                       className="border-b border-[#F3F4F6] hover:bg-[#F9FAFB] transition-colors"
                     >
+                      <td className="py-2 px-4 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedRows.includes(globalIndex)}
+                          onChange={() => handleSelectRow(globalIndex)}
+                          className="w-4 h-3 rounded border-[#D1D5DB] text-[#22333B] focus:ring-[#111827]"
+                        />
+                      </td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B]">
                         {globalIndex + 1}
                       </td>
@@ -266,6 +323,17 @@ export default function VerifiedCards() {
         totalItems={processedData.length}
         pageSizeOptions={[50, 100, 150]}
       />
+
+      {/* Export Modal */}
+      {isExportModalOpen && (
+        <ExportPrintModal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          selectedData={selectedRows.map((idx) => processedData[idx])}
+          onExportSuccess={handleExportSuccess}
+          markPrintedOnDownload={true}
+        />
+      )}
     </div>
   );
 }

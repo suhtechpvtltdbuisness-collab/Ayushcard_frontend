@@ -210,6 +210,12 @@ export default function ExportedCards() {
     >
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 shrink-0 gap-4 sm:gap-0">
         <h2 className="text-xl font-bold text-[#22333B]">Exported Cards</h2>
+        <button
+          onClick={handleExportClick}
+          className="w-full sm:w-auto px-4 py-2 border border-[#F68E5F] bg-[#ffffff] rounded-lg text-[15px] font-medium text-[#F68E5F] flex items-center justify-center gap-2 transition-colors hover:bg-orange-50"
+        >
+          Export +
+        </button>
       </div>
 
       <div className="flex items-center justify-between gap-4 mb-4 shrink-0">
