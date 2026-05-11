@@ -188,13 +188,17 @@ export default function ExportedCards() {
 
   // totalPages is now managed via state from backend response
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedData = processedData.length > itemsPerPage
-    ? processedData.slice(startIndex, startIndex + itemsPerPage)
-    : processedData;
+  const paginatedData = processedData;
 
   const handleSelectAll = (e) => {
-    if (e.target.checked) setSelectedRows(processedData.map((_, idx) => idx));
-    else setSelectedRows([]);
+    if (e.target.checked) {
+      const newSelectedRows = paginatedData.map(
+        (_, index) => startIndex + index,
+      );
+      setSelectedRows(newSelectedRows);
+    } else {
+      setSelectedRows([]);
+    }
   };
 
   const handleSelectRow = (globalIndex) => {
@@ -269,8 +273,8 @@ export default function ExportedCards() {
                       type="checkbox"
                       onChange={handleSelectAll}
                       checked={
-                        processedData.length > 0 &&
-                        selectedRows.length === processedData.length
+                        paginatedData.length > 0 &&
+                        selectedRows.length === paginatedData.length
                       }
                       className="w-4 h-4 rounded border-[#D1D5DB] border text-[#22333B] focus:ring-[#111827]"
                     />
