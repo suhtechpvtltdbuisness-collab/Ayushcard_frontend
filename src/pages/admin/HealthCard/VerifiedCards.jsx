@@ -127,6 +127,7 @@ export default function VerifiedCards() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedRows, setSelectedRows] = useState([]);
+  const [exportRows, setExportRows] = useState([]);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -138,6 +139,10 @@ export default function VerifiedCards() {
 
   useEffect(() => {
     fetchCards();
+  }, [currentPage, itemsPerPage]);
+
+  useEffect(() => {
+    setSelectedRows([]);
   }, [currentPage, itemsPerPage]);
 
   const fetchCards = async () => {
@@ -206,34 +211,45 @@ export default function VerifiedCards() {
 
   // totalPages is now managed via state from backend response
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedData = processedData.length > itemsPerPage 
-    ? processedData.slice(startIndex, startIndex + itemsPerPage)
-    : processedData;
+  const paginatedData = processedData;
+
+  const getCardKey = (card) =>
+    String(card._id || card.applicationId || card.id || "");
+
+  const isCardSelected = (card) =>
+    selectedRows.some((selected) => getCardKey(selected) === getCardKey(card));
+
+  const selectedRowsOnCurrentPage = useMemo(
+    () => paginatedData.filter((card) => isCardSelected(card)),
+    [paginatedData, selectedRows],
+  );
 
   const handleSelectAll = (e) => {
-    if (e.target.checked) setSelectedRows(processedData.map((_, idx) => idx));
-    else setSelectedRows([]);
+    setSelectedRows(e.target.checked ? paginatedData : []);
   };
 
-  const handleSelectRow = (globalIndex) => {
+  const handleSelectRow = (card) => {
+    const key = getCardKey(card);
     setSelectedRows((prev) =>
-      prev.includes(globalIndex)
-        ? prev.filter((i) => i !== globalIndex)
-        : [...prev, globalIndex],
+      prev.some((selected) => getCardKey(selected) === key)
+        ? prev.filter((selected) => getCardKey(selected) !== key)
+        : [...prev, card],
     );
   };
 
   const handleExportClick = () => {
-    if (selectedRows.length === 0) {
+    if (selectedRowsOnCurrentPage.length === 0) {
       toastWarn("Please select at least one verified card to export for printing.");
       return;
     }
+    setExportRows(selectedRowsOnCurrentPage);
     setIsExportModalOpen(true);
   };
 
   const handleExportSuccess = () => {
     // Refresh the list, clearing exported cards.
     setSelectedRows([]);
+    setExportRows([]);
     fetchCards();
     setIsExportModalOpen(false);
   };
@@ -262,6 +278,7 @@ export default function VerifiedCards() {
             onChange={(e) => {
               setSearchQuery(e.target.value);
               setCurrentPage(1);
+              setSelectedRows([]);
             }}
             className="w-full pl-4 pr-10 py-2.5 text-[16px] border border-[#E5E7EB] rounded-full text-sm placeholder:text-[#9CA3AF] focus:outline-none focus:ring-1 focus:ring-[#F68E5F] focus:border-[#F68E5F]"
           />
@@ -288,8 +305,8 @@ export default function VerifiedCards() {
                       type="checkbox"
                       onChange={handleSelectAll}
                       checked={
-                        processedData.length > 0 &&
-                        selectedRows.length === processedData.length
+                        paginatedData.length > 0 &&
+                        paginatedData.every((row) => isCardSelected(row))
                       }
                       className="w-4 h-4 rounded border-[#D1D5DB] border text-[#22333B] focus:ring-[#111827]"
                     />
@@ -325,14 +342,14 @@ export default function VerifiedCards() {
                   const globalIndex = startIndex + index;
                   return (
                     <tr
-                      key={index}
+                      key={getCardKey(row) || globalIndex}
                       className="border-b border-[#F3F4F6] hover:bg-[#F9FAFB] transition-colors"
                     >
                       <td className="py-2 px-4 text-center">
                         <input
                           type="checkbox"
-                          checked={selectedRows.includes(globalIndex)}
-                          onChange={() => handleSelectRow(globalIndex)}
+                          checked={isCardSelected(row)}
+                          onChange={() => handleSelectRow(row)}
                           className="w-4 h-3 rounded border-[#D1D5DB] text-[#22333B] focus:ring-[#111827]"
                         />
                       </td>
@@ -396,8 +413,11 @@ export default function VerifiedCards() {
       {isExportModalOpen && (
         <ExportPrintModal
           isOpen={isExportModalOpen}
-          onClose={() => setIsExportModalOpen(false)}
-          selectedData={selectedRows.map((idx) => processedData[idx])}
+          onClose={() => {
+            setIsExportModalOpen(false);
+            setExportRows([]);
+          }}
+          selectedData={exportRows}
           onExportSuccess={handleExportSuccess}
           markPrintedOnDownload={true}
         />

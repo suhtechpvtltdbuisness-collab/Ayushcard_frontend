@@ -367,10 +367,7 @@ const HealthCard = () => {
 
   // If the data is already paginated by the server, we don't slice.
   // We only slice if the server returned more items than the limit (fallback).
-  const paginatedData =
-    processedData.length > itemsPerPage
-      ? processedData.slice(startIndex, startIndex + itemsPerPage)
-      : processedData;
+  const paginatedData = processedData;
 
   // renderPaginationButtons removed as it's now handled by the Pagination component.
 
@@ -378,7 +375,10 @@ const HealthCard = () => {
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      setSelectedRows(processedData.map((_, idx) => idx));
+      const newSelectedRows = paginatedData.map(
+        (_, index) => startIndex + index,
+      );
+      setSelectedRows(newSelectedRows);
     } else {
       setSelectedRows([]);
     }
@@ -525,8 +525,8 @@ const HealthCard = () => {
                       type="checkbox"
                       onChange={handleSelectAll}
                       checked={
-                        processedData.length > 0 &&
-                        selectedRows.length === processedData.length
+                        paginatedData.length > 0 &&
+                        selectedRows.length === paginatedData.length
                       }
                       className="w-4 h-4 rounded border-[#D1D5DB] border text-[#22333B] focus:ring-[#111827]"
                     />

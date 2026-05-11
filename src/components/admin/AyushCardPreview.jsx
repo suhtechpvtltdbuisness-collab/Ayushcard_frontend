@@ -123,18 +123,26 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
 
                 const pickFromDocuments = (docs) => {
                   if (!Array.isArray(docs)) return null;
-                  
-                  // Try index 2 first as it's typically the profile photo/family head
-                  if (docs[2]) {
-                    const rawPath = docs[2]?.path || docs[2]?.url || "";
-                    const mime = docs[2]?.mimetype || "";
+
+                  // Prefer explicitly named profile/head photo documents first.
+                  const preferred = docs.find((doc) => {
+                    const name = String(doc?.name || doc?.type || "").toLowerCase();
+                    return (
+                      name.includes("profile") ||
+                      name.includes("photo") ||
+                      name.includes("head")
+                    );
+                  });
+                  if (preferred) {
+                    const rawPath = preferred?.path || preferred?.url || "";
+                    const mime = preferred?.mimetype || "";
                     if (isImageLike(rawPath, mime)) {
                       const built = getImageUrl(rawPath);
                       if (built) return built;
                     }
                   }
 
-                  // Fallback to searching all (starting from the first image)
+                  // Fallback to searching all image documents.
                   for (const doc of docs) {
                     const rawPath = doc?.path || doc?.url || "";
                     const mime = doc?.mimetype || "";
@@ -147,8 +155,10 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
 
                 let imgSrc = null;
 
-                // Prefer explicit profile image
-                imgSrc = getImageUrl(data?.profileImage);
+                // Prefer explicit profile image only if it is image-like.
+                if (isImageLike(data?.profileImage || "", data?.profileImageMime)) {
+                  imgSrc = getImageUrl(data?.profileImage);
+                }
 
                 // Fallback to front document if it looks like an image
                 if (!imgSrc && isImageLike(data?.documentFront || "", data?.documentFrontMime)) {
