@@ -101,6 +101,7 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
 };
 
 export default function ExportedCards() {
+  const MAX_SAFE_PRINTED_LIMIT = 25;
   const navigate = useNavigate();
   const { toastWarn } = useToast();
 
@@ -109,6 +110,7 @@ export default function ExportedCards() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedRows, setSelectedRows] = useState([]);
+  const [exportRows, setExportRows] = useState([]);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -122,12 +124,17 @@ export default function ExportedCards() {
     fetchCards();
   }, [currentPage, itemsPerPage]);
 
+  useEffect(() => {
+    setSelectedRows([]);
+  }, [currentPage, itemsPerPage]);
+
   const fetchCards = async () => {
     try {
       setLoading(true);
+      const safeLimit = Math.min(itemsPerPage, MAX_SAFE_PRINTED_LIMIT);
       const res = await apiService.getPrintedCards({
         page: currentPage,
-        limit: itemsPerPage,
+        limit: safeLimit,
       });
       const raw = Array.isArray(res?.data?.cards)
         ? res.data.cards
@@ -141,7 +148,7 @@ export default function ExportedCards() {
 
       const pagination = res?.pagination || res?.data?.pagination || {};
       const total = pagination.total ?? res?.total ?? res?.count ?? res?.data?.total ?? normalized.length;
-      const pages = pagination.pages ?? (Math.ceil(total / itemsPerPage) || 1);
+      const pages = pagination.pages ?? (Math.ceil(total / safeLimit) || 1);
 
       setTotalItems(Number(total));
       setTotalPages(Number(pages));
@@ -190,35 +197,42 @@ export default function ExportedCards() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedData = processedData;
 
+  const getCardKey = (card) =>
+    String(card._id || card.applicationId || card.id || "");
+
+  const isCardSelected = (card) =>
+    selectedRows.some((selected) => getCardKey(selected) === getCardKey(card));
+
+  const selectedRowsOnCurrentPage = useMemo(
+    () => paginatedData.filter((card) => isCardSelected(card)),
+    [paginatedData, selectedRows],
+  );
+
   const handleSelectAll = (e) => {
-    if (e.target.checked) {
-      const newSelectedRows = paginatedData.map(
-        (_, index) => startIndex + index,
-      );
-      setSelectedRows(newSelectedRows);
-    } else {
-      setSelectedRows([]);
-    }
+    setSelectedRows(e.target.checked ? paginatedData : []);
   };
 
-  const handleSelectRow = (globalIndex) => {
+  const handleSelectRow = (card) => {
+    const key = getCardKey(card);
     setSelectedRows((prev) =>
-      prev.includes(globalIndex)
-        ? prev.filter((i) => i !== globalIndex)
-        : [...prev, globalIndex],
+      prev.some((selected) => getCardKey(selected) === key)
+        ? prev.filter((selected) => getCardKey(selected) !== key)
+        : [...prev, card],
     );
   };
 
   const handleExportClick = () => {
-    if (selectedRows.length === 0) {
+    if (selectedRowsOnCurrentPage.length === 0) {
       toastWarn("Please select at least one exported card to export again.");
       return;
     }
+    setExportRows(selectedRowsOnCurrentPage);
     setIsExportModalOpen(true);
   };
 
   const handleExportSuccess = () => {
     setSelectedRows([]);
+    setExportRows([]);
     fetchCards();
     setIsExportModalOpen(false);
   };
@@ -247,6 +261,7 @@ export default function ExportedCards() {
             onChange={(e) => {
               setSearchQuery(e.target.value);
               setCurrentPage(1);
+              setSelectedRows([]);
             }}
             className="w-full pl-4 pr-10 py-2.5 text-[16px] border border-[#E5E7EB] rounded-full text-sm placeholder:text-[#9CA3AF] focus:outline-none focus:ring-1 focus:ring-[#F68E5F] focus:border-[#F68E5F]"
           />
@@ -274,7 +289,7 @@ export default function ExportedCards() {
                       onChange={handleSelectAll}
                       checked={
                         paginatedData.length > 0 &&
-                        selectedRows.length === paginatedData.length
+                        paginatedData.every((row) => isCardSelected(row))
                       }
                       className="w-4 h-4 rounded border-[#D1D5DB] border text-[#22333B] focus:ring-[#111827]"
                     />
@@ -310,14 +325,14 @@ export default function ExportedCards() {
                   const globalIndex = startIndex + index;
                   return (
                     <tr
-                      key={index}
+                      key={getCardKey(row) || globalIndex}
                       className="border-b border-[#F3F4F6] hover:bg-[#F9FAFB] transition-colors"
                     >
                       <td className="py-2 px-4 text-center">
                         <input
                           type="checkbox"
-                          checked={selectedRows.includes(globalIndex)}
-                          onChange={() => handleSelectRow(globalIndex)}
+                          checked={isCardSelected(row)}
+                          onChange={() => handleSelectRow(row)}
                           className="w-4 h-3 rounded border-[#D1D5DB] text-[#22333B] focus:ring-[#111827]"
                         />
                       </td>
@@ -370,17 +385,21 @@ export default function ExportedCards() {
         onPageChange={setCurrentPage}
         itemsPerPage={itemsPerPage}
         onItemsPerPageChange={(val) => {
-          setItemsPerPage(val);
+          setItemsPerPage(Math.min(val, MAX_SAFE_PRINTED_LIMIT));
           setCurrentPage(1);
         }}
         totalItems={totalItems}
+        pageSizeOptions={[10, 25]}
       />
 
       {isExportModalOpen && (
         <ExportPrintModal
           isOpen={isExportModalOpen}
-          onClose={() => setIsExportModalOpen(false)}
-          selectedData={selectedRows.map((idx) => processedData[idx])}
+          onClose={() => {
+            setIsExportModalOpen(false);
+            setExportRows([]);
+          }}
+          selectedData={exportRows}
           onExportSuccess={handleExportSuccess}
           markPrintedOnDownload={false}
         />

@@ -344,7 +344,9 @@ const apiService = {
 
     // GET /api/cards/printed
     getPrintedCards: async (params = {}) => {
-        const response = await api.get('/api/cards/printed', { params });
+        const response = await api.get('/api/cards/printed', {
+            params: { ...params, allowDiskUse: true },
+        });
         return response.data;
     },
 
