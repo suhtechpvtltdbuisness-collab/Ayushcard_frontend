@@ -63,49 +63,53 @@ const captureCard = (card, side) =>
     }, 850); // 850ms wait ensures external HTTP images inject properly
   });
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   Build a grid PDF from up to 25 card images.
-   Format: 12 x 18 inch landscape (457.2 x 304.8 mm) -> cards are exactly 88 x 54 mm.
-───────────────────────────────────────────────────────────────────────────── */
-const buildGridPdf = (imageDataUrls, filename) => {
-  // jsPDF format accepts an array of [width, height] in mm
+const drawGridPage = (pdf, imageDataUrls) => {
   const PAGE_W = 457.2;
   const PAGE_H = 304.8;
-  const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: [PAGE_W, PAGE_H] });
-  
   const COLS = 5;
   const ROWS = 5;
   const cardW = 88;
   const cardH = 54;
-  const gapX = 3; // 3mm horizontal gap between cards
-  const gapY = 3; // 3mm vertical gap between cards
+  const gapX = 3;
+  const gapY = 3;
 
-  // Calculate starting margins to perfectly center the grid on the sheet
-  const totalGridW = (cardW * COLS) + (gapX * (COLS - 1));
-  const totalGridH = (cardH * ROWS) + (gapY * (ROWS - 1));
+  const totalGridW = cardW * COLS + gapX * (COLS - 1);
+  const totalGridH = cardH * ROWS + gapY * (ROWS - 1);
   const startX = (PAGE_W - totalGridW) / 2;
   const startY = (PAGE_H - totalGridH) / 2;
 
-  // Draw cards
   imageDataUrls.forEach((img, idx) => {
     const col = idx % COLS;
     const row = Math.floor(idx / COLS);
-    
-    const x = startX + (col * (cardW + gapX));
-    const y = startY + (row * (cardH + gapY));
-    
+    const x = startX + col * (cardW + gapX);
+    const y = startY + row * (cardH + gapY);
     pdf.addImage(img, "JPEG", x, y, cardW, cardH);
   });
 
-  // Fill empty slots lightly for cutting reference or visualizing missing cards
   for (let i = imageDataUrls.length; i < COLS * ROWS; i++) {
     const col = i % COLS;
     const row = Math.floor(i / COLS);
-    const x = startX + (col * (cardW + gapX));
-    const y = startY + (row * (cardH + gapY));
+    const x = startX + col * (cardW + gapX);
+    const y = startY + row * (cardH + gapY);
     pdf.setFillColor(248, 250, 252);
     pdf.rect(x, y, cardW, cardH, "F");
   }
+};
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Build a grid PDF from up to 25 card images per page.
+   Format: 12 x 18 inch landscape (457.2 x 304.8 mm) -> cards are exactly 88 x 54 mm.
+───────────────────────────────────────────────────────────────────────────── */
+const buildGridPdf = (pages, filename) => {
+  const PAGE_W = 457.2;
+  const PAGE_H = 304.8;
+  const sheetPages = Array.isArray(pages[0]) ? pages : [pages];
+  const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: [PAGE_W, PAGE_H] });
+
+  sheetPages.forEach((imageDataUrls, pageIndex) => {
+    if (pageIndex > 0) pdf.addPage([PAGE_W, PAGE_H], "landscape");
+    drawGridPage(pdf, imageDataUrls);
+  });
 
   pdf.save(filename);
 };
@@ -197,7 +201,7 @@ export default function ExportPrintModal({ isOpen, onClose, selectedData, onExpo
       setProgress("Building PDF…");
       const s = currentChunkIndex * 25 + 1;
       const e = Math.min((currentChunkIndex + 1) * 25, selectedData.length);
-      buildGridPdf(imgs, `Batch_${currentChunkIndex + 1}_${side.toUpperCase()}_Cards_${s}-${e}.pdf`);
+      buildGridPdf([imgs], `Batch_${currentChunkIndex + 1}_${side.toUpperCase()}_Cards_${s}-${e}.pdf`);
       setDownloadedCount((p) => p + 1);
       toastSuccess(`${side === "front" ? "Front" : "Back"} sheet downloaded!`);
     } catch (err) {
@@ -215,11 +219,13 @@ export default function ExportPrintModal({ isOpen, onClose, selectedData, onExpo
       const backImgs  = await captureAll(currentCards, "back",  `Batch ${currentChunkIndex + 1} BACK`);
       const s = currentChunkIndex * 25 + 1;
       const e = Math.min((currentChunkIndex + 1) * 25, selectedData.length);
-      setProgress("Saving PDFs…");
-      buildGridPdf(frontImgs, `Batch_${currentChunkIndex + 1}_FRONT_Cards_${s}-${e}.pdf`);
-      buildGridPdf(backImgs,  `Batch_${currentChunkIndex + 1}_BACK_Cards_${s}-${e}.pdf`);
-      setDownloadedCount((p) => p + 2);
-      toastSuccess("Front & back sheets downloaded!");
+      setProgress("Building PDF…");
+      buildGridPdf(
+        [frontImgs, backImgs],
+        `Batch_${currentChunkIndex + 1}_Cards_${s}-${e}.pdf`,
+      );
+      setDownloadedCount((p) => p + 1);
+      toastSuccess("Front & back PDF downloaded!");
     } catch (err) {
       console.error("[ExportModal]", err);
       toastError("PDF failed: " + (err?.message || "Unknown error. Check console."));
@@ -236,10 +242,9 @@ export default function ExportPrintModal({ isOpen, onClose, selectedData, onExpo
         const backImgs  = await captureAll(batch, "back",  `Batch ${ci + 1}/${totalChunks} BACK`);
         const s = ci * 25 + 1;
         const e = Math.min((ci + 1) * 25, selectedData.length);
-        setProgress(`Saving Batch ${ci + 1} PDFs…`);
-        buildGridPdf(frontImgs, `Batch_${ci + 1}_FRONT_${s}-${e}.pdf`);
-        buildGridPdf(backImgs,  `Batch_${ci + 1}_BACK_${s}-${e}.pdf`);
-        setDownloadedCount((p) => p + 2);
+        setProgress(`Saving Batch ${ci + 1} PDF…`);
+        buildGridPdf([frontImgs, backImgs], `Batch_${ci + 1}_Cards_${s}-${e}.pdf`);
+        setDownloadedCount((p) => p + 1);
       }
       // After successful completion of all batches, update print status in backend (if enabled)
       setProgress("Finalizing print status...");
@@ -362,7 +367,7 @@ export default function ExportPrintModal({ isOpen, onClose, selectedData, onExpo
         {/* Footer */}
         <div className="border-t border-gray-200 bg-white px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
           <span className="text-sm font-medium text-gray-500 text-center sm:text-left">
-            {downloadedCount} of {totalChunks * 2} sheets downloaded
+            {downloadedCount} of {totalChunks} PDFs downloaded
           </span>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
             <button
