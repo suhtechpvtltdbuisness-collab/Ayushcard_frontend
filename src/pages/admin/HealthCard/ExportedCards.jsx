@@ -107,7 +107,8 @@ export default function ExportedCards() {
 
   const [healthCards, setHealthCards] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedRows, setSelectedRows] = useState([]);
   const [exportRows, setExportRows] = useState([]);
@@ -121,8 +122,17 @@ export default function ExportedCards() {
   const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput.trim());
+      setCurrentPage(1);
+      setSelectedRows([]);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  useEffect(() => {
     fetchCards();
-  }, [currentPage, itemsPerPage]);
+  }, [currentPage, itemsPerPage, search]);
 
   useEffect(() => {
     setSelectedRows([]);
@@ -132,10 +142,12 @@ export default function ExportedCards() {
     try {
       setLoading(true);
       const safeLimit = Math.min(itemsPerPage, MAX_SAFE_PRINTED_LIMIT);
-      const res = await apiService.getPrintedCards({
+      const params = {
         page: currentPage,
         limit: safeLimit,
-      });
+      };
+      if (search) params.search = search;
+      const res = await apiService.getPrintedCards(params);
       const raw = Array.isArray(res?.data?.cards)
         ? res.data.cards
         : Array.isArray(res?.data)
@@ -182,16 +194,7 @@ export default function ExportedCards() {
     }
   };
 
-  const processedData = useMemo(() => {
-    return healthCards.filter((item) => {
-      const query = searchQuery.toLowerCase();
-      return (
-        (item.applicant || "").toLowerCase().includes(query) ||
-        (item.id || "").toLowerCase().includes(query) ||
-        (item.phone || "").includes(query)
-      );
-    });
-  }, [healthCards, searchQuery]);
+  const processedData = useMemo(() => healthCards, [healthCards]);
 
   // totalPages is now managed via state from backend response
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -257,17 +260,13 @@ export default function ExportedCards() {
           <input
             type="text"
             placeholder="Search by name, id, phone"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-              setSelectedRows([]);
-            }}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             className="w-full pl-4 pr-10 py-2.5 text-[16px] border border-[#E5E7EB] rounded-full text-sm placeholder:text-[#9CA3AF] focus:outline-none focus:ring-1 focus:ring-[#F68E5F] focus:border-[#F68E5F]"
           />
           <Search
             size={18}
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1E1E1E]"
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1E1E1E] pointer-events-none"
           />
         </div>
       </div>

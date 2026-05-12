@@ -190,7 +190,8 @@ const HealthCard = () => {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [itemToDelete, setItemToDelete] = useState(null);
@@ -203,8 +204,17 @@ const HealthCard = () => {
   const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput.trim());
+      setCurrentPage(1);
+      setSelectedRows([]);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  useEffect(() => {
     fetchCards();
-  }, [currentPage, itemsPerPage]);
+  }, [currentPage, itemsPerPage, search]);
 
   const fetchCards = async () => {
     try {
@@ -214,6 +224,7 @@ const HealthCard = () => {
         page: currentPage,
         limit: itemsPerPage,
       };
+      if (search) params.search = search;
       const res = await apiService.getHealthCards(params);
       const raw = Array.isArray(res?.data?.cards)
         ? res.data.cards
@@ -311,21 +322,10 @@ const HealthCard = () => {
 
   const processedData = useMemo(() => {
     let result = [...healthCards].filter((item) => {
-      const applicant = (item.applicant || "").toLowerCase();
-      const id = (item.id || "").toLowerCase();
-      const phone = item.phone || "";
       const status = item.status || "";
-      const query = searchQuery.toLowerCase();
 
-      const matchesSearch =
-        applicant.includes(query) ||
-        id.includes(query) ||
-        phone.includes(searchQuery);
-
-      if (activeFilter === "All") return matchesSearch;
-      return (
-        matchesSearch && status.toLowerCase() === activeFilter.toLowerCase()
-      );
+      if (activeFilter === "All") return true;
+      return status.toLowerCase() === activeFilter.toLowerCase();
     });
 
     if (sortConfig.key) {
@@ -360,7 +360,7 @@ const HealthCard = () => {
     }
 
     return result;
-  }, [healthCards, searchQuery, activeFilter, sortConfig]);
+  }, [healthCards, activeFilter, sortConfig]);
 
   // totalPages is now managed via state from backend response
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -371,7 +371,7 @@ const HealthCard = () => {
 
   // renderPaginationButtons removed as it's now handled by the Pagination component.
 
-  const isFiltered = searchQuery !== "" || activeFilter !== "All";
+  const isFiltered = search !== "" || activeFilter !== "All";
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
@@ -464,16 +464,13 @@ const HealthCard = () => {
             <input
               type="text"
               placeholder="Search by name, id, phone"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1);
-              }}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               className="w-full pl-4 pr-10 py-2.5 text-[16px] border border-[#E5E7EB] bg-white rounded-full text-sm placeholder:text-[#9CA3AF] shadow-sm focus:outline-none focus:ring-1 focus:ring-[#F68E5F] focus:border-[#F68E5F]"
             />
             <Search
               size={18}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1E1E1E]"
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1E1E1E] pointer-events-none"
             />
           </div>
 
