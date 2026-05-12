@@ -40,7 +40,7 @@ const TeamSection = () => {
 
         {/* Heading */}
         <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-gray-900 text-center leading-tight mb-4">
-          Meet Our Team
+          Meet Our Member
         </h2>
 
         {/* Subtitle */}
