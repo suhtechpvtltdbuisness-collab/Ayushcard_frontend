@@ -2477,6 +2477,9 @@ const AyushCardApplicationForm = ({
             <p className="text-[6px] leading-tight">
               5- किसी भी विवाद में अंतिम निर्णय संस्था का होगा।
             </p>
+            <p className="text-[6px] leading-tight">
+              6- फोन नंबर: 8303902030
+            </p>
           </div>
         </div>
       </div>

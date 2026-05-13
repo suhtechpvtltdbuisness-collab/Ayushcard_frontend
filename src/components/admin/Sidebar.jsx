@@ -78,11 +78,17 @@ const Sidebar = () => {
     .filter((item) => {
       if (item.name === "HR & Payroll" && userRole === "Employee") return false;
       if (item.name === "Donations" && userRole === "Employee") return false;
-      if (item.employeeOnly && userRole !== "Employee") return false;
+      if (item.employeeOnly && userRole !== "Employee" && userRole !== "Editor") return false;
       if (item.adminOnly && userRole !== "Admin") return false;
       return true;
     })
     .map((item) => {
+      if (item.employeeOnly && userRole === "Editor") {
+        return {
+          ...item,
+          path: "/admin/my-attendance",
+        };
+      }
       if (item.name === "Ayush Card" && userRole === "Employee") {
         return {
           ...item,

@@ -199,6 +199,7 @@ function App() {
               <Route path="camps/:id" element={<AdminCreateCamp />} />
               <Route path="donations" element={<Donations />} />
               <Route path="donations/:id" element={<DonationDetails />} />
+              <Route path="my-attendance" element={<EmployeeAttendance />} />
               <Route path="attendance" element={<AdminAttendance />} />
               <Route path="hr/employees" element={<Employees />} />
               <Route path="hr/employees/create" element={<CreateEmployee />} />
