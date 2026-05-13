@@ -12,59 +12,59 @@ const Pagination = ({
   itemsPerPage,
   onItemsPerPageChange,
   totalItems,
-  pageSizeOptions = [10, 25, 50],
+  pageSizeOptions = [25, 50, 100],
 }) => {
-  const currentPage = Number(rawCurrentPage) || 1;
-  const totalPages = Number(rawTotalPages) || 1;
+  const totalPages = Math.max(1, Number(rawTotalPages) || 1);
+  let currentPage = Number(rawCurrentPage) || 1;
+  if (currentPage < 1) currentPage = 1;
+  if (currentPage > totalPages) currentPage = totalPages;
   const startIndex = (currentPage - 1) * itemsPerPage;
 
   const handlePageChange = (page) => {
-    if (page !== "..." && page !== currentPage) {
-      onPageChange(Number(page));
+    if (page === "..." || page === currentPage) return;
+    const n = Number(page);
+    if (!Number.isFinite(n) || n < 1 || n > totalPages) return;
+    onPageChange(n);
+  };
+
+  /** Sliding window + ellipses — avoids duplicate / invalid sequences for any totalPages */
+  const buildPageList = (tp, cp) => {
+    if (tp <= 1) return [1];
+    const delta = 2;
+    const set = new Set();
+    for (let i = 1; i <= tp; i++) {
+      if (i === 1 || i === tp || (i >= cp - delta && i <= cp + delta)) {
+        set.add(i);
+      }
     }
+    const sorted = [...set].sort((a, b) => a - b);
+    const out = [];
+    let prev;
+    for (const i of sorted) {
+      if (prev != null) {
+        if (i - prev === 2) out.push(prev + 1);
+        else if (i - prev > 2) out.push("...");
+      }
+      out.push(i);
+      prev = i;
+    }
+    return out;
   };
 
   const renderPaginationButtons = () => {
-    let pages = [];
-    if (totalPages <= 7) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
-    } else {
-      if (currentPage <= 4) {
-        pages = [1, 2, 3, 4, 5, "...", totalPages];
-      } else if (currentPage >= totalPages - 3) {
-        pages = [
-          1,
-          "...",
-          totalPages - 4,
-          totalPages - 3,
-          totalPages - 2,
-          totalPages - 1,
-          totalPages,
-        ];
-      } else {
-        pages = [
-          1,
-          "...",
-          currentPage - 1,
-          currentPage,
-          currentPage + 1,
-          "...",
-          totalPages,
-        ];
-      }
-    }
-
+    const pages = buildPageList(totalPages, currentPage);
     return pages.map((page, idx) =>
       page === "..." ? (
         <span
-          key={idx}
+          key={`ellipsis-${idx}`}
           className="w-8 h-8 flex items-center justify-center text-[#9CA3AF]"
         >
           ...
         </span>
       ) : (
         <button
-          key={idx}
+          key={page}
+          type="button"
           onClick={() => handlePageChange(page)}
           className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition-all ${
             currentPage === page
@@ -74,7 +74,7 @@ const Pagination = ({
         >
           {page}
         </button>
-      )
+      ),
     );
   };
 
