@@ -101,7 +101,6 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
 };
 
 export default function ExportedCards() {
-  const MAX_SAFE_PRINTED_LIMIT = 25;
   const navigate = useNavigate();
   const { toastWarn } = useToast();
 
@@ -117,7 +116,7 @@ export default function ExportedCards() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState("");
 
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -141,10 +140,9 @@ export default function ExportedCards() {
   const fetchCards = async () => {
     try {
       setLoading(true);
-      const safeLimit = Math.min(itemsPerPage, MAX_SAFE_PRINTED_LIMIT);
       const params = {
         page: currentPage,
-        limit: safeLimit,
+        limit: itemsPerPage,
       };
       if (search) params.search = search;
       const res = await apiService.getPrintedCards(params);
@@ -160,7 +158,7 @@ export default function ExportedCards() {
 
       const pagination = res?.pagination || res?.data?.pagination || {};
       const total = pagination.total ?? res?.total ?? res?.count ?? res?.data?.total ?? normalized.length;
-      const pages = pagination.pages ?? (Math.ceil(total / safeLimit) || 1);
+      const pages = pagination.pages ?? (Math.ceil(total / itemsPerPage) || 1);
 
       setTotalItems(Number(total));
       setTotalPages(Number(pages));
@@ -384,11 +382,11 @@ export default function ExportedCards() {
         onPageChange={setCurrentPage}
         itemsPerPage={itemsPerPage}
         onItemsPerPageChange={(val) => {
-          setItemsPerPage(Math.min(val, MAX_SAFE_PRINTED_LIMIT));
+          setItemsPerPage(val);
           setCurrentPage(1);
         }}
         totalItems={totalItems}
-        pageSizeOptions={[10, 25]}
+        pageSizeOptions={[25, 50, 100]}
       />
 
       {isExportModalOpen && (
