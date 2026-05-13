@@ -479,7 +479,7 @@ const HealthCard = () => {
             className="grid grid-cols-2 lg:flex lg:flex-nowrap gap-1.5 p-1.5 bg-[#F7F7F7] rounded-xl w-full lg:w-auto overflow-x-auto custom-scrollbar"
             style={{ fontFamily: "ABeeZee, sans-serif" }}
           >
-            {["All", "Verified", "Not Verified", "Rejected", "Expired"].map((filter) => (
+            {["All", "Not Verified", "Rejected", "Expired"].map((filter) => (
               <button
                 key={filter}
                 onClick={() => {
