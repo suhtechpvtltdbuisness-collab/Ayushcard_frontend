@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import apiService from "../../../api/service";
-import { exportToCSV } from "../../../utils/exportUtils";
+import { exportAyushCardApplicationsToExcel } from "../../../utils/exportUtils";
 import { useToast } from "../../../components/ui/Toast";
 import Pagination from "../../../components/ui/Pagination";
 
@@ -389,8 +389,8 @@ const HealthCard = () => {
       toastWarn("Please select at least one item to export.");
       return;
     }
-    const dataToExport = selectedRows.map((index) => processedData[index]);
-    exportToCSV(dataToExport, "HealthCard_Export.csv");
+    const rows = selectedRows.map((index) => processedData[index]);
+    exportAyushCardApplicationsToExcel(rows);
   };
 
   const handleSelectRow = (globalIndex) => {
@@ -438,7 +438,7 @@ const HealthCard = () => {
             onClick={handleExport}
             className="flex-1 sm:flex-none px-4 py-1.5 border border-[#F68E5F] bg-[#FFFCFB] rounded-lg text-[15px] font-medium text-[#F68E5F] hover:bg-[#F68E5F] hover:text-[#FFFCFB] flex items-center justify-center gap-2 transition-colors"
           >
-            Export <Download size={16} />
+            Export to Excel <Download size={16} />
           </button>
           {/* Create Button (Tablet/Mobile Only) */}
           <button

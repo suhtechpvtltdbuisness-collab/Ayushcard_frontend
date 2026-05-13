@@ -287,6 +287,12 @@ const apiService = {
         return response.data;
     },
 
+    // GET /api/cards/employee/:employeeId?page=&limit=&search=
+    getHealthCardsByEmployee: async (employeeId, params = {}) => {
+        const response = await api.get(`/api/cards/employee/${encodeURIComponent(employeeId)}`, { params });
+        return response.data;
+    },
+
     // GET /api/cards/:id
     getHealthCardById: async (id) => {
         const response = await api.get(`/api/cards/${id}`);

@@ -12,8 +12,9 @@ import { getEmployees } from "../../../../data/mockData";
 const CardStatusBadge = ({ status }) => {
   const map = {
     "Not verified": { bg: "bg-[#FFA10033]", dot: "bg-[#FFA100]", text: "text-[#FFA100]" },
-    "Verified": { bg: "bg-[#76DB1E33]", dot: "bg-[#76DB1E]", text: "text-[#76DB1E]" },
-    "Expired": { bg: "bg-[#FF383C33]", dot: "bg-[#FF383C]", text: "text-[#FF383C]" },
+    Verified: { bg: "bg-[#76DB1E33]", dot: "bg-[#76DB1E]", text: "text-[#76DB1E]" },
+    Rejected: { bg: "bg-[#FF383C33]", dot: "bg-[#FF383C]", text: "text-[#FF383C]" },
+    Expired: { bg: "bg-[#FF383C33]", dot: "bg-[#FF383C]", text: "text-[#FF383C]" },
   };
   const style = map[status] || { bg: "bg-gray-100", dot: "bg-gray-400", text: "text-gray-600" };
   return (
@@ -39,14 +40,14 @@ const normalizeCard = (card) => {
       ? card.members
       : Array.from({ length: totalCount }, (_, i) => ({ id: i })),
     payment: {
-      totalPaid: card.totalAmount ?? 120,
+      totalPaid: card.totalAmount != null && card.totalAmount !== "" ? Number(card.totalAmount) : 0,
     },
   status: (() => {
     switch ((card.status || "").toLowerCase()) {
       case "approved": return "Verified";
       case "active": return "Verified";
       case "pending": return "Not verified";
-      case "rejected": return "Not verified";
+      case "rejected": return "Rejected";
       case "expired": return "Expired";
       default: return card.status || "Not verified";
     }
@@ -59,39 +60,68 @@ const EmployeeCardsPanel = ({ employee, onClose }) => {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [cardsPage, setCardsPage] = useState(1);
+  const [cardsPerPage, setCardsPerPage] = useState(10);
+  const [cardsTotal, setCardsTotal] = useState(0);
+  const [cardsTotalPages, setCardsTotalPages] = useState(1);
+
+  const employeeMongoId = employee?._rawId || employee?.id;
+
+  useEffect(() => {
+    setCardsPage(1);
+  }, [employeeMongoId]);
 
   useEffect(() => {
     const fetchCards = async () => {
+      if (!employeeMongoId || String(employeeMongoId).startsWith("EMP-")) {
+        setCards([]);
+        setCardsTotal(0);
+        setCardsTotalPages(1);
+        setLoading(false);
+        setError(
+          String(employeeMongoId || "").startsWith("EMP-")
+            ? "This row has no server ID — cards cannot be loaded."
+            : "Missing employee id.",
+        );
+        return;
+      }
       try {
         setLoading(true);
         setError("");
-        const res = await apiService.getHealthCards();
-        const raw = Array.isArray(res?.data?.cards)
-          ? res.data.cards
-          : Array.isArray(res?.data)
-            ? res.data
-            : Array.isArray(res)
-              ? res
-              : [];
+        const res = await apiService.getHealthCardsByEmployee(employeeMongoId, {
+          page: cardsPage,
+          limit: cardsPerPage,
+        });
 
-        // Filter cards whose createdBy matches this employee's _id / id
-        const empId = employee._rawId || employee.id;
-        const filtered = raw.filter(
-          (c) =>
-            c.createdBy === empId ||
-            c.userId === empId ||
-            c.employeeId === empId
-        );
-        setCards(filtered.map(normalizeCard));
+        const envelope = res?.data && typeof res.data === "object" ? res.data : res;
+        const raw = Array.isArray(envelope?.cards)
+          ? envelope.cards
+          : Array.isArray(res?.data?.cards)
+            ? res.data.cards
+            : [];
+
+        const pagination = envelope?.pagination || res?.data?.pagination || {};
+        const total = Number(pagination.total ?? raw.length);
+        const pages = Number(pagination.pages ?? (Math.ceil(total / cardsPerPage) || 1));
+
+        setCardsTotal(total);
+        setCardsTotalPages(pages);
+        setCards(raw.map(normalizeCard));
       } catch (err) {
         console.error("Failed to fetch employee cards:", err);
-        setError("Could not load cards for this employee.");
+        setError(err?.response?.data?.message || "Could not load cards for this employee.");
+        setCards([]);
       } finally {
         setLoading(false);
       }
     };
     fetchCards();
-  }, [employee]);
+  }, [employeeMongoId, cardsPage, cardsPerPage]);
+
+  const memberLabel = (card) => {
+    const n = Number(card.totalMembers) || (Array.isArray(card.members) ? card.members.length : 0);
+    return `${n} member${n !== 1 ? "s" : ""}`;
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex" style={{ fontFamily: "Inter, sans-serif" }}>
@@ -133,7 +163,8 @@ const EmployeeCardsPanel = ({ employee, onClose }) => {
           ) : (
             <div className="space-y-3">
               <p className="text-sm text-gray-500 mb-4 font-medium">
-                {cards.length} card{cards.length !== 1 ? "s" : ""} found
+                {cardsTotal} card{cardsTotal !== 1 ? "s" : ""} total
+                {cardsTotalPages > 1 ? ` · Page ${cardsPage} of ${cardsTotalPages}` : ""}
               </p>
               {cards.map((card, idx) => (
                 <div
@@ -152,13 +183,28 @@ const EmployeeCardsPanel = ({ employee, onClose }) => {
                       <div className="flex items-center gap-4 mt-1.5 text-[12px] text-gray-500 flex-wrap">
                         {card.phone && <span>📞 {card.phone}</span>}
                         {card.pincode && <span>📍 {card.pincode}</span>}
-                        <span>👥 {card.totalMembers || (card.members?.length || 0) + 1} member{(card.totalMembers || (card.members?.length || 0) + 1) !== 1 ? "s" : ""}</span>
-                        <span>₹{Number(card.payment?.totalPaid || 0).toFixed(2)}</span>
+                        <span>👥 {memberLabel(card)}</span>
+                        <span>₹{Number(card.payment?.totalPaid ?? 0).toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
                 </div>
               ))}
+              {cardsTotal > 0 && (
+                <div className="pt-4 border-t border-gray-100">
+                  <Pagination
+                    currentPage={cardsPage}
+                    totalPages={cardsTotalPages}
+                    onPageChange={setCardsPage}
+                    itemsPerPage={cardsPerPage}
+                    onItemsPerPageChange={(val) => {
+                      setCardsPerPage(val);
+                      setCardsPage(1);
+                    }}
+                    totalItems={cardsTotal}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
