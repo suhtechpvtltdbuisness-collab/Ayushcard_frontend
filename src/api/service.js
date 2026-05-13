@@ -617,6 +617,12 @@ const apiService = {
         return response.data;
     },
 
+    // POST /api/attendance/checkout  { campId, currentLat, currentLong }
+    checkoutAttendance: async (payload) => {
+        const response = await api.post('/api/attendance/checkout', payload);
+        return response.data;
+    },
+
     // GET /api/attendance  (admin — all employees, filterable by date)
     getAttendance: async (params = {}) => {
         const response = await api.get('/api/attendance', { params });

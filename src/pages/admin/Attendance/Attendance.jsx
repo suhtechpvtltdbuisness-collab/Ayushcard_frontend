@@ -1,20 +1,26 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { CalendarDays, Search, ArrowUpDown, Clock, MapPin } from "lucide-react";
 import apiService from "../../../api/service";
 import Pagination from "../../../components/ui/Pagination";
+import {
+  formatClock,
+  formatWorkingHours,
+  getCheckInDate,
+  getCheckOutDate,
+  getRowCalendarDate,
+  getDisplayAttendanceStatus,
+  attendanceStatusClass,
+  formatAttendanceStatusLabel,
+} from "../../../utils/attendanceTiming";
 
-const statusBadge = (status) => {
-  const map = {
-    present: "bg-green-100 text-green-700",
-    absent:  "bg-red-100 text-red-700",
-    late:    "bg-yellow-100 text-yellow-700",
-  };
+function recordStatusBadge(rec) {
+  const slug = getDisplayAttendanceStatus(rec);
   return (
-    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${map[status] || "bg-gray-100 text-gray-600"}`}>
-      {status}
+    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${attendanceStatusClass(slug)}`}>
+      {formatAttendanceStatusLabel(slug)}
     </span>
   );
-};
+}
 
 const AdminAttendance = () => {
   const [records, setRecords] = useState([]);
@@ -26,34 +32,55 @@ const AdminAttendance = () => {
   const [totalItems, setTotalItems] = useState(0);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const [fromDate, setFromDate] = useState(todayStr);
-  const [toDate, setToDate]     = useState(todayStr);
+  const [fromDate, setFromDate] = useState(() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+  });
+  const [toDate, setToDate] = useState(() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+  });
+
+  const fetchAttendance = useCallback(
+    async (silent = false) => {
+      try {
+        if (!silent) setLoading(true);
+        const res = await apiService.getAttendance({
+          fromDate,
+          toDate,
+          page: currentPage,
+          limit: itemsPerPage,
+        });
+        const list = res?.data?.attendances || [];
+        setRecords(list);
+        const pag = res?.data?.pagination || {};
+        setTotalItems(Number(pag.total || list.length));
+        setTotalPages(Number(pag.pages || Math.ceil((pag.total || list.length) / itemsPerPage) || 1));
+      } catch (err) {
+        console.error("Failed to fetch attendance", err);
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [currentPage, itemsPerPage, fromDate, toDate],
+  );
 
   useEffect(() => {
     fetchAttendance();
-  }, [currentPage, itemsPerPage, fromDate, toDate]);
+  }, [fetchAttendance]);
 
-  const fetchAttendance = async () => {
-    try {
-      setLoading(true);
-      const res = await apiService.getAttendance({
-        fromDate,
-        toDate,
-        page: currentPage,
-        limit: itemsPerPage,
-      });
-      const list = res?.data?.attendances || [];
-      setRecords(list);
-      const pag = res?.data?.pagination || {};
-      setTotalItems(Number(pag.total || list.length));
-      setTotalPages(Number(pag.pages || Math.ceil((pag.total || list.length) / itemsPerPage) || 1));
-    } catch (err) {
-      console.error("Failed to fetch attendance", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    const pollMs = 30000;
+    const tick = () => {
+      if (document.visibilityState === "visible") fetchAttendance(true);
+    };
+    const id = setInterval(tick, pollMs);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [fetchAttendance]);
 
   const handleSort = (key) => {
     setSortConfig((prev) => ({
@@ -79,9 +106,27 @@ const AdminAttendance = () => {
 
     if (sortConfig.key) {
       result = [...result].sort((a, b) => {
-        let av = sortConfig.key === "employee" ? a.userId?.name : sortConfig.key === "camp" ? a.campId?.name : a[sortConfig.key];
-        let bv = sortConfig.key === "employee" ? b.userId?.name : sortConfig.key === "camp" ? b.campId?.name : b[sortConfig.key];
-        av = av || ""; bv = bv || "";
+        let av;
+        let bv;
+        if (sortConfig.key === "employee") {
+          av = a.userId?.name;
+          bv = b.userId?.name;
+        } else if (sortConfig.key === "camp") {
+          av = a.campId?.name;
+          bv = b.campId?.name;
+        } else if (sortConfig.key === "date") {
+          av = getRowCalendarDate(a)?.getTime() ?? 0;
+          bv = getRowCalendarDate(b)?.getTime() ?? 0;
+        } else {
+          av = a[sortConfig.key];
+          bv = b[sortConfig.key];
+        }
+        if (sortConfig.key === "date") {
+          const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+          return sortConfig.direction === "asc" ? cmp : -cmp;
+        }
+        av = av || "";
+        bv = bv || "";
         const cmp = typeof av === "string" ? av.localeCompare(bv) : av < bv ? -1 : av > bv ? 1 : 0;
         return sortConfig.direction === "asc" ? cmp : -cmp;
       });
@@ -160,20 +205,28 @@ const AdminAttendance = () => {
           </div>
         ) : paginatedData.length > 0 ? (
           <div className="overflow-y-auto overflow-x-auto flex-1">
-            <table className="min-w-[900px] w-full text-left border-collapse">
+            <table className="min-w-[1120px] w-full text-left border-collapse">
               <thead className="sticky top-0 z-10 bg-white border-b border-[#F3F4F6]">
                 <tr>
                   <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-12">Sr.</th>
                   <SortHeader title="Employee"  sortKey="employee"  className="min-w-[180px]" />
                   <th className="py-3 px-4 text-sm font-semibold text-[#22333B] whitespace-nowrap">Emp ID</th>
                   <SortHeader title="Camp"      sortKey="camp"      className="min-w-[160px]" />
-                  <SortHeader title="Date &amp; Time" sortKey="date" className="w-[170px]" />
+                  <SortHeader title="Date" sortKey="date" className="whitespace-nowrap" />
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] whitespace-nowrap">Check-in</th>
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] whitespace-nowrap">Check-out</th>
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] whitespace-nowrap">Working hours</th>
                   <th className="py-3 px-4 text-sm font-semibold text-[#22333B]">Location</th>
                   <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-[110px]">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {paginatedData.map((rec, i) => (
+                {paginatedData.map((rec, i) => {
+                  const rowDay = getRowCalendarDate(rec);
+                  const cin = getCheckInDate(rec);
+                  const cout = getCheckOutDate(rec);
+                  const duration = formatWorkingHours(rec);
+                  return (
                   <tr key={rec._id} className="border-b border-[#F3F4F6] hover:bg-[#F9FAFB] transition-colors">
                     <td className="py-3 px-4 text-sm text-[#22333B]">{startIndex + i + 1}</td>
 
@@ -200,30 +253,44 @@ const AdminAttendance = () => {
                       )}
                     </td>
 
-                    {/* Date & Time */}
                     <td className="py-3 px-4 whitespace-nowrap">
                       <p className="text-sm text-[#22333B]">
-                        {new Date(rec.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                      </p>
-                      <p className="text-xs text-[#6B7280] flex items-center gap-1 mt-0.5">
-                        <Clock size={11} />
-                        {new Date(rec.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {rowDay
+                          ? rowDay.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+                          : "—"}
                       </p>
                     </td>
+
+                    <td className="py-3 px-4">
+                      <p className="text-sm text-[#22333B] flex items-center gap-1 whitespace-nowrap">
+                        <Clock size={12} className="text-[#9CA3AF] shrink-0" />
+                        {formatClock(cin)}
+                      </p>
+                    </td>
+
+                    <td className="py-3 px-4">
+                      <p className="text-sm text-[#22333B] flex items-center gap-1 whitespace-nowrap">
+                        <Clock size={12} className="text-[#9CA3AF] shrink-0" />
+                        {formatClock(cout)}
+                      </p>
+                    </td>
+
+                    <td className="py-3 px-4 text-sm font-medium text-[#22333B] whitespace-nowrap">{duration}</td>
 
                     {/* Location */}
                     <td className="py-3 px-4">
                       <p className="text-sm text-[#22333B]">{rec.city || "—"}{rec.state ? `, ${rec.state}` : ""}</p>
                       <p className="text-xs text-[#6B7280] font-mono flex items-center gap-1 mt-0.5">
                         <MapPin size={10} />
-                        {rec.lat?.toFixed(4)}, {rec.long?.toFixed(4)}
+                        {rec.lat != null && rec.long != null ? `${Number(rec.lat).toFixed(4)}, ${Number(rec.long).toFixed(4)}` : "—"}
                       </p>
                     </td>
 
                     {/* Status */}
-                    <td className="py-3 px-4">{statusBadge(rec.status)}</td>
+                    <td className="py-3 px-4">{recordStatusBadge(rec)}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

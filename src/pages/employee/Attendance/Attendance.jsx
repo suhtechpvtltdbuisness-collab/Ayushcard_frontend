@@ -1,27 +1,42 @@
-import React, { useState, useEffect } from "react";
-import { CalendarDays, MapPin, CheckCircle2, Clock, ClipboardCheck } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import { CalendarDays, MapPin, CheckCircle2, Clock, ClipboardCheck, LogOut, Loader2 } from "lucide-react";
 import apiService from "../../../api/service";
 import { useAttendance } from "../../../context/AttendanceContext";
 import Pagination from "../../../components/ui/Pagination";
+import {
+  formatClock,
+  formatWorkingHours,
+  getCheckInDate,
+  getCheckOutDate,
+  getRowCalendarDate,
+  getDisplayAttendanceStatus,
+  attendanceStatusClass,
+  formatAttendanceStatusLabel,
+} from "../../../utils/attendanceTiming";
 
-const statusBadge = (status) => {
-  const map = {
-    present: "bg-green-100 text-green-700",
-    absent: "bg-red-100 text-red-700",
-    late: "bg-yellow-100 text-yellow-700",
-  };
+function recordStatusBadge(rec) {
+  const slug = getDisplayAttendanceStatus(rec);
   return (
-    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${map[status] || "bg-gray-100 text-gray-600"}`}>
-      {status}
+    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${attendanceStatusClass(slug)}`}>
+      {formatAttendanceStatusLabel(slug)}
     </span>
   );
-};
+}
 
 const EmployeeAttendance = () => {
-  const { attendanceMarked, openModal, lastMarkedAt } = useAttendance();
+  const {
+    attendanceMarked,
+    checkedOutToday,
+    todayCampId,
+    openModal,
+    lastMarkedAt,
+    refreshTodayAttendance,
+  } = useAttendance();
 
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -35,38 +50,117 @@ const EmployeeAttendance = () => {
   });
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
 
+  const fetchAttendance = useCallback(
+    async (silent = false) => {
+      try {
+        if (!silent) setLoading(true);
+        const userRaw = localStorage.getItem("user") || sessionStorage.getItem("user");
+        const user = userRaw ? JSON.parse(userRaw) : null;
+        if (!user?._id) {
+          if (!silent) setLoading(false);
+          return;
+        }
+
+        const res = await apiService.getUserAttendance(user._id, {
+          fromDate,
+          toDate,
+          page: currentPage,
+          limit: itemsPerPage,
+        });
+
+        const list = res?.data?.attendances || [];
+        setRecords(list);
+
+        const pag = res?.data?.pagination || {};
+        setTotalItems(Number(pag.total || list.length));
+        setTotalPages(Number(pag.pages || Math.ceil((pag.total || list.length) / itemsPerPage) || 1));
+      } catch (err) {
+        console.error("Failed to load attendance", err);
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [currentPage, fromDate, toDate, itemsPerPage, lastMarkedAt],
+  );
+
   useEffect(() => {
     fetchAttendance();
-  }, [currentPage, fromDate, toDate, lastMarkedAt]);
+  }, [fetchAttendance]);
 
-  const fetchAttendance = async () => {
+  useEffect(() => {
+    const pollMs = 30000;
+    const tick = () => {
+      if (document.visibilityState === "visible") fetchAttendance(true);
+    };
+    const id = setInterval(tick, pollMs);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [fetchAttendance]);
+
+  const todayStr = (() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+  })();
+
+  const todayRecord = records.find((r) => {
+    const day = getRowCalendarDate(r);
+    if (!day) return false;
+    const y = day.getFullYear();
+    const m = String(day.getMonth() + 1).padStart(2, "0");
+    const d = String(day.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}` === todayStr;
+  });
+  const checkoutCampId =
+    todayCampId ||
+    (todayRecord?.campId?._id ? String(todayRecord.campId._id) : "") ||
+    (todayRecord?.campId && typeof todayRecord.campId === "string" ? todayRecord.campId : "");
+
+  const handleCheckout = async () => {
+    if (!checkoutCampId) {
+      setCheckoutError("Could not determine today's camp. Try refreshing the list.");
+      return;
+    }
+    if (!navigator.geolocation) {
+      setCheckoutError("Geolocation is not supported by your browser.");
+      return;
+    }
+    setCheckoutLoading(true);
+    setCheckoutError("");
     try {
-      setLoading(true);
-      const userRaw = localStorage.getItem("user") || sessionStorage.getItem("user");
-      const user = userRaw ? JSON.parse(userRaw) : null;
-      if (!user?._id) return;
-
-      const res = await apiService.getUserAttendance(user._id, {
-        fromDate,
-        toDate,
-        page: currentPage,
-        limit: itemsPerPage,
+      const pos = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 12000,
+        });
       });
-
-      const list = res?.data?.attendances || [];
-      setRecords(list);
-
-      const pag = res?.data?.pagination || {};
-      setTotalItems(Number(pag.total || list.length));
-      setTotalPages(Number(pag.pages || Math.ceil((pag.total || list.length) / itemsPerPage) || 1));
+      await apiService.checkoutAttendance({
+        campId: checkoutCampId,
+        currentLat: pos.coords.latitude,
+        currentLong: pos.coords.longitude,
+      });
+      await refreshTodayAttendance();
+      await fetchAttendance();
     } catch (err) {
-      console.error("Failed to load attendance", err);
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Checkout failed. Please try again.";
+      setCheckoutError(msg);
     } finally {
-      setLoading(false);
+      setCheckoutLoading(false);
     }
   };
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayTiming = todayRecord
+    ? {
+        checkIn: getCheckInDate(todayRecord),
+        checkOut: getCheckOutDate(todayRecord),
+        working: formatWorkingHours(todayRecord),
+      }
+    : null;
 
   return (
     <div className="flex flex-col h-[calc(100vh-170px)] min-h-[560px]" style={{ fontFamily: "Inter, sans-serif" }}>
@@ -84,26 +178,82 @@ const EmployeeAttendance = () => {
             <MapPin size={16} />
             Mark Today's Attendance
           </button>
+        ) : checkedOutToday ? (
+          <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 font-medium">
+            <CheckCircle2 size={16} className="text-slate-500" />
+            Checked out for today
+          </div>
         ) : (
-          <div className="flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700 font-medium">
-            <CheckCircle2 size={16} className="text-green-500" />
-            Attendance marked today
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <div className="flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700 font-medium">
+              <CheckCircle2 size={16} className="text-green-500" />
+              Checked in — check out when you leave
+            </div>
+            <button
+              type="button"
+              disabled={checkoutLoading || !checkoutCampId}
+              onClick={handleCheckout}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 bg-[#22333B] text-white font-medium rounded-xl hover:bg-[#1a2830] transition-colors shadow-sm text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {checkoutLoading ? <Loader2 size={16} className="animate-spin" /> : <LogOut size={16} />}
+              Check out
+            </button>
           </div>
         )}
       </div>
 
       {/* Today's status card */}
-      <div className={`flex items-center gap-4 p-4 rounded-2xl border mb-4 shrink-0 ${attendanceMarked ? "bg-green-50 border-green-100" : "bg-orange-50 border-orange-100"}`}>
-        <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${attendanceMarked ? "bg-green-100" : "bg-orange-100"}`}>
-          <ClipboardCheck size={24} className={attendanceMarked ? "text-green-600" : "text-[#F68E5F]"} />
+      <div
+        className={`flex items-center gap-4 p-4 rounded-2xl border mb-4 shrink-0 ${
+          !attendanceMarked
+            ? "bg-orange-50 border-orange-100"
+            : checkedOutToday
+              ? "bg-slate-50 border-slate-100"
+              : "bg-green-50 border-green-100"
+        }`}
+      >
+        <div
+          className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
+            !attendanceMarked ? "bg-orange-100" : checkedOutToday ? "bg-slate-100" : "bg-green-100"
+          }`}
+        >
+          <ClipboardCheck
+            size={24}
+            className={!attendanceMarked ? "text-[#F68E5F]" : checkedOutToday ? "text-slate-600" : "text-green-600"}
+          />
         </div>
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-[#22333B]">
-            {attendanceMarked ? "You're checked in for today!" : "Not checked in yet"}
+            {!attendanceMarked
+              ? "Not checked in yet"
+              : checkedOutToday
+                ? "You're checked out for today"
+                : "You're checked in for today"}
           </p>
           <p className="text-xs text-[#6B7280]">
             {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
           </p>
+          {attendanceMarked && todayTiming?.checkIn ? (
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#22333B]">
+              <span>
+                <span className="text-[#6B7280] font-normal">Check-in: </span>
+                <span className="font-semibold">{formatClock(todayTiming.checkIn)}</span>
+              </span>
+              {todayTiming.checkOut ? (
+                <span>
+                  <span className="text-[#6B7280] font-normal">Check-out: </span>
+                  <span className="font-semibold">{formatClock(todayTiming.checkOut)}</span>
+                </span>
+              ) : null}
+              {todayTiming.checkOut && todayTiming.working !== "—" ? (
+                <span>
+                  <span className="text-[#6B7280] font-normal">Working hours: </span>
+                  <span className="font-semibold">{todayTiming.working}</span>
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+          {checkoutError ? <p className="text-xs text-red-600 mt-1">{checkoutError}</p> : null}
         </div>
       </div>
 
@@ -144,29 +294,48 @@ const EmployeeAttendance = () => {
           </div>
         ) : records.length > 0 ? (
           <div className="overflow-y-auto overflow-x-auto flex-1">
-            <table className="min-w-[700px] w-full text-left border-collapse">
+            <table className="min-w-[960px] w-full text-left border-collapse">
               <thead className="sticky top-0 z-10 bg-white">
                 <tr className="border-b border-[#F3F4F6]">
                   <th className="py-3 px-4 text-sm font-semibold text-[#22333B] w-12">Sr.</th>
-                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B]">Date &amp; Time</th>
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] whitespace-nowrap">Date</th>
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] whitespace-nowrap">Check-in</th>
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] whitespace-nowrap">Check-out</th>
+                  <th className="py-3 px-4 text-sm font-semibold text-[#22333B] whitespace-nowrap">Working hours</th>
                   <th className="py-3 px-4 text-sm font-semibold text-[#22333B]">Camp</th>
                   <th className="py-3 px-4 text-sm font-semibold text-[#22333B]">Location</th>
                   <th className="py-3 px-4 text-sm font-semibold text-[#22333B]">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {records.map((rec, i) => (
+                {records.map((rec, i) => {
+                  const rowDay = getRowCalendarDate(rec);
+                  const cin = getCheckInDate(rec);
+                  const cout = getCheckOutDate(rec);
+                  const duration = formatWorkingHours(rec);
+                  return (
                   <tr key={rec._id} className="border-b border-[#F3F4F6] hover:bg-[#F9FAFB] transition-colors">
                     <td className="py-3 px-4 text-sm text-[#22333B]">{(currentPage - 1) * itemsPerPage + i + 1}</td>
                     <td className="py-3 px-4">
                       <p className="text-sm font-medium text-[#22333B]">
-                        {new Date(rec.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                      </p>
-                      <p className="text-xs text-[#6B7280] flex items-center gap-1 mt-0.5">
-                        <Clock size={11} />
-                        {new Date(rec.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {rowDay
+                          ? rowDay.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+                          : "—"}
                       </p>
                     </td>
+                    <td className="py-3 px-4">
+                      <p className="text-sm text-[#22333B] flex items-center gap-1">
+                        <Clock size={12} className="text-[#9CA3AF] shrink-0" />
+                        {formatClock(cin)}
+                      </p>
+                    </td>
+                    <td className="py-3 px-4">
+                      <p className="text-sm text-[#22333B] flex items-center gap-1">
+                        <Clock size={12} className="text-[#9CA3AF] shrink-0" />
+                        {formatClock(cout)}
+                      </p>
+                    </td>
+                    <td className="py-3 px-4 text-sm font-medium text-[#22333B] whitespace-nowrap">{duration}</td>
                     <td className="py-3 px-4">
                       {rec.campId ? (
                         <>
@@ -179,11 +348,12 @@ const EmployeeAttendance = () => {
                     </td>
                     <td className="py-3 px-4">
                       <p className="text-sm text-[#22333B]">{rec.city || "—"}</p>
-                      <p className="text-xs text-[#6B7280] font-mono">{rec.lat?.toFixed(4)}, {rec.long?.toFixed(4)}</p>
+                      <p className="text-xs text-[#6B7280] font-mono">{rec.lat != null && rec.long != null ? `${Number(rec.lat).toFixed(4)}, ${Number(rec.long).toFixed(4)}` : "—"}</p>
                     </td>
-                    <td className="py-3 px-4">{statusBadge(rec.status)}</td>
+                    <td className="py-3 px-4">{recordStatusBadge(rec)}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
