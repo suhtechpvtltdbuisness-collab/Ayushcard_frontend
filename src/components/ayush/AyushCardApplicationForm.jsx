@@ -2332,12 +2332,20 @@ const AyushCardApplicationForm = ({
             <div className="flex justify-between gap-1">
               <span className="font-bold shrink-0">Date</span>
               <span className="text-right">
-                {receiptDate.toLocaleString("en-IN", {
-                  day: "2-digit",
+                {receiptDate.toLocaleDateString("en-IN", {
+                  day: "numeric",
                   month: "short",
                   year: "numeric",
+                })}
+              </span>
+            </div>
+            <div className="flex justify-between gap-1">
+              <span className="font-bold shrink-0">Time</span>
+              <span className="text-right">
+                {receiptDate.toLocaleTimeString("en-IN", {
                   hour: "2-digit",
                   minute: "2-digit",
+                  hour12: true,
                 })}
               </span>
             </div>
@@ -4737,13 +4745,13 @@ const AyushCardApplicationForm = ({
                           </span>
                         </div>
                       )}
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">
+                      <div className="flex justify-between items-start gap-3 text-sm">
+                        <span className="text-gray-500 shrink-0 pt-0.5">
                           {skipPayment || staffPaymentFlow
                             ? "Submitted"
                             : "Payment Date"}
                         </span>
-                        <span className="font-semibold text-[#222222]">
+                        <span className="font-semibold text-[#222222] text-right">
                           {(() => {
                             const rec = submissionReceipt;
                             const fullTs = rec?.createdAt || rec?.updatedAt;
@@ -4752,14 +4760,25 @@ const AyushCardApplicationForm = ({
                               ? new Date(fullTs)
                               : rawDs.length > 10
                                 ? new Date(rawDs.replace(/(Z|\+00:00)$/, ""))
-                                : new Date(); // date-only or missing → actual submission time
-                            return d.toLocaleString("en-IN", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            });
+                                : new Date();
+                            return (
+                              <>
+                                <span className="block leading-snug">
+                                  {d.toLocaleDateString("en-IN", {
+                                    day: "numeric",
+                                    month: "short",
+                                    year: "numeric",
+                                  })}
+                                </span>
+                                <span className="block leading-snug">
+                                  {d.toLocaleTimeString("en-IN", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                    hour12: true,
+                                  })}
+                                </span>
+                              </>
+                            );
                           })()}
                         </span>
                       </div>
