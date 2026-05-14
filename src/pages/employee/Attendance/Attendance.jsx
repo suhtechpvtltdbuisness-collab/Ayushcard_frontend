@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { CalendarDays, MapPin, CheckCircle2, Clock, ClipboardCheck, LogOut, Loader2 } from "lucide-react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { CalendarDays, MapPin, CheckCircle2, Clock, ClipboardCheck, LogOut, Loader2, CalendarCheck2, Sun } from "lucide-react";
 import apiService from "../../../api/service";
 import { useAttendance } from "../../../context/AttendanceContext";
 import Pagination from "../../../components/ui/Pagination";
@@ -12,7 +12,10 @@ import {
   getDisplayAttendanceStatus,
   attendanceStatusClass,
   formatAttendanceStatusLabel,
+  summarizeAttendanceRecords,
 } from "../../../utils/attendanceTiming";
+
+const ATTENDANCE_STATS_FETCH_LIMIT = 2000;
 
 function recordStatusBadge(rec) {
   const slug = getDisplayAttendanceStatus(rec);
@@ -41,6 +44,8 @@ const EmployeeAttendance = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [itemsPerPage] = useState(10);
+  const [statsRecords, setStatsRecords] = useState([]);
+  const [statsTotal, setStatsTotal] = useState(0);
 
   // Date filter
   const [fromDate, setFromDate] = useState(() => {
@@ -83,14 +88,52 @@ const EmployeeAttendance = () => {
     [currentPage, fromDate, toDate, itemsPerPage, lastMarkedAt],
   );
 
+  const fetchAttendanceRangeStats = useCallback(async () => {
+    try {
+      const userRaw = localStorage.getItem("user") || sessionStorage.getItem("user");
+      const user = userRaw ? JSON.parse(userRaw) : null;
+      if (!user?._id) {
+        setStatsRecords([]);
+        setStatsTotal(0);
+        return;
+      }
+      const res = await apiService.getUserAttendance(user._id, {
+        fromDate,
+        toDate,
+        page: 1,
+        limit: ATTENDANCE_STATS_FETCH_LIMIT,
+      });
+      const list = res?.data?.attendances || [];
+      const pag = res?.data?.pagination || {};
+      setStatsRecords(list);
+      setStatsTotal(Number(pag.total ?? list.length));
+    } catch (err) {
+      console.error("Failed to load attendance summary", err);
+    }
+  }, [fromDate, toDate, lastMarkedAt]);
+
   useEffect(() => {
     fetchAttendance();
   }, [fetchAttendance]);
 
   useEffect(() => {
+    fetchAttendanceRangeStats();
+  }, [fetchAttendanceRangeStats]);
+
+  const attendancePeriodSummary = useMemo(
+    () => summarizeAttendanceRecords(statsRecords),
+    [statsRecords],
+  );
+
+  const statsTruncated = statsTotal > statsRecords.length;
+
+  useEffect(() => {
     const pollMs = 30000;
     const tick = () => {
-      if (document.visibilityState === "visible") fetchAttendance(true);
+      if (document.visibilityState === "visible") {
+        fetchAttendance(true);
+        fetchAttendanceRangeStats();
+      }
     };
     const id = setInterval(tick, pollMs);
     document.addEventListener("visibilitychange", tick);
@@ -98,7 +141,7 @@ const EmployeeAttendance = () => {
       clearInterval(id);
       document.removeEventListener("visibilitychange", tick);
     };
-  }, [fetchAttendance]);
+  }, [fetchAttendance, fetchAttendanceRangeStats]);
 
   const todayStr = (() => {
     const n = new Date();
@@ -143,6 +186,7 @@ const EmployeeAttendance = () => {
       });
       await refreshTodayAttendance();
       await fetchAttendance();
+      await fetchAttendanceRangeStats();
     } catch (err) {
       const msg =
         err?.response?.data?.message ||
@@ -279,12 +323,53 @@ const EmployeeAttendance = () => {
           />
         </div>
         <button
-          onClick={fetchAttendance}
+          onClick={() => {
+            fetchAttendance();
+            fetchAttendanceRangeStats();
+          }}
           className="px-4 py-1.5 bg-[#F68E5F] text-white text-sm rounded-lg hover:bg-[#ff7535] transition-colors"
         >
           Apply
         </button>
       </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 shrink-0">
+        <div className="flex items-center gap-3 rounded-2xl border border-[#E5E7EB] bg-white px-4 py-3">
+          <div className="w-10 h-10 rounded-full bg-[#FFF4ED] flex items-center justify-center shrink-0">
+            <CalendarDays size={18} className="text-[#F68E5F]" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-[#6B7280]">Days worked</p>
+            <p className="text-lg font-bold text-[#22333B] tabular-nums">{attendancePeriodSummary.daysWorked}</p>
+            <p className="text-[11px] text-[#9CA3AF]">With check-in in this range</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-2xl border border-[#E5E7EB] bg-white px-4 py-3">
+          <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
+            <CalendarCheck2 size={18} className="text-emerald-600" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-[#6B7280]">Full days</p>
+            <p className="text-lg font-bold text-[#22333B] tabular-nums">{attendancePeriodSummary.fullDays}</p>
+            <p className="text-[11px] text-[#9CA3AF]">Checked out, not half day</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-2xl border border-[#E5E7EB] bg-white px-4 py-3">
+          <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
+            <Sun size={18} className="text-amber-600" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-[#6B7280]">Half days</p>
+            <p className="text-lg font-bold text-[#22333B] tabular-nums">{attendancePeriodSummary.halfDays}</p>
+            <p className="text-[11px] text-[#9CA3AF]">Marked half day in status</p>
+          </div>
+        </div>
+      </div>
+      {statsTruncated ? (
+        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-4">
+          Totals reflect the first {statsRecords.length.toLocaleString()} of {statsTotal.toLocaleString()} records in this date range. Narrow the range for complete counts.
+        </p>
+      ) : null}
 
       {/* Table */}
       <div className="bg-white border border-[#D9D9D9] rounded-2xl overflow-hidden flex flex-col flex-1 min-h-0">

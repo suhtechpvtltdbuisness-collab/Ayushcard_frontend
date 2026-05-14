@@ -105,12 +105,16 @@ export function getDisplayAttendanceStatus(rec) {
 
   if (out) {
     if (raw === "absent") return "absent";
+    if (raw === "half_day" || raw === "halfday") return "half_day";
+    if (raw === "full_day" || raw === "fullday") return "full_day";
+    if (raw && raw !== "present" && raw !== "") return raw;
     return "completed";
   }
   if (inn) {
     if (raw === "late") return "late";
     if (raw === "absent") return "absent";
     if (raw === "half_day" || raw === "halfday") return "half_day";
+    if (raw === "full_day" || raw === "fullday") return "full_day";
     if (raw && raw !== "present" && raw !== "") return raw;
     return "present";
   }
@@ -122,6 +126,7 @@ export function attendanceStatusClass(slug) {
   const map = {
     present: "bg-green-100 text-green-700",
     completed: "bg-slate-100 text-slate-800",
+    full_day: "bg-emerald-100 text-emerald-800",
     absent: "bg-red-100 text-red-700",
     late: "bg-yellow-100 text-yellow-700",
     half_day: "bg-amber-100 text-amber-800",
@@ -136,6 +141,7 @@ export function formatAttendanceStatusLabel(slug) {
   const pretty = {
     present: "Present",
     completed: "Completed",
+    full_day: "Full day",
     absent: "Absent",
     late: "Late",
     half_day: "Half day",
@@ -143,4 +149,22 @@ export function formatAttendanceStatusLabel(slug) {
   };
   if (pretty[key]) return pretty[key];
   return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export function summarizeAttendanceRecords(records) {
+  if (!Array.isArray(records)) return { daysWorked: 0, fullDays: 0, halfDays: 0 };
+  let daysWorked = 0;
+  let fullDays = 0;
+  let halfDays = 0;
+  for (const rec of records) {
+    if (!getCheckInDate(rec)) continue;
+    daysWorked += 1;
+    const slug = getDisplayAttendanceStatus(rec);
+    if (slug === "half_day") {
+      halfDays += 1;
+    } else if (getCheckOutDate(rec) && slug !== "absent") {
+      fullDays += 1;
+    }
+  }
+  return { daysWorked, fullDays, halfDays };
 }
