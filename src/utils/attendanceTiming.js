@@ -1,3 +1,6 @@
+/** Minutes worked below this (with check-out) counts as half day; at or above counts as full day. */
+export const ATTENDANCE_FULL_DAY_MIN_MINUTES = 240;
+
 export function parseTimeValue(v) {
   if (v == null || v === "") return null;
   if (typeof v === "number" && !Number.isNaN(v)) {
@@ -46,6 +49,79 @@ export function formatClock(d) {
   return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
 }
 
+export function getWorkingDurationMinutes(rec) {
+  if (rec == null) return null;
+
+  const fromFields =
+    rec.workingMinutes ??
+    rec.durationMinutes ??
+    rec.workDurationMinutes ??
+    (typeof rec.durationMins === "number" ? rec.durationMins : null);
+  if (typeof fromFields === "number" && fromFields >= 0) return fromFields;
+
+  if (typeof rec.totalHours === "number" && !Number.isNaN(rec.totalHours)) {
+    return Math.round(rec.totalHours * 60);
+  }
+
+  const wh = rec.workingHours ?? rec.workHours ?? rec.workDuration;
+  if (typeof wh === "number" && !Number.isNaN(wh)) return Math.round(wh * 60);
+  if (typeof wh === "string" && wh.trim()) {
+    const hMatch = wh.match(/(\d+)\s*h/i);
+    const mMatch = wh.match(/(\d+)\s*m/i);
+    const h = hMatch ? Number(hMatch[1]) : 0;
+    const m = mMatch ? Number(mMatch[1]) : 0;
+    if (h > 0 || m > 0) return h * 60 + m;
+  }
+
+  const inD = getCheckInDate(rec);
+  const outD = getCheckOutDate(rec);
+  if (inD && outD) {
+    const ms = outD.getTime() - inD.getTime();
+    if (ms > 0) return Math.floor(ms / 60000);
+  }
+  return null;
+}
+
+export function isHalfDayAttendance(rec) {
+  if (!rec || !getCheckInDate(rec)) return false;
+
+  const raw = String(rec.status ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+  if (raw === "half_day" || raw === "halfday") return true;
+  if (raw === "absent") return false;
+  if (raw === "full_day" || raw === "fullday") return false;
+
+  const out = getCheckOutDate(rec);
+  if (!out) return false;
+
+  const minutes = getWorkingDurationMinutes(rec);
+  if (minutes == null || minutes <= 0) return false;
+
+  return minutes < ATTENDANCE_FULL_DAY_MIN_MINUTES;
+}
+
+export function isFullDayAttendance(rec) {
+  if (!rec || !getCheckInDate(rec)) return false;
+
+  const raw = String(rec.status ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+  if (raw === "absent") return false;
+  if (raw === "half_day" || raw === "halfday") return false;
+  if (raw === "full_day" || raw === "fullday") return true;
+
+  const out = getCheckOutDate(rec);
+  if (!out) return false;
+
+  const minutes = getWorkingDurationMinutes(rec);
+  if (minutes == null || minutes <= 0) return false;
+
+  return minutes >= ATTENDANCE_FULL_DAY_MIN_MINUTES;
+}
+
 export function formatWorkingHours(rec) {
   if (rec == null) return "—";
   const wh =
@@ -54,13 +130,9 @@ export function formatWorkingHours(rec) {
     rec.durationLabel ??
     rec.workDuration ??
     (typeof rec.totalHours === "number" ? `${rec.totalHours}h` : null);
-  if (wh != null && wh !== "") return String(wh);
+  if (wh != null && wh !== "" && typeof wh !== "number") return String(wh);
 
-  const mins =
-    rec.workingMinutes ??
-    rec.durationMinutes ??
-    rec.workDurationMinutes ??
-    (typeof rec.durationMins === "number" ? rec.durationMins : null);
+  const mins = getWorkingDurationMinutes(rec);
   if (typeof mins === "number" && mins > 0) {
     const h = Math.floor(mins / 60);
     const m = mins % 60;
@@ -69,19 +141,6 @@ export function formatWorkingHours(rec) {
     return `${h}h ${m}m`;
   }
 
-  const inD = getCheckInDate(rec);
-  const outD = getCheckOutDate(rec);
-  if (inD && outD) {
-    const ms = outD.getTime() - inD.getTime();
-    if (ms > 0) {
-      const totalMin = Math.floor(ms / 60000);
-      const h = Math.floor(totalMin / 60);
-      const m = totalMin % 60;
-      if (h === 0) return `${m}m`;
-      if (m === 0) return `${h}h`;
-      return `${h}h ${m}m`;
-    }
-  }
   return "—";
 }
 
@@ -107,6 +166,8 @@ export function getDisplayAttendanceStatus(rec) {
     if (raw === "absent") return "absent";
     if (raw === "half_day" || raw === "halfday") return "half_day";
     if (raw === "full_day" || raw === "fullday") return "full_day";
+    if (isHalfDayAttendance(rec)) return "half_day";
+    if (isFullDayAttendance(rec)) return "full_day";
     if (raw && raw !== "present" && raw !== "") return raw;
     return "completed";
   }
@@ -159,10 +220,9 @@ export function summarizeAttendanceRecords(records) {
   for (const rec of records) {
     if (!getCheckInDate(rec)) continue;
     daysWorked += 1;
-    const slug = getDisplayAttendanceStatus(rec);
-    if (slug === "half_day") {
+    if (isHalfDayAttendance(rec)) {
       halfDays += 1;
-    } else if (getCheckOutDate(rec) && slug !== "absent") {
+    } else if (isFullDayAttendance(rec)) {
       fullDays += 1;
     }
   }
