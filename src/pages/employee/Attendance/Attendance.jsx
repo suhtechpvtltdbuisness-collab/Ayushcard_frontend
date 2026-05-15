@@ -351,7 +351,7 @@ const EmployeeAttendance = () => {
           <div className="min-w-0">
             <p className="text-xs font-medium text-[#6B7280]">Full days</p>
             <p className="text-lg font-bold text-[#22333B] tabular-nums">{attendancePeriodSummary.fullDays}</p>
-            <p className="text-[11px] text-[#9CA3AF]">Checked out, not half day</p>
+            <p className="text-[11px] text-[#9CA3AF]">4+ hours worked with check-out</p>
           </div>
         </div>
         <div className="flex items-center gap-3 rounded-2xl border border-[#E5E7EB] bg-white px-4 py-3">
@@ -361,7 +361,7 @@ const EmployeeAttendance = () => {
           <div className="min-w-0">
             <p className="text-xs font-medium text-[#6B7280]">Half days</p>
             <p className="text-lg font-bold text-[#22333B] tabular-nums">{attendancePeriodSummary.halfDays}</p>
-            <p className="text-[11px] text-[#9CA3AF]">Marked half day in status</p>
+            <p className="text-[11px] text-[#9CA3AF]">Under 4 hours worked with check-out</p>
           </div>
         </div>
       </div>
