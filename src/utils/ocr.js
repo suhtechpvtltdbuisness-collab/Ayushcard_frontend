@@ -11,11 +11,19 @@ import {
 export { preprocessImageForFrontOcr, preloadAadhaarOcrWorker };
 
 /** Minimum confidence (0–100) to auto-fill any field */
-export const OCR_MIN_AUTOFILL_CONFIDENCE = 72;
-/** Minimum confidence for "fully valid" front scan (aadhaar + name) */
-export const OCR_MIN_VALID_CONFIDENCE = 82;
+export const OCR_MIN_AUTOFILL_CONFIDENCE = 58;
+/** Minimum confidence for "fully valid" front scan (all four fields) */
+export const OCR_MIN_VALID_CONFIDENCE = 70;
 /** Minimum score for accepting a parsed holder name */
 const MIN_NAME_SCORE = 38;
+/** Per-region Paddle confidence floor before trusting a field */
+const MIN_REGION_FIELD_CONF = {
+  name: 42,
+  dob: 38,
+  gender: 38,
+  aadhaar: 44,
+};
+const FRONT_OCR_REGION_KEYS = ["name", "dobGender", "gender", "aadhaarNumber"];
 
 const SHORT_NAME_ALLOWLIST = new Set([
   "md",
@@ -64,6 +72,52 @@ const GARBAGE_NAME_WORDS = new Set([
   "you",
   "your",
   "card",
+  "inah",
+  "ndia",
+  "nment",
+  "overn",
+  "uthor",
+  "thor",
+  "ique",
+  "dent",
+  "fica",
+  "tion",
+  "orit",
+  "ment",
+  "vern",
+  "ique",
+  "meno",
+  "ernm",
+  "uthority",
+  "ident",
+]);
+
+/** OCR shards from "Government of India" / "Identification Authority" */
+const HEADER_NAME_SHARDS = new Set([
+  "inah",
+  "ndia",
+  "govt",
+  "nment",
+  "overn",
+  "uthor",
+  "thor",
+  "ique",
+  "dent",
+  "fica",
+  "tion",
+  "orit",
+  "vern",
+  "meno",
+  "ernm",
+  "ident",
+  "uthority",
+  "thority",
+  "ifica",
+  "nique",
+  "uthori",
+  "ernme",
+  "ofind",
+  "india",
 ]);
 
 const FRONT_HEADER_NOISE =
@@ -184,11 +238,38 @@ function nameWordIsNoise(word) {
   return false;
 }
 
+function isHeaderFragmentName(name) {
+  const compact = String(name || "")
+    .toLowerCase()
+    .replace(/[^a-z]/g, "");
+  if (!compact || compact.length < 3) return false;
+  if (HEADER_NAME_SHARDS.has(compact)) return true;
+
+  const headerPhrases = [
+    "governmentofindia",
+    "uniqueidentification",
+    "identificationauthority",
+    "identificationauthorityofindia",
+    "authorityofindia",
+    "uidai",
+    "aadhaar",
+  ];
+  for (const phrase of headerPhrases) {
+    if (phrase.includes(compact) && compact.length <= 8) return true;
+    if (compact.length >= 4 && phrase.includes(compact.slice(0, 4))) {
+      const ratio = compact.length / phrase.length;
+      if (ratio < 0.55) return true;
+    }
+  }
+  return false;
+}
+
 function nameWordLooksReal(word) {
   const w = String(word || "").replace(/[^A-Za-z]/g, "");
   if (!w || w.length < 2) return false;
   const lower = w.toLowerCase();
   if (nameWordIsNoise(w)) return false;
+  if (HEADER_NAME_SHARDS.has(lower)) return false;
 
   if (w.length === 2) {
     return SHORT_NAME_ALLOWLIST.has(lower);
@@ -226,6 +307,8 @@ export function isValidAadhaarName(s) {
   if (letters.length >= 5 && vowels / letters.length < 0.22) return false;
 
   if (words.length === 1 && words[0].length < 4) return false;
+  if (isHeaderFragmentName(t)) return false;
+  if (words.length === 1 && words[0].length < 5) return false;
 
   const avgLen = letters.length / words.length;
   if (words.length >= 2 && avgLen < 3.2) return false;
@@ -291,11 +374,14 @@ function scoreNameCandidate(s, bonus = 0) {
     else if (/\d/.test(w)) score -= 40;
     else score -= 12;
   }
-  if (words.length === 1 && words[0].length >= 4 && words[0].length <= 14) score += 25;
-  if (words.length >= 2 && words.length <= 4) score += 15;
+  if (words.length === 1 && words[0].length >= 5 && words[0].length <= 14) score += 18;
+  if (words.length >= 2 && words.length <= 4) score += 42;
+  if (words.length >= 2 && words.every((w) => w.length >= 3)) score += 20;
   if (words.filter((w) => w.length === 2).length >= 1 && words.length >= 2) score -= 35;
   if (s.length < 8 && words.every((w) => w.length <= 3)) score -= 45;
   if (FRONT_HEADER_NOISE.test(s)) score -= 50;
+  if (isHeaderFragmentName(s)) score -= 120;
+  if (words.length === 1 && words[0].length < 5) score -= 60;
   return score;
 }
 
@@ -442,11 +528,31 @@ export function verhoeffCheckAadhaar(digits12) {
 
 export function normalizeAadhaarNumber(raw) {
   const digits = String(raw || "").replace(/\D/g, "");
-  if (digits.length !== 12) return "";
-  if (/^(\d)\1{11}$/.test(digits)) return "";
-  if (!/^[2-9]/.test(digits)) return "";
+  if (!isPlausibleAadhaarDigits(digits)) return "";
   if (!verhoeffCheckAadhaar(digits)) return "";
   return digits;
+}
+
+function isPlausibleAadhaarDigits(digits) {
+  return (
+    digits.length === 12 &&
+    /^[2-9]/.test(digits) &&
+    !/^(\d)\1{11}$/.test(digits)
+  );
+}
+
+/** Accept 12-digit OCR reads even when Verhoeff fails (common with 1 wrong digit). */
+function normalizeAadhaarNumberLenient(raw) {
+  const digits = String(raw || "").replace(/\D/g, "");
+  if (!isPlausibleAadhaarDigits(digits)) return "";
+  return digits;
+}
+
+function scoreAadhaarCandidate(digits) {
+  if (!isPlausibleAadhaarDigits(digits)) return -1;
+  let score = 65;
+  if (verhoeffCheckAadhaar(digits)) score += 35;
+  return score;
 }
 
 function normalizeGender(raw) {
@@ -613,53 +719,78 @@ function extractNameByRegex(text) {
   return pickBestName(candidates);
 }
 
+function isYearLikelyBirthYear(yearStr) {
+  const y = parseInt(yearStr, 10);
+  const currentYear = new Date().getFullYear();
+  return y >= 1920 && y <= currentYear;
+}
+
 function extractDobFromFrontText(text, aadhaar12 = "") {
+  const t = cleanFrontOcrText(text);
+  if (!t) return "";
+
+  const tryFullDate = (d, m, y) => {
+    const year = String(y).length === 2 ? String(expandTwoDigitYear(y)) : String(y);
+    return formatIsoDob(d, m, year);
+  };
+
   const labelledDob =
-    text.match(
-      /(?:DOB|D\.O\.B|Date\s*of\s*Birth)[:\s]*(\d{2})[-/. ](\d{2})[-/. ](\d{4})/i,
+    t.match(
+      /(?:DOB|D\.O\.B|Date\s*of\s*Birth)[:\s/]*(\d{2})[-/. ](\d{2})[-/. ](\d{4})/i,
     ) ||
-    text.match(/(?:DOB|D\.O\.B)[:\s]*(\d{2})[-/. ](\d{2})[-/. ](\d{2})\b/i);
+    t.match(/(?:DOB|D\.O\.B)[:\s/]*(\d{2})[-/. ](\d{2})[-/. ](\d{2})\b/i);
   if (labelledDob) {
-    const year =
-      labelledDob[3].length === 4
-        ? labelledDob[3]
-        : String(expandTwoDigitYear(labelledDob[3]));
-    const iso = formatIsoDob(labelledDob[1], labelledDob[2], year);
+    const iso = tryFullDate(labelledDob[1], labelledDob[2], labelledDob[3]);
     if (iso) return iso;
   }
 
-  const compact = text.match(/DOB[:\s]*(\d{2})[-/. ]?(\d{2})[-/. ]?(\d{4})/i);
+  const compact = t.match(/DOB[:\s/]*(\d{2})[-/. ]?(\d{2})[-/. ]?(\d{4})/i);
   if (compact) {
-    const iso = formatIsoDob(compact[1], compact[2], compact[3]);
+    const iso = tryFullDate(compact[1], compact[2], compact[3]);
     if (iso) return iso;
   }
 
   const yobPatterns = [
-    /(?:YOB|Year\s*o[f]?\s*Birth|Year\s*of\s*Birth)[:\s]*(\d{4})/i,
-    /(?:Birth|YOB)[:\s]*[:\s]*(\d{4})/i,
-    /Birth[^\d]{0,25}(\d{4})/i,
+    /Year\s*(?:of\s*)?Birth[:\s/]*(\d{4})/i,
+    /(?:YOB|Year\s*o[f]?\s*Birth)[:\s/]*(\d{4})/i,
+    /(?:Birth|YOB)[:\s/]+(\d{4})/i,
+    /Birth[^\d]{0,30}(\d{4})/i,
   ];
   for (const re of yobPatterns) {
-    const m = text.match(re);
-    if (m?.[1]) {
+    const m = t.match(re);
+    if (m?.[1] && isYearLikelyBirthYear(m[1])) {
       const iso = formatIsoDob("01", "01", m[1]);
       if (iso) return iso;
     }
   }
 
-  const dobPattern = /(\d{2})[-/. ](\d{2})[-/. ](\d{4})/g;
-  let dm;
-  while ((dm = dobPattern.exec(text)) !== null) {
-    const raw = dm[0].replace(/\D/g, "");
-    if (aadhaar12 && aadhaar12.includes(raw)) continue;
-    const iso = formatIsoDob(dm[1], dm[2], dm[3]);
+  const datePatterns = [
+    /(\d{2})[-/. ](\d{2})[-/. ](\d{4})/g,
+    /(\d{2})\/(\d{2})\/(\d{4})/g,
+    /(\d{2})\.(\d{2})\.(\d{4})/g,
+  ];
+  for (const dobPattern of datePatterns) {
+    let dm;
+    while ((dm = dobPattern.exec(t)) !== null) {
+      const raw = dm[0].replace(/\D/g, "");
+      if (aadhaar12 && raw.length >= 8 && aadhaar12.includes(raw.slice(0, 8))) continue;
+      const iso = tryFullDate(dm[1], dm[2], dm[3]);
+      if (iso) return iso;
+    }
+  }
+
+  const spaced = t.match(/(\d{2})\s+(\d{2})\s+(19\d{2}|20\d{2})/);
+  if (spaced) {
+    const iso = tryFullDate(spaced[1], spaced[2], spaced[3]);
     if (iso) return iso;
   }
 
-  const spaced = text.match(/(\d{2})\s+(\d{2})\s+(19\d{2}|20\d{2})/);
-  if (spaced) {
-    const iso = formatIsoDob(spaced[1], spaced[2], spaced[3]);
-    if (iso) return iso;
+  if (/(?:yob|year|birth|dob)/i.test(t)) {
+    const yearOnly = t.match(/\b(19\d{2}|20\d{2})\b/);
+    if (yearOnly?.[1] && isYearLikelyBirthYear(yearOnly[1])) {
+      const iso = formatIsoDob("01", "01", yearOnly[1]);
+      if (iso) return iso;
+    }
   }
 
   return "";
@@ -667,24 +798,26 @@ function extractDobFromFrontText(text, aadhaar12 = "") {
 
 function extractGenderFromFrontText(text, lines = []) {
   const genderLabel = text.match(
-    /Gender[:\s/]*(Female|Male|FEMALE|MALE|\bF\b|\bM\b|Other)/i,
+    /Gender[:\s/]*(Female|Male|FEMALE|MALE|Other|OTHER|\bF\b|\bM\b|\bO\b)/i,
   );
   if (genderLabel) {
     const g = normalizeGender(genderLabel[1]);
     if (g) return g;
   }
 
-  if (/\bFEMALE\b/i.test(text) || /\bFemale\b/.test(text)) return "Female";
-  if (/\bMALE\b/i.test(text) || /\bMale\b/.test(text)) return "Male";
+  if (/\bFEMALE\b/i.test(text)) return "Female";
+  if (/\bMALE\b/i.test(text) && !/\bFEMALE\b/i.test(text)) return "Male";
+  if (/\bOTHER\b/i.test(text) || /\bTRANSGENDER\b/i.test(text)) return "Other";
 
   for (const line of lines) {
     const u = line.trim().toUpperCase();
     if (u === "FEMALE" || u === "F") return "Female";
     if (u === "MALE" || u === "M") return "Male";
+    if (u === "OTHER" || u === "O") return "Other";
   }
 
-  if (/\b\/\s*F\b/i.test(text) || /\bF\s*\/\s*/i.test(text)) return "Female";
-  if (/\b\/\s*M\b/i.test(text) || /\bM\s*\/\s*/i.test(text)) return "Male";
+  if (/\b\/\s*F\b/i.test(text)) return "Female";
+  if (/\b\/\s*M\b/i.test(text) && !/\bF\b/i.test(text)) return "Male";
 
   return "";
 }
@@ -695,8 +828,16 @@ function extractHolderNameFromText(text, lines, anchors) {
   return extractNameByRegex(text);
 }
 
+function frontFieldsComplete({ aadhaar, name, dob, gender }) {
+  return !!(aadhaar && name && dob && gender);
+}
+
 export function validateAadhaarFrontResults(results) {
-  const aadhaar = normalizeAadhaarNumber(results?.docNumber);
+  const aadhaarStrict = normalizeAadhaarNumber(results?.docNumber);
+  const aadhaar =
+    aadhaarStrict ||
+    normalizeAadhaarNumberLenient(results?.docNumber) ||
+    "";
   const rawName = results?.name ? String(results.name).trim() : "";
   const nameQuality = scoreAadhaarNameQuality(rawName);
   const name =
@@ -705,30 +846,47 @@ export function validateAadhaarFrontResults(results) {
   const dob = results?.dob || "";
 
   let confidence = 0;
-  if (aadhaar) confidence += 38;
-  if (name) confidence += 38;
-  if (dob) confidence += 12;
-  if (gender) confidence += 12;
+  if (aadhaarStrict) confidence += 28;
+  else if (aadhaar) confidence += 18;
+  if (name) confidence += 28;
+  if (dob) confidence += 14;
+  if (gender) confidence += 14;
 
-  const ocrConf = typeof results?.ocrConfidence === "number" ? results.ocrConfidence : 100;
+  const ocrConf = typeof results?.ocrConfidence === "number" ? results.ocrConfidence : 55;
   confidence = Math.round(confidence * 0.75 + ocrConf * 0.25);
-  if (name && nameQuality < MIN_NAME_SCORE + 15) confidence = Math.min(confidence, 72);
+  if (name && nameQuality < MIN_NAME_SCORE + 15) confidence = Math.min(confidence, 62);
+  if (!frontFieldsComplete({ aadhaar, name, dob, gender })) {
+    confidence = Math.min(confidence, 48);
+  }
 
-  const hasCore = !!aadhaar && !!name;
-  const valid = hasCore && confidence >= OCR_MIN_VALID_CONFIDENCE;
-  const canAutofill =
-    confidence >= OCR_MIN_AUTOFILL_CONFIDENCE && (!!aadhaar || !!name);
+  const fc = results?.fieldConfidence || {};
+  if (name && (fc.name || 0) < MIN_REGION_FIELD_CONF.name) {
+    confidence = Math.min(confidence, OCR_MIN_AUTOFILL_CONFIDENCE - 1);
+  }
+  if (dob && (fc.dob || 0) < MIN_REGION_FIELD_CONF.dob) {
+    confidence = Math.min(confidence, OCR_MIN_AUTOFILL_CONFIDENCE - 1);
+  }
+  if (gender && (fc.gender || 0) < MIN_REGION_FIELD_CONF.gender) {
+    confidence = Math.min(confidence, OCR_MIN_AUTOFILL_CONFIDENCE - 1);
+  }
+  if (aadhaar && (fc.aadhaar || 0) < MIN_REGION_FIELD_CONF.aadhaar) {
+    confidence = Math.min(confidence, OCR_MIN_AUTOFILL_CONFIDENCE - 1);
+  }
+
+  const hasAll = frontFieldsComplete({ aadhaar, name, dob, gender });
+  const valid =
+    hasAll && !!aadhaarStrict && confidence >= OCR_MIN_VALID_CONFIDENCE;
+  const canAutofill = hasAll && confidence >= OCR_MIN_AUTOFILL_CONFIDENCE;
 
   return {
     valid,
     canAutofill,
     confidence,
-    aadhaar,
+    aadhaar: aadhaarStrict || aadhaar,
     name,
     gender,
     dob,
-    validationMessage:
-      canAutofill ? "" : AADHAAR_OCR_LOW_CONFIDENCE_MSG,
+    validationMessage: canAutofill ? "" : AADHAAR_OCR_LOW_CONFIDENCE_MSG,
   };
 }
 
@@ -862,20 +1020,21 @@ function extractAadhaarFromText(text) {
   const spaced = cleaned.match(/\b[2-9]\d{3}\s+\d{4}\s+\d{4}\b/g) || [];
   for (const m of spaced) {
     const d = m.replace(/\s/g, "");
-    if (normalizeAadhaarNumber(d)) candidates.push({ digits: d, score: 90 });
+    const score = scoreAadhaarCandidate(d);
+    if (score > 0) candidates.push({ digits: d, score: score + 10 });
   }
 
   const compact = cleaned.match(/\b[2-9]\d{11}\b/g) || [];
   for (const m of compact) {
-    if (normalizeAadhaarNumber(m)) candidates.push({ digits: m, score: 85 });
+    const score = scoreAadhaarCandidate(m);
+    if (score > 0) candidates.push({ digits: m, score: score + 5 });
   }
 
   const digitsOnly = cleaned.replace(/\D/g, "");
   for (let i = 0; i + 12 <= digitsOnly.length; i++) {
     const slice = digitsOnly.slice(i, i + 12);
-    if (normalizeAadhaarNumber(slice)) {
-      candidates.push({ digits: slice, score: 70 - i * 0.1 });
-    }
+    const score = scoreAadhaarCandidate(slice);
+    if (score > 0) candidates.push({ digits: slice, score: score - i * 0.05 });
   }
 
   if (!candidates.length) return "";
@@ -883,8 +1042,70 @@ function extractAadhaarFromText(text) {
   return candidates[0].digits;
 }
 
+function collectNameCandidatesFromNameRegion(text) {
+  const candidates = [];
+  const lines = splitFrontOcrIntoLines(text);
+
+  for (const line of lines) {
+    if (lineIsFrontHeaderNoise(line)) continue;
+
+    const toLine = line.match(/^To[,:]?\s+(.+)$/i);
+    if (toLine) {
+      const n = cleanNameFromLine(toLine[1]);
+      if (isValidAadhaarName(n)) {
+        candidates.push({ s: n, score: 145 });
+      }
+    }
+
+    const title = extractTitleCaseNameFromLine(line);
+    if (title && isValidAadhaarName(title)) {
+      const wc = title.split(/\s+/).length;
+      candidates.push({ s: title, score: wc >= 2 ? 135 : 75 });
+    }
+
+    const allCaps = line.match(/^([A-Z]{2,}(?:\s+[A-Z]{2,}){1,3})$/);
+    if (allCaps) {
+      const n = cleanNameFromLine(allCaps[1]);
+      if (isValidAadhaarName(n)) {
+        candidates.push({ s: n, score: 128 });
+      }
+    }
+
+    const cleaned = cleanNameFromLine(line);
+    if (isValidAadhaarName(cleaned)) {
+      const wc = cleaned.split(/\s+/).length;
+      candidates.push({ s: cleaned, score: wc >= 2 ? 125 : 65 });
+    }
+  }
+
+  const titleRun = cleanFrontOcrText(text).match(
+    /\b([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,}){1,3})\b/,
+  );
+  if (titleRun) {
+    const n = cleanNameFromLine(titleRun[1]);
+    if (isValidAadhaarName(n)) {
+      candidates.push({ s: n, score: 122 });
+    }
+  }
+
+  const capsRun = cleanFrontOcrText(text).match(
+    /\b([A-Z]{2,}(?:\s+[A-Z]{2,}){1,3})\b/,
+  );
+  if (capsRun) {
+    const n = cleanNameFromLine(capsRun[1]);
+    if (isValidAadhaarName(n)) {
+      candidates.push({ s: n, score: 115 });
+    }
+  }
+
+  return candidates;
+}
+
 function parseNameRegionText(text) {
-  return resolveBestFrontName(text, "");
+  if (!String(text || "").trim()) return "";
+  const fromRegion = pickBestName(collectNameCandidatesFromNameRegion(text));
+  if (fromRegion) return fromRegion;
+  return pickBestName(collectNameCandidatesFromText(text));
 }
 
 function parseDobGenderRegionText(text) {
@@ -901,6 +1122,8 @@ async function ocrRegionBlob(blob, options, onProgress) {
   const { text, confidence } = await recognizeAadhaarImage(blob, {
     minWordConfidence: options.minWordConfidence ?? 48,
     onProgress,
+    region: true,
+    detLimitSideLen: options.detLimitSideLen ?? 720,
   });
   return { text, confidence };
 }
@@ -917,31 +1140,55 @@ async function ocrRegionSet(regionBlobs, keys, options, onProgress) {
   return out;
 }
 
+function pickMajorityAadhaar(passResults) {
+  const strict = [];
+  const lenient = [];
+  for (const p of passResults) {
+    if (!p?.docNumber) continue;
+    const s = normalizeAadhaarNumber(p.docNumber);
+    const l = normalizeAadhaarNumberLenient(p.docNumber);
+    if (s) strict.push(s);
+    else if (l) lenient.push(l);
+  }
+  return majorityPick(strict, (v) => v) || majorityPick(lenient, (v) => v) || "";
+}
+
 function consolidateFrontFieldVotes(passResults, allText) {
   const aadhaars = [];
   const names = [];
   const dobs = [];
   const genders = [];
   let maxOcr = 0;
+  const fieldConfidence = { name: 0, dob: 0, gender: 0, aadhaar: 0 };
 
   for (const p of passResults) {
     if (!p) continue;
-    const a = normalizeAadhaarNumber(p.docNumber);
+    const a =
+      normalizeAadhaarNumber(p.docNumber) ||
+      normalizeAadhaarNumberLenient(p.docNumber);
     if (a) aadhaars.push(a);
     if (p.name) names.push(p.name);
     if (p.dob) dobs.push(p.dob);
     const g = normalizeGender(p.gender);
     if (g) genders.push(g);
     maxOcr = Math.max(maxOcr, p.ocrConfidence || 0);
+    if (p.fieldConfidence) {
+      for (const k of ["name", "dob", "gender", "aadhaar"]) {
+        fieldConfidence[k] = Math.max(fieldConfidence[k], p.fieldConfidence[k] || 0);
+      }
+    }
   }
 
   const lines = splitFrontOcrIntoLines(allText);
   const docNumber =
-    majorityPick(aadhaars, (v) => v) ||
+    pickMajorityAadhaar(passResults) ||
     extractAadhaarFromText(allText) ||
     "";
   const mergedName = names.reduce((best, n) => pickBetterName(best, n), "");
-  const name = resolveBestFrontName(allText, mergedName);
+  const name =
+    mergedName && scoreAadhaarNameQuality(mergedName) >= MIN_NAME_SCORE
+      ? mergedName
+      : resolveBestFrontName(allText, mergedName);
   const dob =
     majorityPick(dobs, (v) => v) ||
     extractDobFromFrontText(cleanFrontOcrText(allText), docNumber) ||
@@ -960,50 +1207,100 @@ function consolidateFrontFieldVotes(passResults, allText) {
     email: "",
     phone: "",
     ocrConfidence: maxOcr,
+    fieldConfidence,
   };
 }
 
-function parseFrontFromRegionOcr(regionOcr) {
+function buildCoherentFrontFromRegions(regionOcr) {
   const nameOcr = regionOcr.name || { text: "", confidence: 0 };
-  const dobOcr = regionOcr.dobGender || { text: "", confidence: 0 };
+  const dobGenderOcr = regionOcr.dobGender || { text: "", confidence: 0 };
+  const genderOcr = regionOcr.gender || { text: "", confidence: 0 };
   const aadhaarOcr = regionOcr.aadhaarNumber || { text: "", confidence: 0 };
 
-  const name = parseNameRegionText(nameOcr.text);
-  const { dob, gender: genderFromDob } = parseDobGenderRegionText(dobOcr.text);
-  const gender =
-    extractGenderFromFrontText(dobOcr.text, splitFrontOcrIntoLines(dobOcr.text)) ||
-    genderFromDob;
+  const personalText = [nameOcr.text, dobGenderOcr.text, genderOcr.text]
+    .filter(Boolean)
+    .join("\n");
+  const rawText = [personalText, aadhaarOcr.text].filter(Boolean).join("\n");
+
+  const lines = splitFrontOcrIntoLines(personalText);
+  const anchors = findAnchorIndices(lines);
+
   const docNumber =
     extractAadhaarFromText(aadhaarOcr.text) ||
-    extractAadhaarFromText(dobOcr.text) ||
-    extractAadhaarFromText(nameOcr.text);
+    extractAadhaarFromText(rawText) ||
+    "";
+  const aadhaar12 =
+    normalizeAadhaarNumber(docNumber) ||
+    normalizeAadhaarNumberLenient(docNumber) ||
+    "";
 
-  const avgConf =
-    (nameOcr.confidence + dobOcr.confidence + aadhaarOcr.confidence) / 3;
+  const dob =
+    extractDobFromFrontText(cleanFrontOcrText(dobGenderOcr.text), aadhaar12) ||
+    extractDobFromFrontText(cleanFrontOcrText(personalText), aadhaar12) ||
+    "";
+
+  const genderLines = splitFrontOcrIntoLines(
+    [genderOcr.text, dobGenderOcr.text].filter(Boolean).join("\n"),
+  );
+  const gender =
+    extractGenderFromFrontText(genderOcr.text, splitFrontOcrIntoLines(genderOcr.text)) ||
+    extractGenderFromFrontText(dobGenderOcr.text, splitFrontOcrIntoLines(dobGenderOcr.text)) ||
+    extractGenderFromFrontText(personalText, genderLines) ||
+    "";
+
+  const nameFromRegion = parseNameRegionText(nameOcr.text);
+  const nameFromPersonal = nameFromRegion
+    ? ""
+    : resolveBestFrontName(personalText, "");
+  const nameFromAnchors =
+    nameFromRegion || nameFromPersonal
+      ? ""
+      : extractHolderNameFromText(cleanFrontOcrText(personalText), lines, anchors);
+  const name =
+    nameFromRegion ||
+    pickBetterName(nameFromPersonal, nameFromAnchors) ||
+    "";
+
+  const fieldConfidence = {
+    name: nameOcr.confidence || 0,
+    dob: dobGenderOcr.confidence || 0,
+    gender: Math.max(genderOcr.confidence || 0, dobGenderOcr.confidence || 0),
+    aadhaar: aadhaarOcr.confidence || 0,
+  };
+
+  const confidences = Object.values(fieldConfidence).filter((c) => c > 0);
+  const ocrConfidence = confidences.length
+    ? confidences.reduce((a, b) => a + b, 0) / confidences.length
+    : 0;
 
   return {
     parsed: {
       name,
       dob,
       gender,
-      docNumber,
-      type: docNumber ? "aadhaar" : "unknown",
+      docNumber: aadhaar12 || docNumber,
+      type: aadhaar12 || docNumber ? "aadhaar" : "unknown",
       email: "",
       phone: "",
-      ocrConfidence: avgConf,
+      ocrConfidence,
+      fieldConfidence,
     },
-    rawText: [nameOcr.text, dobOcr.text, aadhaarOcr.text].join("\n"),
+    rawText,
   };
+}
+
+function parseFrontFromRegionOcr(regionOcr) {
+  return buildCoherentFrontFromRegions(regionOcr);
 }
 
 async function runFrontRegionPipeline(prepared, report, { useAlt = false } = {}) {
   const regionBlobs = useAlt ? prepared.altRegions : prepared.regions;
-  const tick = (p) => report(8 + Math.floor((useAlt ? 0.35 : 0.42) * p));
+  const tick = (p) => report(8 + Math.floor((useAlt ? 0.32 : 0.38) * p));
 
   const regionOcr = await ocrRegionSet(
     regionBlobs,
-    ["name", "dobGender", "aadhaarNumber"],
-    { minWordConfidence: useAlt ? 44 : 48 },
+    FRONT_OCR_REGION_KEYS,
+    { minWordConfidence: useAlt ? 42 : 46 },
     tick,
   );
 
@@ -1011,8 +1308,7 @@ async function runFrontRegionPipeline(prepared, report, { useAlt = false } = {})
 }
 
 function frontOcrIsSufficient(parsed) {
-  const v = validateAadhaarFrontResults(parsed);
-  return v.canAutofill && !!v.aadhaar && !!v.name;
+  return validateAadhaarFrontResults(parsed).canAutofill;
 }
 
 function mergeFrontOcrResults(a, b) {
@@ -1023,45 +1319,89 @@ function mergeFrontOcrResults(a, b) {
   const otherParsed = vb.confidence >= va.confidence ? a : b;
 
   const ocrConfidence = Math.max(a.ocrConfidence || 0, b.ocrConfidence || 0);
-
-  const mergedName = pickBetterName(a.name, b.name);
+  const fieldConfidence = {
+    name: Math.max(a.fieldConfidence?.name || 0, b.fieldConfidence?.name || 0),
+    dob: Math.max(a.fieldConfidence?.dob || 0, b.fieldConfidence?.dob || 0),
+    gender: Math.max(a.fieldConfidence?.gender || 0, b.fieldConfidence?.gender || 0),
+    aadhaar: Math.max(a.fieldConfidence?.aadhaar || 0, b.fieldConfidence?.aadhaar || 0),
+  };
 
   return {
     ...otherParsed,
-    name: mergedName,
+    name: pickBetterName(a.name, b.name),
     docNumber:
       pick.aadhaar ||
       other.aadhaar ||
       normalizeAadhaarNumber(otherParsed.docNumber) ||
-      otherParsed.docNumber,
+      normalizeAadhaarNumberLenient(otherParsed.docNumber) ||
+      "",
     dob: pick.dob || other.dob || otherParsed.dob,
     gender: pick.gender || other.gender || otherParsed.gender,
     type: otherParsed.type !== "unknown" ? otherParsed.type : b.type,
     ocrConfidence,
+    fieldConfidence,
   };
 }
 
 function frontOcrNeedsMorePasses(parsed) {
   if (frontOcrIsSufficient(parsed)) return false;
   const v = validateAadhaarFrontResults(parsed);
-  if (!v.aadhaar && !v.name) return true;
-  return !v.aadhaar || !v.name;
+  return !v.aadhaar || !v.name || !v.dob || !v.gender;
 }
 
-function finalizeFrontOcrResult(parsed, rawText = "") {
-  const resolvedName = rawText
-    ? resolveBestFrontName(rawText, parsed.name)
-    : parsed.name;
-  const withName = { ...parsed, name: resolvedName || parsed.name || "" };
-  const validation = validateAadhaarFrontResults(withName);
-  const safeName = validation.name;
+function enrichFrontFromFullText(parsed, rawText) {
+  if (!rawText?.trim()) return parsed;
+  const fromFull = parseAadhaarFrontFields(rawText);
+  const aadhaar12 =
+    normalizeAadhaarNumber(parsed.docNumber) ||
+    normalizeAadhaarNumberLenient(parsed.docNumber) ||
+    normalizeAadhaarNumber(fromFull.docNumber) ||
+    normalizeAadhaarNumberLenient(fromFull.docNumber) ||
+    "";
 
   return {
     ...parsed,
-    docNumber: validation.aadhaar || normalizeAadhaarNumber(parsed.docNumber) || "",
-    name: safeName,
-    gender: validation.gender || parsed.gender || "",
-    dob: validation.dob || parsed.dob || "",
+    name: pickBetterName(parsed.name, fromFull.name),
+    dob: parsed.dob || fromFull.dob,
+    gender: normalizeGender(parsed.gender) || fromFull.gender,
+    docNumber: aadhaar12 || parsed.docNumber,
+    type: aadhaar12 ? "aadhaar" : parsed.type,
+  };
+}
+
+function finalizeFrontOcrResult(parsed, rawText = "") {
+  let merged = enrichFrontFromFullText(parsed, rawText);
+  const existingNameScore = scoreAadhaarNameQuality(merged.name);
+  if (rawText && existingNameScore < MIN_NAME_SCORE + 12) {
+    const resolvedName = resolveBestFrontName(rawText, merged.name);
+    merged = { ...merged, name: resolvedName || merged.name || "" };
+  }
+
+  if (rawText) {
+    const aadhaar12 =
+      normalizeAadhaarNumber(merged.docNumber) ||
+      normalizeAadhaarNumberLenient(merged.docNumber) ||
+      "";
+    merged = {
+      ...merged,
+      dob:
+        merged.dob ||
+        extractDobFromFrontText(cleanFrontOcrText(rawText), aadhaar12),
+      gender:
+        normalizeGender(merged.gender) ||
+        extractGenderFromFrontText(rawText, splitFrontOcrIntoLines(rawText)),
+      docNumber: extractAadhaarFromText(rawText) || merged.docNumber,
+    };
+  }
+
+  const validation = validateAadhaarFrontResults(merged);
+
+  return {
+    ...merged,
+    docNumber: validation.aadhaar || "",
+    name: validation.name,
+    gender: validation.gender || "",
+    dob: validation.dob || "",
     confidence: validation.confidence,
     valid: validation.valid,
     canAutofill: validation.canAutofill,
@@ -1092,9 +1432,9 @@ export const performOCR = async (imageInput, onProgress = () => {}) => {
       allText = primary.rawText;
       passResults.push(primary.parsed);
 
-      let parsed = consolidateFrontFieldVotes(passResults, allText);
-      if (!frontOcrIsSufficient(parsed) && prepared.altRegions) {
-        report(50);
+      let parsedEarly = consolidateFrontFieldVotes(passResults, allText);
+      if (prepared.altRegions && frontOcrNeedsMorePasses(parsedEarly)) {
+        report(46);
         const alt = await runFrontRegionPipeline(prepared, report, { useAlt: true });
         allText += `\n${alt.rawText}`;
         passResults.push(alt.parsed);
@@ -1111,8 +1451,22 @@ export const performOCR = async (imageInput, onProgress = () => {}) => {
 
     let parsed = consolidateFrontFieldVotes(passResults, allText);
 
+    const validationProbe = validateAadhaarFrontResults(parsed);
+    if (
+      (!allText.trim() || frontOcrNeedsMorePasses(parsed)) &&
+      prepared?.baseBlob
+    ) {
+      const { text, confidence } = await recognizeAadhaarImage(prepared.baseBlob, {
+        minWordConfidence: 42,
+        onProgress: (p) => report(88 + Math.floor(p * 0.1)),
+      });
+      allText += `\n${text}`;
+      passResults.push({ ...parseAadhaarFrontFields(text), ocrConfidence: confidence });
+      parsed = consolidateFrontFieldVotes(passResults, allText);
+    }
+
     const aadhaarFromText = extractAadhaarFromText(allText);
-    if (aadhaarFromText && !normalizeAadhaarNumber(parsed.docNumber)) {
+    if (aadhaarFromText) {
       parsed.docNumber = aadhaarFromText;
       parsed.type = "aadhaar";
     }

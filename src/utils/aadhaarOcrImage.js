@@ -8,25 +8,28 @@ const MAX_DIMENSION = 1800;
 /** Layout-specific region maps (fractions of cropped card) */
 export const AADHAAR_LAYOUT_REGIONS = {
   classic: {
-    name: { x: 0.02, y: 0.2, w: 0.68, h: 0.26 },
+    name: { x: 0.02, y: 0.28, w: 0.7, h: 0.22 },
+    dob: { x: 0.02, y: 0.44, w: 0.72, h: 0.11 },
     dobGender: { x: 0.02, y: 0.44, w: 0.78, h: 0.18 },
-    gender: { x: 0.02, y: 0.58, w: 0.45, h: 0.1 },
+    gender: { x: 0.02, y: 0.56, w: 0.5, h: 0.12 },
     aadhaarNumber: { x: 0.02, y: 0.66, w: 0.96, h: 0.3 },
     address: { x: 0.04, y: 0.3, w: 0.92, h: 0.5 },
     pincode: { x: 0.04, y: 0.72, w: 0.92, h: 0.22 },
   },
   pvc: {
-    name: { x: 0.03, y: 0.16, w: 0.72, h: 0.24 },
+    name: { x: 0.03, y: 0.24, w: 0.72, h: 0.22 },
+    dob: { x: 0.03, y: 0.4, w: 0.74, h: 0.1 },
     dobGender: { x: 0.03, y: 0.4, w: 0.8, h: 0.16 },
-    gender: { x: 0.03, y: 0.54, w: 0.48, h: 0.1 },
+    gender: { x: 0.03, y: 0.52, w: 0.5, h: 0.12 },
     aadhaarNumber: { x: 0.03, y: 0.62, w: 0.94, h: 0.32 },
     address: { x: 0.05, y: 0.28, w: 0.9, h: 0.52 },
     pincode: { x: 0.05, y: 0.74, w: 0.9, h: 0.2 },
   },
   wide: {
-    name: { x: 0.04, y: 0.12, w: 0.55, h: 0.28 },
+    name: { x: 0.04, y: 0.2, w: 0.58, h: 0.24 },
+    dob: { x: 0.04, y: 0.38, w: 0.58, h: 0.11 },
     dobGender: { x: 0.04, y: 0.38, w: 0.6, h: 0.2 },
-    gender: { x: 0.04, y: 0.52, w: 0.35, h: 0.12 },
+    gender: { x: 0.04, y: 0.5, w: 0.38, h: 0.12 },
     aadhaarNumber: { x: 0.04, y: 0.6, w: 0.92, h: 0.32 },
     address: { x: 0.06, y: 0.28, w: 0.88, h: 0.48 },
     pincode: { x: 0.06, y: 0.7, w: 0.88, h: 0.24 },
@@ -310,6 +313,7 @@ export function getRegionsForLayout(layout, side = "front") {
   }
   return {
     name: map.name,
+    dob: map.dob,
     dobGender: map.dobGender,
     gender: map.gender,
     aadhaarNumber: map.aadhaarNumber,
@@ -374,7 +378,7 @@ export function assessCaptureQuality(canvas) {
   } else if (brightness > 220) {
     ok = false;
     message = "Image is overexposed. Reduce glare and retake.";
-  } else if (sharpness < 12) {
+  } else if (sharpness < 6) {
     ok = false;
     message = "Image looks blurry. Hold steady, align the card, and retake.";
   }

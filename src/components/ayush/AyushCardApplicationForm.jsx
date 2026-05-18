@@ -728,14 +728,12 @@ const AyushCardApplicationForm = ({
         base64: storageBase64,
       });
 
-      if (results && applyFrontOcrToFamilyHead(results)) {
-        if (results.valid) {
-          toastSuccess("Aadhaar details extracted successfully.");
-        }
+      if (applyFrontOcrToFamilyHead(results)) {
+        toastSuccess("Aadhaar details extracted successfully.");
       }
     } catch (err) {
       console.error("Capture OCR Error:", err);
-      toastWarn("Could not extract details. Please enter manually.");
+      toastWarn(AADHAAR_OCR_LOW_CONFIDENCE_MSG);
       setDocFront({
         name: "captured_id.jpg",
         size: "Live Capture",
@@ -1040,14 +1038,12 @@ const AyushCardApplicationForm = ({
             base64: compressedBase64,
           });
 
-          if (results && applyFrontOcrToFamilyHead(results)) {
-            if (results.valid) {
-              toastSuccess("Aadhaar details extracted successfully.");
-            }
+          if (applyFrontOcrToFamilyHead(results)) {
+            toastSuccess("Aadhaar details extracted successfully.");
           }
         } catch (err) {
           console.error("OCR failed", err);
-          toastError("Scanning failed. Please try again or enter manually.");
+          toastWarn(AADHAAR_OCR_LOW_CONFIDENCE_MSG);
         } finally {
           setOcrLoading(false);
           setOcrProgress(0);
@@ -1520,8 +1516,8 @@ const AyushCardApplicationForm = ({
   };
 
   const applyFrontOcrToFamilyHead = (results) => {
-    if (!results?.canAutofill) {
-      toastWarn(results?.validationMessage || AADHAAR_OCR_LOW_CONFIDENCE_MSG);
+    if (!results) {
+      toastWarn(AADHAAR_OCR_LOW_CONFIDENCE_MSG);
       return false;
     }
 
@@ -1534,19 +1530,35 @@ const AyushCardApplicationForm = ({
 
     const nextName = isValidAadhaarName(results.name) ? results.name.trim() : "";
 
+    const nextGender = results.gender || "";
+    const nextDob = results.dob || "";
+
+    if (
+      !results.canAutofill ||
+      !nextAadhaar ||
+      !nextName ||
+      !nextDob ||
+      !nextGender
+    ) {
+      toastWarn(results.validationMessage || AADHAAR_OCR_LOW_CONFIDENCE_MSG);
+      return false;
+    }
+
     setFamilyHead((prev) => ({
       ...prev,
-      fullName: nextName || prev.fullName,
-      gender: results.gender || prev.gender,
-      dob: results.dob || prev.dob,
-      aadhaarNumber: nextAadhaar || prev.aadhaarNumber,
+      fullName: nextName,
+      gender: nextGender,
+      dob: nextDob,
+      aadhaarNumber: nextAadhaar,
     }));
 
     if (!results.valid) {
       toastWarn(
-        "Some Aadhaar details could not be read. Please verify the form or rescan.",
+        results.validationMessage ||
+          "Unable to detect Aadhaar details clearly. Please verify or rescan.",
       );
     }
+
     return true;
   };
 

@@ -1,37 +1,15 @@
 const ORT_WASM_BASE =
   "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/";
 
-/** Vite resolves the hashed worker bundle from the package (hash changes per release). */
-const paddleWorkerLoaders = import.meta.glob(
-  "../../node_modules/@paddleocr/paddleocr-js/dist/assets/worker-entry-*.js",
-  { query: "?url", import: "default" },
-);
-
-/** @type {import("@paddleocr/paddleocr-js").PaddleOCR | import("@paddleocr/paddleocr-js").WorkerBackedPaddleOCR | null} */
+/** @type {import("@paddleocr/paddleocr-js").PaddleOCR | null} */
 let ocrInstance = null;
 let initPromise = null;
-let PaddleOCRClass = null;
-
-async function loadPaddleOCR() {
-  if (!PaddleOCRClass) {
-    const mod = await import("@paddleocr/paddleocr-js");
-    PaddleOCRClass = mod.PaddleOCR;
-  }
-  return PaddleOCRClass;
-}
-
-async function resolvePaddleWorkerUrl() {
-  const keys = Object.keys(paddleWorkerLoaders);
-  if (!keys.length) {
-    throw new Error("PaddleOCR worker bundle not found in node_modules.");
-  }
-  return paddleWorkerLoaders[keys[0]]();
-}
 
 function baseCreateOptions(lang) {
   return {
     lang,
     ocrVersion: "PP-OCRv5",
+    worker: false,
     textRecScoreThresh: 0.4,
     textDetBoxThresh: 0.45,
     textDetUnclipRatio: 1.6,
@@ -44,48 +22,24 @@ function baseCreateOptions(lang) {
   };
 }
 
-async function createPaddleInstance(PaddleOCR, { lang, useWorker }) {
-  const opts = baseCreateOptions(lang);
-  if (useWorker) {
-    const workerUrl = await resolvePaddleWorkerUrl();
-    opts.worker = {
-      createWorker: () => new Worker(workerUrl, { type: "module" }),
-    };
-  } else {
-    opts.worker = false;
-  }
-  return PaddleOCR.create(opts);
-}
-
 /**
- * Initialize PaddleOCR — worker first (non-blocking UI), then main-thread fallback.
+ * Lazy-load PaddleOCR (separate chunk). Main-thread only — reliable in Vite, smaller/faster builds.
  */
 export async function getPaddleOcr() {
   if (ocrInstance) return ocrInstance;
   if (!initPromise) {
     initPromise = (async () => {
-      const PaddleOCR = await loadPaddleOCR();
-      const attempts = [
-        { lang: "en", useWorker: true, label: "en (worker)" },
-        { lang: "en", useWorker: false, label: "en (main thread)" },
-        { lang: "ch", useWorker: false, label: "ch (main thread)" },
-      ];
+      const { PaddleOCR } = await import("@paddleocr/paddleocr-js");
 
-      let lastError = null;
-      for (const { lang, useWorker, label } of attempts) {
+      for (const lang of ["en", "ch"]) {
         try {
-          const instance = await createPaddleInstance(PaddleOCR, { lang, useWorker });
-          if (label !== "en (worker)") {
-            console.info(`PaddleOCR ready: ${label}`);
-          }
-          ocrInstance = instance;
-          return instance;
+          ocrInstance = await PaddleOCR.create(baseCreateOptions(lang));
+          return ocrInstance;
         } catch (err) {
-          lastError = err;
-          console.warn(`PaddleOCR ${label} failed:`, err?.message || err);
+          console.warn(`PaddleOCR (${lang}) init failed:`, err?.message || err);
         }
       }
-      throw lastError || new Error("PaddleOCR could not be initialized.");
+      throw new Error("PaddleOCR could not be initialized.");
     })().catch((err) => {
       initPromise = null;
       throw err;
@@ -111,15 +65,21 @@ function polyCentroid(poly) {
 
 export async function recognizeAadhaarImage(
   imageInput,
-  { minWordConfidence = 48, onProgress = () => {} } = {},
+  {
+    minWordConfidence = 48,
+    onProgress = () => {},
+    detLimitSideLen = 960,
+    region = false,
+  } = {},
 ) {
   const ocr = await getPaddleOcr();
   const minScore = minWordConfidence / 100;
+  const sideLen = region ? Math.min(detLimitSideLen, 720) : detLimitSideLen;
 
   onProgress(10);
   const [result] = await ocr.predict(imageInput, {
     textRecScoreThresh: minScore,
-    textDetLimitSideLen: 1280,
+    textDetLimitSideLen: sideLen,
     textDetLimitType: "max",
   });
   onProgress(95);
