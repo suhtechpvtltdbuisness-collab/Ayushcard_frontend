@@ -382,12 +382,51 @@ export function assessCaptureQuality(canvas) {
   } else if (brightness > 220) {
     ok = false;
     message = "Image is overexposed. Reduce glare and retake.";
-  } else if (sharpness < 6) {
+  } else if (sharpness < 2.5) {
     ok = false;
-    message = "Image looks blurry. Hold steady, align the card, and retake.";
+    message = "Image is too blurry to scan. Hold steady, align the card, and retake.";
+  } else if (sharpness < 5) {
+    ok = true;
+    message = "Image is slightly blurry — enhancing for scan.";
   }
 
-  return { ok, brightness, sharpness, variance, message };
+  return { ok, brightness, sharpness, variance, softBlur: sharpness < 5, message };
+}
+
+const ENHANCE_MAX_DIMENSION = 1400;
+
+/**
+ * Light sharpen/contrast pass for blurry gallery or camera images (faster than full region pipeline).
+ */
+export async function enhanceImageBlobForOcr(imageInput) {
+  if (typeof document === "undefined") {
+    return imageInput instanceof Blob ? imageInput : null;
+  }
+
+  const blob =
+    imageInput instanceof Blob
+      ? imageInput
+      : await fetch(imageInput).then((r) => r.blob());
+
+  const img = await loadImageFromBlob(blob);
+  let w = img.width || 1;
+  let h = img.height || 1;
+  const scale = Math.min(1, ENHANCE_MAX_DIMENSION / Math.max(w, h));
+  w = Math.max(1, Math.round(w * scale));
+  h = Math.max(1, Math.round(h * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d", { alpha: false });
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, 0, 0, w, h);
+  applyEnhancements(ctx, w, h, { sharpen: true, binarize: false, denoise: true });
+
+  return canvasToBlob(canvas, 0.9);
 }
 
 /**

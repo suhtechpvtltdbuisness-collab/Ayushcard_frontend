@@ -2,6 +2,7 @@
  * Fast front-side Aadhaar scan: singleton Paddle, image prep, QR-first, result cache.
  */
 import { optimizeImageForOcr } from "./imageOptimizer.js";
+import { enhanceImageBlobForOcr } from "./aadhaarOcrImage.js";
 import { tryDecodeAadhaarQr } from "./aadhaarQrDecode.js";
 import {
   parseAadhaarFrontFromText,
@@ -106,14 +107,14 @@ function qrFieldsToOcrResult(qrFields) {
 /**
  * Single fast Paddle pass on a prepared canvas/blob.
  */
-async function runFastPaddleOcr(imageInput, onProgress) {
+async function runFastPaddleOcr(imageInput, onProgress, paddleOpts = {}) {
   reportProgress(onProgress, 48, OCR_PROGRESS_LABELS.LOADING_MODEL);
   await getPaddleOcr();
   reportProgress(onProgress, 55, OCR_PROGRESS_LABELS.EXTRACTING);
 
   const { text, confidence } = await recognizeAadhaarImage(imageInput, {
-    minWordConfidence: 45,
-    detLimitSideLen: 960,
+    minWordConfidence: paddleOpts.minWordConfidence ?? 45,
+    detLimitSideLen: paddleOpts.detLimitSideLen ?? 960,
     region: false,
     onProgress: (inner) => {
       reportProgress(
@@ -206,6 +207,17 @@ export async function scanAadhaarFrontDocument(imageInput, options = {}) {
   return ocrResult;
 }
 
+/**
+ * Sharpened single-pass OCR for blurry or low-confidence scans (before slow region fallback).
+ */
+export async function scanAadhaarFrontDocumentEnhanced(imageInput, options = {}) {
+  const onProgress = options.onProgress || (() => {});
+  reportProgress(onProgress, 8, "Enhancing image…");
+  const enhanced = await enhanceImageBlobForOcr(imageInput);
+  reportProgress(onProgress, 18, OCR_PROGRESS_LABELS.PREPARING);
+  return runFastPaddleOcr(enhanced, onProgress, { minWordConfidence: 38, detLimitSideLen: 1280 });
+}
+
 export { mapOcrResultToFamilyHeadFields, parseAadhaarFrontFromText };
 
 function backCacheGet(key) {
@@ -231,14 +243,14 @@ function backOcrIsGoodEnough(result) {
   return (pin.length === 6 && addr.length >= 8) || addr.length >= 12;
 }
 
-async function runFastBackPaddleOcr(imageInput, onProgress, { relaxed = false } = {}) {
+async function runFastBackPaddleOcr(imageInput, onProgress, paddleOpts = {}) {
   reportProgress(onProgress, 48, OCR_PROGRESS_LABELS.LOADING_MODEL);
   await getPaddleOcr();
   reportProgress(onProgress, 55, OCR_PROGRESS_LABELS.EXTRACTING);
 
   const ocr = await recognizeAadhaarImage(imageInput, {
-    minWordConfidence: relaxed ? 36 : 40,
-    detLimitSideLen: 1280,
+    minWordConfidence: paddleOpts.minWordConfidence ?? 40,
+    detLimitSideLen: paddleOpts.detLimitSideLen ?? 1280,
     region: false,
     onProgress: (inner) => {
       reportProgress(
@@ -251,6 +263,15 @@ async function runFastBackPaddleOcr(imageInput, onProgress, { relaxed = false } 
 
   reportProgress(onProgress, 90, OCR_PROGRESS_LABELS.PARSING);
   return buildBackOcrResult(ocr);
+}
+
+/** Sharpened single-pass back OCR before slow region fallback. */
+export async function scanAadhaarBackDocumentEnhanced(imageInput, options = {}) {
+  const onProgress = options.onProgress || (() => {});
+  reportProgress(onProgress, 8, "Enhancing image…");
+  const enhanced = await enhanceImageBlobForOcr(imageInput);
+  reportProgress(onProgress, 18, OCR_PROGRESS_LABELS.PREPARING);
+  return runFastBackPaddleOcr(enhanced, onProgress, { minWordConfidence: 34, detLimitSideLen: 1280 });
 }
 
 /**
@@ -295,10 +316,7 @@ export async function scanAadhaarBackDocument(imageInput, options = {}) {
     }
   }
 
-  let result = await runFastBackPaddleOcr(ocrSource, onProgress);
-  if (!backOcrIsGoodEnough(result)) {
-    result = await runFastBackPaddleOcr(ocrSource, onProgress, { relaxed: true });
-  }
+  const result = await runFastBackPaddleOcr(ocrSource, onProgress);
 
   reportProgress(onProgress, 100, OCR_PROGRESS_LABELS.DONE);
   if (cacheKey) backCacheSet(cacheKey, result);

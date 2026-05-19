@@ -1495,6 +1495,14 @@ export const performOCR = async (imageInput, onProgress = () => {}, options = {}
       return fast;
     }
 
+    const { scanAadhaarFrontDocumentEnhanced } = await import("./paddleOcr.js");
+    const enhanced = await scanAadhaarFrontDocumentEnhanced(imageInput, {
+      onProgress: wrapProgress,
+    });
+    if (enhanced.canAutofill) {
+      return enhanced;
+    }
+
     console.warn("Fast OCR insufficient — running region pipeline fallback");
     return await performOCRRegionFallback(imageInput, onProgress);
   } catch (error) {
@@ -2087,6 +2095,15 @@ export const performAadhaarBackOCR = async (imageInput, onProgress = () => {}, o
 
     if (backOcrIsSufficient(fast)) {
       return fast;
+    }
+
+    const { scanAadhaarBackDocumentEnhanced } = await import("./paddleOcr.js");
+    const enhanced = await scanAadhaarBackDocumentEnhanced(imageInput, {
+      onProgress,
+      preprocessed: Boolean(options.preprocessed),
+    });
+    if (backOcrIsSufficient(enhanced)) {
+      return enhanced;
     }
 
     console.warn("Fast back OCR insufficient — running region pipeline fallback");
