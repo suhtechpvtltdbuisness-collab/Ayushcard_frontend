@@ -5,10 +5,19 @@ const ORT_WASM_BASE =
 let ocrInstance = null;
 let initPromise = null;
 
+function threadCount() {
+  const cores =
+    typeof navigator !== "undefined" && navigator.hardwareConcurrency
+      ? navigator.hardwareConcurrency
+      : 2;
+  return Math.min(4, Math.max(1, cores));
+}
+
 function baseCreateOptions(lang) {
   return {
     lang,
     ocrVersion: "PP-OCRv5",
+    // Worker off — reliable with Vite; models still singleton-cached on main thread.
     worker: false,
     textRecScoreThresh: 0.4,
     textDetBoxThresh: 0.45,
@@ -16,7 +25,7 @@ function baseCreateOptions(lang) {
     ortOptions: {
       backend: "wasm",
       wasmPaths: ORT_WASM_BASE,
-      numThreads: 1,
+      numThreads: threadCount(),
       simd: false,
     },
   };
@@ -31,6 +40,7 @@ export async function getPaddleOcr() {
     initPromise = (async () => {
       const { PaddleOCR } = await import("@paddleocr/paddleocr-js");
 
+      // English-only first — faster load; Chinese only if English init fails.
       for (const lang of ["en", "ch"]) {
         try {
           ocrInstance = await PaddleOCR.create(baseCreateOptions(lang));

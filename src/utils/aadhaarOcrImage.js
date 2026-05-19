@@ -309,7 +309,11 @@ export function detectAadhaarLayout(canvas, probeText = "") {
 export function getRegionsForLayout(layout, side = "front") {
   const map = AADHAAR_LAYOUT_REGIONS[layout] || AADHAAR_LAYOUT_REGIONS.classic;
   if (side === "back") {
-    return { address: map.address, pincode: map.pincode };
+    // Wider bands — gallery photos and partial crops often miss narrow classic regions.
+    return {
+      address: { x: 0.02, y: 0.16, w: 0.96, h: 0.64 },
+      pincode: { x: 0.02, y: 0.62, w: 0.96, h: 0.34 },
+    };
   }
   return {
     name: map.name,

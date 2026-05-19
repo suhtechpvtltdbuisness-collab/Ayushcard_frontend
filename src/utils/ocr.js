@@ -1369,7 +1369,7 @@ function enrichFrontFromFullText(parsed, rawText) {
   };
 }
 
-function finalizeFrontOcrResult(parsed, rawText = "") {
+export function finalizeFrontOcrResult(parsed, rawText = "") {
   let merged = enrichFrontFromFullText(parsed, rawText);
   const existingNameScore = scoreAadhaarNameQuality(merged.name);
   if (rawText && existingNameScore < MIN_NAME_SCORE + 12) {
@@ -1410,70 +1410,93 @@ function finalizeFrontOcrResult(parsed, rawText = "") {
 }
 
 /**
- * Front-side Aadhaar OCR — PaddleOCR region passes + binarized fallback.
+ * Slow accuracy recovery — multi-region Paddle passes (used only when fast scan fails).
  */
-export const performOCR = async (imageInput, onProgress = () => {}) => {
+async function performOCRRegionFallback(imageInput, onProgress = () => {}) {
+  const report = (pct) => onProgress(Math.min(99, pct));
+  const rawBlob =
+    imageInput instanceof Blob
+      ? imageInput
+      : await fetch(imageInput).then((r) => r.blob());
+
+  let allText = "";
+  const passResults = [];
+  let prepared = null;
+
   try {
-    await preloadAadhaarOcrWorker();
-    const report = (pct) => onProgress(Math.min(99, pct));
-    const rawBlob =
-      imageInput instanceof Blob
-        ? imageInput
-        : await fetch(imageInput).then((r) => r.blob());
+    prepared = await prepareAadhaarCardImage(rawBlob, "front");
+    report(5);
+    const primary = await runFrontRegionPipeline(prepared, report, { useAlt: false });
+    allText = primary.rawText;
+    passResults.push(primary.parsed);
 
-    let allText = "";
-    const passResults = [];
-    let prepared = null;
+    let parsedEarly = consolidateFrontFieldVotes(passResults, allText);
+    if (prepared.altRegions && frontOcrNeedsMorePasses(parsedEarly)) {
+      report(46);
+      const alt = await runFrontRegionPipeline(prepared, report, { useAlt: true });
+      allText += `\n${alt.rawText}`;
+      passResults.push(alt.parsed);
+    }
+  } catch (prepErr) {
+    console.warn("Aadhaar prep failed, raw PaddleOCR fallback:", prepErr);
+    const { text, confidence } = await recognizeAadhaarImage(rawBlob, {
+      minWordConfidence: 45,
+      onProgress: (p) => report(10 + Math.floor(p * 0.85)),
+    });
+    allText = text;
+    passResults.push({ ...parseAadhaarFrontFields(text), ocrConfidence: confidence });
+  }
 
-    try {
-      prepared = await prepareAadhaarCardImage(rawBlob, "front");
-      report(5);
-      const primary = await runFrontRegionPipeline(prepared, report, { useAlt: false });
-      allText = primary.rawText;
-      passResults.push(primary.parsed);
+  let parsed = consolidateFrontFieldVotes(passResults, allText);
 
-      let parsedEarly = consolidateFrontFieldVotes(passResults, allText);
-      if (prepared.altRegions && frontOcrNeedsMorePasses(parsedEarly)) {
-        report(46);
-        const alt = await runFrontRegionPipeline(prepared, report, { useAlt: true });
-        allText += `\n${alt.rawText}`;
-        passResults.push(alt.parsed);
+  if ((!allText.trim() || frontOcrNeedsMorePasses(parsed)) && prepared?.baseBlob) {
+    const { text, confidence } = await recognizeAadhaarImage(prepared.baseBlob, {
+      minWordConfidence: 42,
+      onProgress: (p) => report(88 + Math.floor(p * 0.1)),
+    });
+    allText += `\n${text}`;
+    passResults.push({ ...parseAadhaarFrontFields(text), ocrConfidence: confidence });
+    parsed = consolidateFrontFieldVotes(passResults, allText);
+  }
+
+  const aadhaarFromText = extractAadhaarFromText(allText);
+  if (aadhaarFromText) {
+    parsed.docNumber = aadhaarFromText;
+    parsed.type = "aadhaar";
+  }
+  parsed.name = resolveBestFrontName(allText, parsed.name);
+
+  onProgress(100);
+  return finalizeFrontOcrResult(parsed, allText);
+}
+
+/**
+ * Front-side Aadhaar OCR — fast path (QR + single Paddle pass), region fallback if needed.
+ */
+export const performOCR = async (imageInput, onProgress = () => {}, options = {}) => {
+  try {
+    const { scanAadhaarFrontDocument } = await import("./paddleOcr.js");
+    const wrapProgress = (pct, label) => {
+      if (typeof pct === "object" && pct != null) {
+        onProgress(pct.percent, pct.label);
+      } else {
+        onProgress(pct, label);
       }
-    } catch (prepErr) {
-      console.warn("Aadhaar prep failed, raw PaddleOCR fallback:", prepErr);
-      const { text, confidence } = await recognizeAadhaarImage(rawBlob, {
-        minWordConfidence: 45,
-        onProgress: (p) => report(10 + Math.floor(p * 0.85)),
-      });
-      allText = text;
-      passResults.push({ ...parseAadhaarFrontFields(text), ocrConfidence: confidence });
+    };
+
+    const fast = await scanAadhaarFrontDocument(imageInput, {
+      onProgress: wrapProgress,
+      preprocessed: Boolean(options.preprocessed),
+      cropToScanFrame: Boolean(options.cropToScanFrame),
+      skipCache: Boolean(options.skipCache),
+    });
+
+    if (fast.canAutofill) {
+      return fast;
     }
 
-    let parsed = consolidateFrontFieldVotes(passResults, allText);
-
-    const validationProbe = validateAadhaarFrontResults(parsed);
-    if (
-      (!allText.trim() || frontOcrNeedsMorePasses(parsed)) &&
-      prepared?.baseBlob
-    ) {
-      const { text, confidence } = await recognizeAadhaarImage(prepared.baseBlob, {
-        minWordConfidence: 42,
-        onProgress: (p) => report(88 + Math.floor(p * 0.1)),
-      });
-      allText += `\n${text}`;
-      passResults.push({ ...parseAadhaarFrontFields(text), ocrConfidence: confidence });
-      parsed = consolidateFrontFieldVotes(passResults, allText);
-    }
-
-    const aadhaarFromText = extractAadhaarFromText(allText);
-    if (aadhaarFromText) {
-      parsed.docNumber = aadhaarFromText;
-      parsed.type = "aadhaar";
-    }
-    parsed.name = resolveBestFrontName(allText, parsed.name);
-
-    onProgress(100);
-    return finalizeFrontOcrResult(parsed, allText);
+    console.warn("Fast OCR insufficient — running region pipeline fallback");
+    return await performOCRRegionFallback(imageInput, onProgress);
   } catch (error) {
     console.error("OCR Error:", error);
     throw error;
@@ -1484,7 +1507,7 @@ const BACK_ADDRESS_NOISE =
   /\b(uidai|unique|identification|authority|government|india|help|www|download|aadhaar|enrolment|enrollment|vid|virtual|scan|qr|code|1947|customer|care|soc|bra|ese|peeasi)\b/i;
 
 const BACK_ADDRESS_KEYWORDS =
-  /\b(address|phase|colony|nagar|road|street|lane|block|sector|village|district|delhi|mumbai|bangalore|bengaluru|hyderabad|chennai|kolkata|pincode|pin|flat|house|plot|ward|tehsil|taluk|post|dist|state|south|north|east|west)\b/i;
+  /\b(address|phase|colony|nagar|road|street|lane|block|sector|village|district|delhi|mumbai|bangalore|bengaluru|hyderabad|chennai|kolkata|pincode|pin|flat|house|plot|ward|tehsil|taluk|post|dist|state|south|north|east|west|gali|mohalla|mandal|po|p\.o|near|landmark|apartment|apt|floor|building|bldg|society|layout|extension|extn|highway|bazar|market|chowk|puram|garh|gram|panchayat|taluka|tahsil|h\.?\s*no|door|no\.)\b/i;
 
 function preprocessBackOcrText(text) {
   return String(text || "")
@@ -1529,7 +1552,6 @@ function isPinEmbeddedInLongId(text, pin, index) {
 
 function findFuzzyPincode(text) {
   const compact = text.replace(/[^0-9]/g, "");
-  if (compact.includes("110047")) return "110047";
 
   const ocrNorm = text
     .replace(/[oO]/g, "0")
@@ -1537,25 +1559,32 @@ function findFuzzyPincode(text) {
     .replace(/[sS]/g, "5")
     .replace(/[bB]/g, "8")
     .replace(/[^0-9]/g, "");
-  if (ocrNorm.includes("110047")) return "110047";
 
-  const spaced = text.match(
-    /1[\s.,\-]*1[\s.,\-]*0[\s.,\-]*0[\s.,\-]*4[\s.,\-]*7/,
+  const nearPinLabel = text.match(
+    /(?:pin\s*code?|पिन|pin)[:\s\-]*([1-9oOlI][0-9oOlI\s\-]{4,8}[0-9])/i,
   );
-  if (spaced) return "110047";
-
-  const delhiPin = compact.match(/1100[0-9]{2}/) || ocrNorm.match(/1100[0-9]{2}/);
-  if (delhiPin && delhiPin[0].length === 6) return delhiPin[0];
+  if (nearPinLabel) {
+    const digits = nearPinLabel[1].replace(/\D/g, "");
+    if (digits.length === 6) return digits;
+  }
 
   const nearDelhi = text.match(
-    /(?:Delhi|Delta|Defi|Dd)[^0-9]{0,20}([1-9]\d{5})/i,
+    /(?:Delhi|Delta|Defi|Dd|State|Dist(?:rict)?)[^0-9]{0,24}([1-9]\d{5})/i,
   );
   if (nearDelhi && !isPinEmbeddedInLongId(text, nearDelhi[1], nearDelhi.index)) {
     return nearDelhi[1];
   }
 
-  const broken = text.match(/\b(11[0oO][0oO][47tT]|[1l][1l][0oO]{2}47)\b/);
-  if (broken) return "110047";
+  const tailPin = text.match(/(?:[-–,]\s*)?([1-9]\d{5})\s*$/);
+  if (tailPin && !isPinEmbeddedInLongId(text, tailPin[1], tailPin.index)) {
+    return tailPin[1];
+  }
+
+  const spaced = compact.match(/([1-9]\d{5})$/);
+  if (spaced) return spaced[1];
+
+  const fromNorm = ocrNorm.match(/([1-9]\d{5})$/);
+  if (fromNorm) return fromNorm[1];
 
   return "";
 }
@@ -1722,7 +1751,7 @@ function extractAddressLinesFallback(text, pincode) {
   const inOrder = [];
   for (const line of lines) {
     const score = scoreAddressLine(line);
-    if (score <= 15) continue;
+    if (score <= 6) continue;
     let cleaned = line.replace(/\b\d{6}\b.*$/, "").trim();
     cleaned = cleaned.replace(/\bDelhi\b\s*[-–]?\s*$/i, "Delhi").trim();
     if (cleaned.length < 8) continue;
@@ -1733,18 +1762,18 @@ function extractAddressLinesFallback(text, pincode) {
     if (inOrder.length >= 5) break;
   }
 
-  if (inOrder.length >= 2) {
+  if (inOrder.length >= 1) {
     let address = inOrder.join(", ").replace(/\s*,\s*,+/g, ", ");
     if (pincode && !address.includes(pincode)) {
       address = address.replace(/\s*,?\s*\d{6}\s*$/, "");
-      address = `${address}, Delhi - ${pincode}`;
+      address = address ? `${address} - ${pincode}` : pincode;
     }
     return address.trim();
   }
 
   const scored = lines
     .map((line) => ({ line, score: scoreAddressLine(line) }))
-    .filter((x) => x.score > 15)
+    .filter((x) => x.score > 6)
     .sort((a, b) => b.score - a.score);
 
   const picked = [];
@@ -1763,10 +1792,74 @@ function extractAddressLinesFallback(text, pincode) {
   if (pincode) {
     address = address.replace(/\s*,?\s*\d{6}\s*$/, "");
     if (!address.includes(pincode)) {
-      address = address ? `${address}, Delhi - ${pincode}` : `Delhi - ${pincode}`;
+      address = address ? `${address} - ${pincode}` : pincode;
     }
   }
   return address.trim();
+}
+
+function appendPincodeToAddress(address, pincode) {
+  let out = String(address || "").trim();
+  if (!pincode) return out;
+  if (out.includes(pincode)) return out;
+  out = out.replace(/\s*,?\s*\d{6}\s*$/, "");
+  return out ? `${out} - ${pincode}` : pincode;
+}
+
+/**
+ * Build address from top-to-bottom OCR lines (works better than fixed card regions).
+ */
+export function extractAadhaarBackFromOcrLines(lines = []) {
+  const texts = lines
+    .map((l) => cleanAddressFragment(String(l?.text ?? l).trim()))
+    .filter((t) => t.length > 0);
+
+  if (!texts.length) return { address: "", pincode: "" };
+
+  const fullText = texts.join("\n");
+  let start = texts.findIndex((t) => /^(address|addr(?:ess)?|पता)\b/i.test(t));
+  if (start >= 0) {
+    const stripped = texts[start].replace(/^(address|addr(?:ess)?|पता)\s*[:\-]?\s*/i, "").trim();
+    start += 1;
+    if (stripped.length >= 4) texts.splice(start, 0, stripped);
+  } else {
+    start = texts.findIndex((t) => {
+      if (BACK_ADDRESS_NOISE.test(t)) return false;
+      if (/^(government|unique|identification|authority|india|uidai)\b/i.test(t)) return false;
+      return scoreAddressLine(t) > 0 || (t.length >= 8 && /[A-Za-z]{4,}/.test(t));
+    });
+    if (start < 0) start = 0;
+  }
+
+  const parts = [];
+  for (let i = start; i < texts.length; i++) {
+    let t = cleanAddressFragment(texts[i]);
+    if (!t) continue;
+    if (/^(address|addr(?:ess)?|पता)\b/i.test(t)) {
+      t = t.replace(/^(address|addr(?:ess)?|पता)\s*[:\-]?\s*/i, "").trim();
+      if (!t) continue;
+    }
+    if (/\b(uidai|unique\s+identification|www\.|help@|1947)\b/i.test(t) && parts.length > 0) break;
+    if (/^\d{4}\s+\d{4}\s+\d{4}/.test(t)) break;
+    if (BACK_ADDRESS_NOISE.test(t) && parts.length > 1) break;
+
+    const pinTail = t.match(/^(.*?)[,\s-]+(\d{6})\s*$/);
+    if (pinTail && pinTail[1].length >= 4) {
+      parts.push(cleanAddressFragment(pinTail[1]));
+      break;
+    }
+
+    t = t.replace(/\b\d{6}\b.*$/, "").trim();
+    const score = scoreAddressLine(t || texts[i]);
+    if (score > -20 || parts.length > 0) {
+      if ((t || texts[i]).length >= 3) parts.push(t || texts[i]);
+    }
+    if (parts.length >= 7) break;
+  }
+
+  const pincode = extractBackPincode(fullText);
+  const address = appendPincodeToAddress(parts.join(", "), pincode);
+  return { address, pincode };
 }
 
 /** Back-side only: address and PIN code */
@@ -1799,9 +1892,30 @@ export function extractAadhaarBackFields(text) {
   }
 
   const fallback = extractAddressLinesFallback(normalized, result.pincode);
-  if (fallback) result.address = fallback;
+  if (fallback) {
+    result.address =
+      !result.address || fallback.length > result.address.length
+        ? fallback
+        : result.address;
+  }
+
+  if (result.address && result.pincode) {
+    result.address = appendPincodeToAddress(result.address, result.pincode);
+  }
 
   return result;
+}
+
+export function finalizeBackOcrResult(fields) {
+  const validation = validateAadhaarBackResults(fields);
+  return {
+    address: validation.address || fields?.address || "",
+    pincode: validation.pincode || fields?.pincode || "",
+    confidence: validation.confidence,
+    valid: validation.valid,
+    canAutofill: validation.canAutofill,
+    validationMessage: validation.validationMessage,
+  };
 }
 
 function parseBackFromRegionOcr(regionOcr) {
@@ -1820,7 +1934,7 @@ async function runBackRegionPipeline(prepared, report, { useAlt = false } = {}) 
   const regionOcr = await ocrRegionSet(
     regionBlobs,
     ["address", "pincode"],
-    { minWordConfidence: useAlt ? 44 : 48 },
+    { minWordConfidence: useAlt ? 38 : 42 },
     tick,
   );
 
@@ -1828,8 +1942,7 @@ async function runBackRegionPipeline(prepared, report, { useAlt = false } = {}) 
 }
 
 function backOcrIsSufficient(fields) {
-  const v = validateAadhaarBackResults(fields);
-  return v.canAutofill && !!v.pincode && v.address.length >= 12;
+  return validateAadhaarBackResults(fields).canAutofill;
 }
 
 function consolidateBackFieldVotes(fieldPasses, allText) {
@@ -1863,12 +1976,16 @@ export function validateAadhaarBackResults(results) {
   const address = String(results?.address || "").trim();
   let confidence = 0;
   if (pin) confidence += 45;
-  if (address.length >= 15) confidence += 40;
-  else if (address.length >= 8) confidence += 20;
-  const ocrConf = typeof results?.ocrConfidence === "number" ? results.ocrConfidence : 60;
-  confidence = Math.round(confidence * 0.7 + ocrConf * 0.3);
-  const valid = !!pin && address.length >= 12;
-  const canAutofill = confidence >= OCR_MIN_AUTOFILL_CONFIDENCE && (!!pin || address.length >= 12);
+  if (address.length >= 20) confidence += 42;
+  else if (address.length >= 12) confidence += 32;
+  else if (address.length >= 8) confidence += 22;
+  const ocrConf = typeof results?.ocrConfidence === "number" ? results.ocrConfidence : 55;
+  confidence = Math.round(confidence * 0.65 + ocrConf * 0.35);
+  const valid = !!pin && address.length >= 10;
+  const canAutofill =
+    (pin && address.length >= 8) ||
+    address.length >= 14 ||
+    (pin && address.length >= 5 && confidence >= 50);
   return {
     valid,
     canAutofill,
@@ -1895,56 +2012,85 @@ function mergeBackOcrTexts(primary, secondary) {
   return score(secondary) > score(primary) ? `${primary}\n${secondary}` : `${primary}\n${secondary}`;
 }
 
-/** Back-side Aadhaar OCR — PaddleOCR address + PIN regions. */
-export const performAadhaarBackOCR = async (imageInput, onProgress = () => {}) => {
+/** Slow back OCR — region crops (fallback when fast full-page scan is insufficient). */
+async function performAadhaarBackRegionFallback(imageInput, onProgress = () => {}) {
+  const report = (pct) => onProgress(Math.min(99, pct));
+  const rawBlob =
+    imageInput instanceof Blob
+      ? imageInput
+      : await fetch(imageInput).then((r) => r.blob());
+
+  let text = "";
+  const fieldPasses = [];
+
   try {
-    await preloadAadhaarOcrWorker();
-    const report = (pct) => onProgress(Math.min(99, pct));
-    const rawBlob =
-      imageInput instanceof Blob
-        ? imageInput
-        : await fetch(imageInput).then((r) => r.blob());
+    const prepared = await prepareAadhaarCardImage(rawBlob, "back");
+    report(5);
 
-    let text = "";
-    const fieldPasses = [];
+    const primary = await runBackRegionPipeline(prepared, report, { useAlt: false });
+    text = primary.text;
+    fieldPasses.push(primary.fields);
 
-    try {
-      const prepared = await prepareAadhaarCardImage(rawBlob, "back");
-      report(5);
-
-      const primary = await runBackRegionPipeline(prepared, report, { useAlt: false });
-      text = primary.text;
-      fieldPasses.push(primary.fields);
-
-      let fields = consolidateBackFieldVotes(fieldPasses, text);
-      if (!backOcrIsSufficient(fields) && prepared.altRegions) {
-        report(50);
-        const alt = await runBackRegionPipeline(prepared, report, { useAlt: true });
-        text = mergeBackOcrTexts(text, alt.text);
-        fieldPasses.push(alt.fields);
-      }
-    } catch (prepErr) {
-      console.warn("Back prep failed, raw PaddleOCR fallback:", prepErr);
-      const { text: rawText } = await recognizeAadhaarImage(rawBlob, {
-        minWordConfidence: 45,
-        onProgress: (p) => report(10 + Math.floor(p * 0.85)),
-      });
-      text = rawText;
-      fieldPasses.push(extractAadhaarBackFields(rawText));
+    if (!backOcrIsSufficient(consolidateBackFieldVotes(fieldPasses, text)) && prepared.altRegions) {
+      report(50);
+      const alt = await runBackRegionPipeline(prepared, report, { useAlt: true });
+      text = mergeBackOcrTexts(text, alt.text);
+      fieldPasses.push(alt.fields);
     }
 
-    const fields = consolidateBackFieldVotes(fieldPasses, text);
-    const finalValidation = validateAadhaarBackResults(fields);
-    onProgress(100);
+    if (!backOcrIsSufficient(consolidateBackFieldVotes(fieldPasses, text)) && prepared.baseBlob) {
+      report(72);
+      const { text: fullText, confidence, lines } = await recognizeAadhaarImage(prepared.baseBlob, {
+        minWordConfidence: 38,
+        detLimitSideLen: 1280,
+        onProgress: (p) => report(72 + Math.floor(p * 0.22)),
+      });
+      text = mergeBackOcrTexts(text, fullText);
+      const fromLines = extractAadhaarBackFromOcrLines(lines);
+      const fromText = extractAadhaarBackFields(fullText);
+      fieldPasses.push({
+        address: fromLines.address || fromText.address,
+        pincode: fromLines.pincode || fromText.pincode,
+        ocrConfidence: confidence,
+      });
+    }
+  } catch (prepErr) {
+    console.warn("Back prep failed, raw PaddleOCR fallback:", prepErr);
+    const { text: rawText, confidence, lines } = await recognizeAadhaarImage(rawBlob, {
+      minWordConfidence: 40,
+      detLimitSideLen: 1280,
+      onProgress: (p) => report(10 + Math.floor(p * 0.85)),
+    });
+    text = rawText;
+    const fromLines = extractAadhaarBackFromOcrLines(lines);
+    const fromText = extractAadhaarBackFields(rawText);
+    fieldPasses.push({
+      address: fromLines.address || fromText.address,
+      pincode: fromLines.pincode || fromText.pincode,
+      ocrConfidence: confidence,
+    });
+  }
 
-    return {
-      address: finalValidation.address || fields.address || "",
-      pincode: finalValidation.pincode || fields.pincode || "",
-      confidence: finalValidation.confidence,
-      valid: finalValidation.valid,
-      canAutofill: finalValidation.canAutofill,
-      validationMessage: finalValidation.validationMessage,
-    };
+  const fields = consolidateBackFieldVotes(fieldPasses, text);
+  return finalizeBackOcrResult(fields);
+}
+
+/** Back-side Aadhaar OCR — fast full-page scan first, region pipeline as fallback. */
+export const performAadhaarBackOCR = async (imageInput, onProgress = () => {}, options = {}) => {
+  try {
+    const { scanAadhaarBackDocument } = await import("./paddleOcr.js");
+    const fast = await scanAadhaarBackDocument(imageInput, {
+      onProgress,
+      preprocessed: Boolean(options.preprocessed),
+      cropToScanFrame: Boolean(options.cropToScanFrame),
+    });
+
+    if (backOcrIsSufficient(fast)) {
+      return fast;
+    }
+
+    console.warn("Fast back OCR insufficient — running region pipeline fallback");
+    return await performAadhaarBackRegionFallback(imageInput, onProgress);
   } catch (error) {
     console.error("Aadhaar Back OCR Error:", error);
     throw error;
