@@ -51,8 +51,8 @@ const AyushCardApplicationForm = (props) => {
         id="ayushcard-application-form-root"
         className={
           variant === "modal"
-            ? "fixed inset-0 z-100 flex items-center justify-center bg-black/60 px-4"
-            : "min-h-screen bg-[#f0f0f0] py-8 px-0"
+            ? "fixed inset-0 z-100 flex items-center justify-center bg-black/60 px-4 overflow-hidden"
+            : "flex-1 h-full min-h-0 w-full max-w-full overflow-hidden flex flex-col bg-transparent"
         }
         style={{ fontFamily: "Quicksand, sans-serif" }}
       >
@@ -69,42 +69,46 @@ const AyushCardApplicationForm = (props) => {
         <div
           className={
             variant === "page"
-              ? "w-full flex flex-col gap-4"
-              : "w-full flex justify-center items-stretch"
+              ? "flex flex-1 flex-col min-h-0 w-full max-w-full gap-0"
+              : "flex min-h-0 w-full max-h-[90vh] items-stretch justify-center"
           }
         >
-          {variant === "page" && (
-            <div className="flex flex-wrap items-center gap-3 px-2 sm:px-1">
-              {onBack && (
-                <button
-                  type="button"
-                  onClick={onBack}
-                  className="inline-flex items-center gap-2 text-[#222222] font-semibold hover:text-[#fa8112] transition-colors"
-                >
-                  <ArrowLeft size={20} />
-                  Back
-                </button>
-              )}
-              <h1 className="text-xl font-bold text-[#222222] tracking-tight">
-                Create Ayush Card
-              </h1>
-            </div>
-          )}
           <div
-            className="bg-white w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300 relative rounded-xl shadow-xl"
+            className={`bg-white w-full max-w-full flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300 relative min-h-0 ${
+              variant === "modal"
+                ? "max-h-[90vh] h-full rounded-xl shadow-xl"
+                : "flex-1 h-full min-h-0 max-h-full rounded-xl shadow-sm border border-gray-200/50"
+            }`}
             style={{ fontFamily: "'Quicksand', sans-serif" }}
           >
-            <div className="flex justify-between items-center px-3 py-2 bg-[#F5F5F5] shrink-0">
-              <div className="flex items-center gap-4 w-full">
+            {variant === "page" && (
+              <div className="flex shrink-0 flex-wrap items-center gap-1.5 px-2 pt-1.5 pb-0 sm:gap-3 sm:px-3 sm:pt-2 border-b border-gray-100">
+                {onBack && (
+                  <button
+                    type="button"
+                    onClick={onBack}
+                    className="inline-flex items-center gap-1 text-[#222222] font-semibold hover:text-[#fa8112] transition-colors text-[12px] sm:text-base"
+                  >
+                    <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+                    Back
+                  </button>
+                )}
+                <h1 className="text-sm sm:text-lg font-bold text-[#222222] tracking-tight leading-tight">
+                  Create Ayush Card
+                </h1>
+              </div>
+            )}
+            <div className="flex justify-between items-center px-2 py-1 sm:px-3 sm:py-1.5 bg-[#F5F5F5] shrink-0">
+              <div className="flex items-center gap-2 sm:gap-3 w-full min-w-0">
                 <div className="flex items-center justify-center shrink-0">
                   <img
                     src="/logo_whitebg.svg"
                     alt="BKBS Trust"
-                    className="h-20 w-20"
+                    className="h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14"
                   />
                 </div>
-                <div className="flex-1 text-left">
-                  <h3 className="text-[14px] font-semibold text-[#222222]">
+                <div className="flex-1 text-left min-w-0">
+                  <h3 className="text-[11px] sm:text-[13px] md:text-[14px] font-semibold text-[#222222] leading-tight">
                     {variant === "page"
                       ? "New card registration"
                       : "Apply for Ayush Card"}
@@ -119,7 +123,7 @@ const AyushCardApplicationForm = (props) => {
                     <X size={16} />
                   </button>
                 ) : (
-                  <div className="w-8 shrink-0" aria-hidden />
+                  <div className="w-4 sm:w-6 shrink-0" aria-hidden />
                 )}
               </div>
             </div>
@@ -165,7 +169,7 @@ const AyushCardApplicationForm = (props) => {
               <>
                 <ApplicationStepper />
 
-                <div className="flex-1 overflow-y-auto px-8 pb-24 pt-2 custom-scrollbar">
+                <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 sm:px-8 pb-4 pt-2 custom-scrollbar">
                   {currentStep === 1 && <Step1FamilyHead />}
                   {currentStep === 2 && <Step2Members />}
                   {currentStep === 3 && <Step3Review />}

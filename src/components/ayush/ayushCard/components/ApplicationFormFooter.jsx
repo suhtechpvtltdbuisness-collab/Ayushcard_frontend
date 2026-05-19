@@ -6,18 +6,18 @@ export default function ApplicationFormFooter() {
     currentStep, footerStepMax, handleBack, handleNext, submitting, skipPayment,
   } = useAyushCardForm();
   return (
-              <div className="bg-[#F5F5F5] p-4 border-t border-gray-100 flex items-center justify-between px-8 shrink-0">
-                <div className="flex-1 flex justify-start">
+              <div className="bg-[#F5F5F5] py-2 px-3 sm:py-2 sm:px-6 md:py-2 md:px-6 border-t border-gray-100 flex items-center justify-between shrink-0 z-10">
+                <div className="flex-1 flex justify-start min-w-0">
                   {currentStep > 1 ? (
                     <button
                       onClick={handleBack}
-                      className="flex items-center gap-2 bg-white border border-[#FA8112] text-[#FA8112] active:scale-95 font-medium px-6 py-2 rounded-full transition-all duration-300 hover:bg-[#FA8112]/5"
+                      className="flex items-center gap-1 sm:gap-1.5 bg-white border border-[#FA8112] text-[#FA8112] active:scale-95 font-medium text-[13px] sm:text-[14px] px-3 py-1.5 sm:px-4 sm:py-1.5 md:px-5 rounded-full transition-all duration-300 hover:bg-[#FA8112]/5"
                     >
-                      <ArrowLeft className="w-5 h-5" />
+                      <ArrowLeft className="w-4 h-4 shrink-0" />
                       Back
                     </button>
                   ) : (
-                    <p className="text-[15px] font-medium text-[#222222]">
+                    <p className="text-[12px] sm:text-[13px] md:text-[14px] font-medium text-[#222222]">
                       Step {currentStep} of {footerStepMax}
                     </p>
                   )}
@@ -25,7 +25,7 @@ export default function ApplicationFormFooter() {
 
                 <div className="flex-1 justify-center hidden md:flex">
                   {currentStep > 1 && (
-                    <p className="text-[14px] text-gray-500">
+                    <p className="text-[13px] text-gray-500">
                       Step {currentStep} of {footerStepMax}
                     </p>
                   )}
@@ -35,7 +35,7 @@ export default function ApplicationFormFooter() {
                   <button
                     onClick={handleNext}
                     disabled={submitting}
-                    className="flex items-center gap-2 bg-[#fa8112] hover:bg-[#e0720f] shadow-md active:scale-95 text-white font-medium pl-6 pr-2 py-2 rounded-full transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed"
+                    className="flex items-center gap-1 sm:gap-1.5 bg-[#fa8112] hover:bg-[#e0720f] shadow-md active:scale-95 text-white font-medium text-[13px] sm:text-[14px] pl-3 pr-1 sm:pl-4 sm:pr-1.5 md:pl-5 py-1.5 rounded-full transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                     {submitting
                       ? "Submitting..."
@@ -44,11 +44,11 @@ export default function ApplicationFormFooter() {
                         : currentStep === 4
                           ? "Confirm"
                           : "Continue"}
-                    <span className="flex items-center justify-center bg-white rounded-full w-8 h-8 ml-2">
+                    <span className="flex items-center justify-center bg-white rounded-full w-7 h-7 ml-1 sm:ml-1.5 shrink-0">
                       {submitting ? (
-                        <div className="w-4 h-4 border-2 border-[#fa8112] border-t-transparent rounded-full animate-spin" />
+                        <div className="w-3.5 h-3.5 border-2 border-[#fa8112] border-t-transparent rounded-full animate-spin" />
                       ) : (
-                        <ArrowRight className="w-5 h-5 text-[#fa8112]" />
+                        <ArrowRight className="w-4 h-4 text-[#fa8112]" />
                       )}
                     </span>
                   </button>

@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import AyushCardApplicationForm from "../../../components/ayush/AyushCardApplicationForm";
+import HealthCardCreatePageShell from "../../../components/ayush/HealthCardCreatePageShell";
 import { useAttendance } from "../../../context/AttendanceContext";
 import { ClipboardCheck, MapPin } from "lucide-react";
 
@@ -54,12 +55,14 @@ const CreateHealthCard = () => {
   }
 
   return (
-    <AyushCardApplicationForm
-      variant="page"
-      skipPayment={false}
-      staffPaymentFlow
-      onBack={() => navigate("/employee/health-card")}
-    />
+    <HealthCardCreatePageShell>
+      <AyushCardApplicationForm
+        variant="page"
+        skipPayment={false}
+        staffPaymentFlow
+        onBack={() => navigate("/employee/health-card")}
+      />
+    </HealthCardCreatePageShell>
   );
 };
 

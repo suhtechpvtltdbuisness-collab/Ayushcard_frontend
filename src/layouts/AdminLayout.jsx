@@ -21,7 +21,7 @@ const AdminLayout = () => {
           <div className="hidden lg:block">
             <Topbar />
           </div>
-          <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-[#FFFFFF] p-3 sm:p-6 lg:p-8 pb-8 sm:pb-10 lg:pb-12">
+          <main className="flex-1 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto bg-[#FFFFFF] p-3 sm:p-6 lg:p-8 pb-3 sm:pb-6 lg:pb-8 flex flex-col [&>*]:min-h-0">
             <Outlet />
           </main>
         </div>
