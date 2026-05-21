@@ -10,52 +10,15 @@ import {
   Loader2,
   RotateCw,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "../../../components/ui/Toast";
 import apiService from "../../../api/service";
 import Pagination from "../../../components/ui/Pagination";
-
-const normalizeCard = (card) => {
-  const totalCount = (Number(card.totalMembers ?? card.totalMember) || 0);
-  
-  return {
-    ...card,
-    id: card.applicationId || card._id || "",
-    applicant:
-      [card.firstName, card.middleName, card.lastName]
-        .filter(Boolean)
-        .join(" ") || "",
-    phone: card.contact || "",
-    pincode: card.pincode || "",
-    totalMembers: totalCount,
-    members: Array.isArray(card.members)
-      ? card.members
-      : Array.from({ length: totalCount }, (_, i) => ({
-          id: i,
-        })),
-    payment: {
-      applicationFee: 160,
-      memberAddOns: Math.max(0, totalCount - 4) * 40,
-      totalPaid: totalCount <= 4 ? 160 : 160 + (totalCount - 4) * 40,
-    },
-  status: (() => {
-    switch ((card.status || "").toLowerCase()) {
-      case "approved":
-        return "Verified";
-      case "active":
-        return "Verified";
-      case "pending":
-        return "Not verified";
-      case "rejected":
-        return "Not verified";
-      case "expired":
-        return "Expired";
-      default:
-        return card.status || "Not verified";
-    }
-  })(),
-  };
-};
+import {
+  normalizeHealthCard,
+  isApplicationCard,
+  parseHealthCardsResponse,
+} from "../../../utils/healthCardUtils";
 
 const StatusBadge = ({ status }) => {
   let bg = "";
@@ -127,6 +90,7 @@ const ActionButtons = ({ item, navigate }) => {
 };
 const HealthCard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [healthCards, setHealthCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -139,23 +103,18 @@ const HealthCard = () => {
 
   useEffect(() => {
     fetchCards();
-  }, []);
+  }, [location.key]);
 
   const fetchCards = async () => {
     try {
       setLoading(true);
       setFetchError("");
       const res = await apiService.getHealthCards();
-      const raw = Array.isArray(res?.data?.cards)
-        ? res.data.cards
-        : Array.isArray(res?.data)
-          ? res.data
-          : Array.isArray(res)
-            ? res
-            : [];
-
-      const normalized = raw.map(normalizeCard);
-      setHealthCards(normalized);
+      const { raw } = parseHealthCardsResponse(res);
+      const applicationsOnly = raw
+        .map(normalizeHealthCard)
+        .filter(isApplicationCard);
+      setHealthCards(applicationsOnly);
     } catch (err) {
       console.error("[HealthCard] API fetch failed:", err);
       setFetchError("Could not load cards from server.");

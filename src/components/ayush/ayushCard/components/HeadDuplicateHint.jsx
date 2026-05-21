@@ -12,12 +12,19 @@ export default function HeadDuplicateHint({ check, kind }) {
       </p>
     );
   if (check.exists === null) return null;
-  if (check.exists)
+  if (check.exists) {
+    const label =
+      kind === "phone"
+        ? "Phone number already exists."
+        : kind === "Aadhaar"
+          ? "Aadhaar number already registered."
+          : `A card is already registered with this ${kind}.`;
     return (
-      <p className="text-[12px] text-amber-800 mt-1 leading-snug">
-        A card is already registered with this {kind}.
+      <p className="text-[12px] text-red-600 font-medium mt-1 leading-snug">
+        {label}
       </p>
     );
+  }
   return (
     <p className="text-[12px] text-green-700 mt-1">
       No existing card found for this {kind}.

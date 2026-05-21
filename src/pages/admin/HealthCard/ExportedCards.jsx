@@ -1,60 +1,15 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Search, Eye, Trash2, Plus, Loader2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import apiService from "../../../api/service";
 import ExportPrintModal from "../../../components/admin/ExportPrintModal";
 import { useToast } from "../../../components/ui/Toast";
 import Pagination from "../../../components/ui/Pagination";
-
-const normalizeCard = (card) => {
-  const totalCount = (Number(card.totalMembers ?? card.totalMember) || 0);
-
-  return {
-    ...card,
-    id: card.applicationId || card._id || "",
-    applicant:
-      [card.firstName, card.middleName, card.lastName]
-        .filter(Boolean)
-        .join(" ") || "",
-    phone: card.contact || "",
-    totalMembers: totalCount,
-    members: Array.isArray(card.members)
-      ? card.members
-      : Array.from({ length: totalCount }, (_, i) => ({
-        id: i,
-      })),
-    profileImage:
-      card.profileImage ||
-      (Array.isArray(card.documents) && card.documents.length > 0
-        ? card.documents[2]?.path || card.documents[2]?.url
-        : ""),
-    documentFront: card.documentFront || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentFront")?.path : "") || "",
-    documentBack: card.documentBack || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentBack")?.path : "") || "",
-    payment: {
-      applicationFee: 160,
-      memberAddOns: Math.max(0, totalCount - 4) * 40,
-      totalPaid: totalCount <= 4 ? 160 : 160 + (totalCount - 4) * 40,
-    },
-  status: (() => {
-    switch ((card.status || "").toLowerCase()) {
-      case "approved":
-        return "Verified";
-      case "active":
-        return "Verified";
-      case "pending":
-        return "Not verified";
-      case "rejected":
-        return "Not verified";
-      case "expired":
-        return "Expired";
-      case "exported":
-        return "Exported";
-      default:
-        return card.status || "Not verified";
-    }
-  })(),
-  };
-};
+import {
+  normalizeHealthCard,
+  isExportedCard,
+  parseHealthCardsResponse,
+} from "../../../utils/healthCardUtils";
 
 const StatusBadge = ({ status }) => {
   let bg = "bg-gray-100";
@@ -102,6 +57,7 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
 
 export default function ExportedCards() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toastWarn } = useToast();
 
   const [healthCards, setHealthCards] = useState([]);
@@ -131,7 +87,7 @@ export default function ExportedCards() {
 
   useEffect(() => {
     fetchCards();
-  }, [currentPage, itemsPerPage, search]);
+  }, [currentPage, itemsPerPage, search, location.key]);
 
   useEffect(() => {
     setSelectedRows([]);
@@ -146,22 +102,13 @@ export default function ExportedCards() {
       };
       if (search) params.search = search;
       const res = await apiService.getPrintedCards(params);
-      const raw = Array.isArray(res?.data?.cards)
-        ? res.data.cards
-        : Array.isArray(res?.data)
-          ? res.data
-          : Array.isArray(res)
-            ? res
-            : [];
-      const normalized = raw.map(normalizeCard);
-      setHealthCards(normalized);
-
-      const pagination = res?.pagination || res?.data?.pagination || {};
-      const total = pagination.total ?? res?.total ?? res?.count ?? res?.data?.total ?? normalized.length;
-      const pages = pagination.pages ?? (Math.ceil(total / itemsPerPage) || 1);
-
+      const { raw, total, pages } = parseHealthCardsResponse(res);
+      const exportedOnly = raw
+        .map(normalizeHealthCard)
+        .filter(isExportedCard);
+      setHealthCards(exportedOnly);
       setTotalItems(Number(total));
-      setTotalPages(Number(pages));
+      setTotalPages(Number(pages ?? (Math.ceil(total / itemsPerPage) || 1)));
     } catch (err) {
       console.error("[ExportedCards] Failed to fetch:", err);
     } finally {

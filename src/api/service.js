@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { withOcrRetry } from '../utils/aadhaarOcrApi.js';
 
 // ─── AXIOS INSTANCE SETUP ──────────────────────────────────────────────────
 
@@ -23,6 +24,12 @@ const cardCheckApi = axios.create({
     baseURL: import.meta.env.DEV ? '' : import.meta.env.VITE_API_BASE_URL || '',
     headers: { 'Content-Type': 'application/json' },
     timeout: 15000,
+});
+
+/** OCR multipart uploads — same-origin proxy in dev (avoids CORS / Network Error). */
+const ocrApi = axios.create({
+    baseURL: import.meta.env.DEV ? '' : import.meta.env.VITE_API_BASE_URL || '',
+    timeout: 120000,
 });
 
 /** Normalize GET /api/cards/check/* envelope: { data: { exists, cardId } } or flat { exists } */
@@ -67,6 +74,42 @@ const storage = {
 
 const getToken = () => storage.get('token');
 const getRefreshToken = () => storage.get('refreshToken');
+
+async function postAadhaarOcrMultipart(path, imageFile, defaultName) {
+    const token = getToken();
+    if (!token) {
+        const err = new Error('Authentication required');
+        err.response = {
+            status: 401,
+            data: { success: false, message: 'Authentication required' },
+        };
+        throw err;
+    }
+
+    const file =
+        imageFile instanceof File
+            ? imageFile
+            : new File([imageFile], defaultName, {
+                  type: imageFile?.type || 'image/jpeg',
+              });
+
+    if (!file.size) {
+        const err = new Error('Image is required. Use form field name: image');
+        err.response = {
+            status: 400,
+            data: { success: false, message: err.message },
+        };
+        throw err;
+    }
+
+    const formData = new FormData();
+    formData.append('image', file, file.name || defaultName);
+
+    return withOcrRetry(async () => {
+        const response = await ocrApi.post(path, formData);
+        return throwIfOcrResponseFailed(response.data);
+    });
+}
 
 function throwIfOcrResponseFailed(data) {
     if (data && data.success === false) {
@@ -155,6 +198,15 @@ api.interceptors.request.use(
 
 publicApi.interceptors.request.use(
     (config) => stripJsonContentTypeForFormData(config),
+    (error) => Promise.reject(error)
+);
+
+ocrApi.interceptors.request.use(
+    (config) => {
+        const token = getToken();
+        if (token) config.headers.Authorization = `Bearer ${token}`;
+        return stripJsonContentTypeForFormData(config);
+    },
     (error) => Promise.reject(error)
 );
 
@@ -316,6 +368,14 @@ const apiService = {
     // GET /api/cards
     getHealthCards: async (params = {}) => {
         const response = await api.get('/api/cards', { params });
+        return response.data;
+    },
+
+    /** Pending / unverified applications only (Ayush Card Applications list) */
+    getApplicationHealthCards: async (params = {}) => {
+        const response = await api.get('/api/cards', {
+            params: { ...params, status: 'pending' },
+        });
         return response.data;
     },
 
@@ -673,76 +733,14 @@ const apiService = {
         return response.data;
     },
 
-    // ─── AADHAAR OCR (multipart image upload, auth required on Railway) ─────
+    // ─── AADHAAR OCR (multipart field `image`, JPEG File, auth required) ─────
 
     ocrAadhaarFront: async (imageFile) => {
-        const token = getToken();
-        if (!token) {
-            const err = new Error('Authentication required');
-            err.response = {
-                status: 401,
-                data: { success: false, message: 'Authentication required' },
-            };
-            throw err;
-        }
-
-        const file = imageFile instanceof File
-            ? imageFile
-            : new File([imageFile], 'aadhaar_front.jpg', {
-                type: imageFile?.type || 'image/jpeg',
-            });
-
-        if (!file.size) {
-            const err = new Error('Image file is empty');
-            err.response = {
-                status: 400,
-                data: { success: false, message: 'Image is required. Use form field name: image' },
-            };
-            throw err;
-        }
-
-        const formData = new FormData();
-        formData.append('image', file, file.name || 'aadhaar_front.jpg');
-
-        const response = await api.post('/api/ocr/aadhaar/front', formData, {
-            timeout: 120000,
-        });
-        return throwIfOcrResponseFailed(response.data);
+        return postAadhaarOcrMultipart('/api/ocr/aadhaar/front', imageFile, 'aadhaar_front.jpg');
     },
 
     ocrAadhaarBack: async (imageFile) => {
-        const token = getToken();
-        if (!token) {
-            const err = new Error('Authentication required');
-            err.response = {
-                status: 401,
-                data: { success: false, message: 'Authentication required' },
-            };
-            throw err;
-        }
-
-        const file = imageFile instanceof File
-            ? imageFile
-            : new File([imageFile], 'aadhaar_back.jpg', {
-                type: imageFile?.type || 'image/jpeg',
-            });
-
-        if (!file.size) {
-            const err = new Error('Image file is empty');
-            err.response = {
-                status: 400,
-                data: { success: false, message: 'Image is required. Use form field name: image' },
-            };
-            throw err;
-        }
-
-        const formData = new FormData();
-        formData.append('image', file, file.name || 'aadhaar_back.jpg');
-
-        const response = await api.post('/api/ocr/aadhaar/back', formData, {
-            timeout: 120000,
-        });
-        return throwIfOcrResponseFailed(response.data);
+        return postAadhaarOcrMultipart('/api/ocr/aadhaar/back', imageFile, 'aadhaar_back.jpg');
     },
 
     logout: () => {

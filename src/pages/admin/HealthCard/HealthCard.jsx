@@ -10,60 +10,17 @@ import {
   Loader2,
   RotateCw,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import apiService from "../../../api/service";
 import { exportAyushCardApplicationsToExcel } from "../../../utils/exportUtils";
+import {
+  normalizeHealthCard,
+  isApplicationCard,
+  isVerifiedStatus,
+  parseHealthCardsResponse,
+} from "../../../utils/healthCardUtils";
 import { useToast } from "../../../components/ui/Toast";
 import Pagination from "../../../components/ui/Pagination";
-
-const normalizeCard = (card) => {
-  const totalCount = Number(card.totalMembers ?? card.totalMember) || 0;
-
-  return {
-    ...card,
-    id: card.applicationId || card._id || "",
-    applicant:
-      [card.firstName, card.middleName, card.lastName]
-        .filter(Boolean)
-        .join(" ") || "",
-    phone: card.contact || "",
-    pincode: card.pincode || "",
-    totalMembers: totalCount,
-    members: Array.isArray(card.members)
-      ? card.members
-      : Array.from({ length: totalCount }, (_, i) => ({
-        id: i,
-      })),
-    profileImage:
-      card.profileImage ||
-      (Array.isArray(card.documents) && card.documents.length > 0
-        ? card.documents[2]?.path || card.documents[2]?.url
-        : ""),
-    documentFront: card.documentFront || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentFront")?.path : "") || "",
-    documentBack: card.documentBack || (Array.isArray(card.documents) ? card.documents.find(d => d.name === "documentBack")?.path : "") || "",
-    payment: {
-      applicationFee: 160,
-      memberAddOns: Math.max(0, totalCount - 4) * 40,
-      totalPaid: totalCount <= 4 ? 160 : 160 + (totalCount - 4) * 40,
-    },
-  status: (() => {
-    switch ((card.status || "").toLowerCase()) {
-      case "approved":
-        return "Verified";
-      case "active":
-        return "Verified";
-      case "pending":
-        return "Not verified";
-      case "rejected":
-        return "Rejected";
-      case "expired":
-        return "Expired";
-      default:
-        return card.status || "Not verified";
-    }
-  })(),
-  };
-};
 
 const StatusBadge = ({ status, onStatusChange, isLoading }) => {
   let bg = "";
@@ -184,7 +141,8 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
 
 const HealthCard = () => {
   const navigate = useNavigate();
-  const { toastWarn } = useToast();
+  const location = useLocation();
+  const { toastWarn, toastSuccess } = useToast();
 
   const [healthCards, setHealthCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -214,7 +172,7 @@ const HealthCard = () => {
 
   useEffect(() => {
     fetchCards();
-  }, [currentPage, itemsPerPage, search]);
+  }, [currentPage, itemsPerPage, search, location.key]);
 
   const fetchCards = async () => {
     try {
@@ -226,27 +184,20 @@ const HealthCard = () => {
       };
       if (search) params.search = search;
       const res = await apiService.getHealthCards(params);
-      const raw = Array.isArray(res?.data?.cards)
-        ? res.data.cards
-        : Array.isArray(res?.data)
-          ? res.data
-          : Array.isArray(res)
-            ? res
-            : [];
+      const { raw, total, pages } = parseHealthCardsResponse(res);
+      const applicationsOnly = raw
+        .map(normalizeHealthCard)
+        .filter(isApplicationCard);
 
-      setHealthCards(raw.map(normalizeCard));
+      setHealthCards(applicationsOnly);
 
-      const pagination = res?.pagination || res?.data?.pagination || {};
-      const total =
-        pagination.total ??
-        res?.total ??
-        res?.count ??
-        res?.data?.total ??
-        raw.length;
-      const pages = pagination.pages ?? (Math.ceil(total / itemsPerPage) || 1);
-
-      setTotalItems(Number(total));
-      setTotalPages(Number(pages));
+      if (applicationsOnly.length === raw.length) {
+        setTotalItems(Number(total));
+        setTotalPages(Number(pages ?? (Math.ceil(total / itemsPerPage) || 1)));
+      } else {
+        setTotalItems(applicationsOnly.length);
+        setTotalPages(Math.max(1, Math.ceil(applicationsOnly.length / itemsPerPage)));
+      }
     } catch (err) {
       console.error(
         "[HealthCard] GET /api/cards failed:",
@@ -294,16 +245,25 @@ const HealthCard = () => {
     setStatusUpdateLoading(id);
     try {
       await apiService.updateHealthCardStatus(id, newStatus);
-      // Immediately update local state to reflect the change
-      setHealthCards((prev) =>
-        prev.map((card) => {
-          if (card._id === id || card.id === id) {
-            // Need to apply normalizeCard-like transformations so badges work
-            return normalizeCard({ ...card, status: newStatus });
-          }
-          return card;
-        })
-      );
+      if (isVerifiedStatus(newStatus) || newStatus === "exported") {
+        setHealthCards((prev) =>
+          prev.filter((card) => card._id !== id && card.id !== id),
+        );
+        setSelectedRows([]);
+        setTotalItems((t) => Math.max(0, t - 1));
+        if (isVerifiedStatus(newStatus)) {
+          toastSuccess("Card verified. It is now listed under Verified Cards.");
+        }
+      } else {
+        setHealthCards((prev) =>
+          prev.map((card) => {
+            if (card._id === id || card.id === id) {
+              return normalizeHealthCard({ ...card, status: newStatus });
+            }
+            return card;
+          }),
+        );
+      }
     } catch (error) {
       console.error("Failed to update status:", error);
       toastWarn(error?.response?.data?.message || "Failed to update status.");

@@ -1,55 +1,15 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Search, Eye, Loader2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import apiService from "../../../api/service";
 import Pagination from "../../../components/ui/Pagination";
 import ExportPrintModal from "../../../components/admin/ExportPrintModal";
 import { useToast } from "../../../components/ui/Toast";
-
-const normalizeCard = (card) => {
-  const totalCount = (Number(card.totalMembers ?? card.totalMember) || 0);
-  
-  return {
-    ...card,
-    id: card.applicationId || card._id || "",
-    applicant:
-      [card.firstName, card.middleName, card.lastName]
-        .filter(Boolean)
-        .join(" ") || "",
-    phone: card.contact || "",
-    totalMembers: totalCount,
-    members: Array.isArray(card.members)
-      ? card.members
-      : Array.from({ length: totalCount }, (_, i) => ({
-          id: i,
-        })),
-    payment: {
-      applicationFee: 160,
-      memberAddOns: Math.max(0, totalCount - 4) * 40,
-      totalPaid: totalCount <= 4 ? 160 : 160 + (totalCount - 4) * 40,
-    },
-  status: (() => {
-    switch ((card.status || "").toLowerCase()) {
-      case "approved":
-        return "Verified";
-      case "active":
-        return "Verified";
-      case "verified":
-        return "Verified";
-      case "pending":
-        return "Not verified";
-      case "rejected":
-        return "Not verified";
-      case "expired":
-        return "Expired";
-      case "exported":
-        return "Exported";
-      default:
-        return card.status || "Not verified";
-    }
-  })(),
-  };
-};
+import {
+  normalizeHealthCard,
+  isVerifiedCard,
+  parseHealthCardsResponse,
+} from "../../../utils/healthCardUtils";
 
 const StatusBadge = ({ status }) => {
   let bg = "bg-gray-100";
@@ -91,34 +51,47 @@ const ActionButtons = ({ item, navigate }) => {
 
 export default function VerifiedCards() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toastWarn } = useToast();
 
   const [healthCards, setHealthCards] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
   const [selectedRows, setSelectedRows] = useState([]);
+  const [exportRows, setExportRows] = useState([]);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput.trim());
+      setCurrentPage(1);
+      setSelectedRows([]);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   useEffect(() => {
     fetchCards();
-  }, []);
+  }, [currentPage, itemsPerPage, search, location.key]);
 
   const fetchCards = async () => {
     try {
       setLoading(true);
-      const res = await apiService.getHealthCards();
-      const raw = Array.isArray(res?.data?.cards)
-        ? res.data.cards
-        : Array.isArray(res?.data)
-          ? res.data
-          : Array.isArray(res)
-            ? res
-            : [];
-      const normalized = raw.map(normalizeCard);
-      // ONLY SHOW VERIFIED CARDS
-      setHealthCards(normalized.filter((c) => c.status === "Verified"));
+      const params = { page: currentPage, limit: itemsPerPage };
+      if (search) params.search = search;
+      const res = await apiService.getVerifiedNotPrintedCards(params);
+      const { raw, total, pages } = parseHealthCardsResponse(res);
+      const verifiedOnly = raw
+        .map(normalizeHealthCard)
+        .filter(isVerifiedCard);
+      setHealthCards(verifiedOnly);
+      setTotalItems(Number(total));
+      setTotalPages(Number(pages ?? (Math.ceil(total / itemsPerPage) || 1)));
     } catch (err) {
       console.error("[VerifiedCards] Failed to fetch:", err);
     } finally {
@@ -126,47 +99,45 @@ export default function VerifiedCards() {
     }
   };
 
-  const processedData = useMemo(() => {
-    return healthCards.filter((item) => {
-      const query = searchQuery.toLowerCase();
-      return (
-        (item.applicant || "").toLowerCase().includes(query) ||
-        (item.id || "").toLowerCase().includes(query) ||
-        (item.phone || "").includes(query)
-      );
-    });
-  }, [healthCards, searchQuery]);
+  const processedData = useMemo(() => healthCards, [healthCards]);
+  const paginatedData = processedData;
 
-  const totalPages = Math.ceil(processedData.length / itemsPerPage) || 1;
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedData = processedData.slice(
-    startIndex,
-    startIndex + itemsPerPage,
+  const getCardKey = (card) =>
+    String(card._id || card.applicationId || card.id || "");
+
+  const isCardSelected = (card) =>
+    selectedRows.some((s) => getCardKey(s) === getCardKey(card));
+
+  const selectedRowsOnCurrentPage = useMemo(
+    () => paginatedData.filter((card) => isCardSelected(card)),
+    [paginatedData, selectedRows],
   );
 
   const handleSelectAll = (e) => {
-    if (e.target.checked) setSelectedRows(processedData.map((_, idx) => idx));
-    else setSelectedRows([]);
+    setSelectedRows(e.target.checked ? paginatedData : []);
   };
 
-  const handleSelectRow = (globalIndex) => {
+  const handleSelectRow = (card) => {
+    const key = getCardKey(card);
     setSelectedRows((prev) =>
-      prev.includes(globalIndex)
-        ? prev.filter((i) => i !== globalIndex)
-        : [...prev, globalIndex],
+      prev.some((s) => getCardKey(s) === key)
+        ? prev.filter((s) => getCardKey(s) !== key)
+        : [...prev, card],
     );
   };
 
   const handleExportClick = () => {
-    if (selectedRows.length === 0) {
+    if (selectedRowsOnCurrentPage.length === 0) {
       toastWarn("Please select at least one verified card to export for printing.");
       return;
     }
+    setExportRows(selectedRowsOnCurrentPage);
     setIsExportModalOpen(true);
   };
 
   const handleExportSuccess = () => {
     setSelectedRows([]);
+    setExportRows([]);
     fetchCards();
     setIsExportModalOpen(false);
   };
@@ -191,11 +162,8 @@ export default function VerifiedCards() {
           <input
             type="text"
             placeholder="Search by name, id, phone"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             className="w-full pl-4 pr-10 py-2.5 text-[16px] border border-[#E5E7EB] rounded-full text-sm placeholder:text-[#9CA3AF] focus:outline-none focus:ring-1 focus:ring-[#F68E5F] focus:border-[#F68E5F]"
           />
           <Search
@@ -221,8 +189,8 @@ export default function VerifiedCards() {
                       type="checkbox"
                       onChange={handleSelectAll}
                       checked={
-                        processedData.length > 0 &&
-                        selectedRows.length === processedData.length
+                        paginatedData.length > 0 &&
+                        selectedRowsOnCurrentPage.length === paginatedData.length
                       }
                       className="w-4 h-4 rounded border-[#D1D5DB] border text-[#22333B] focus:ring-[#111827]"
                     />
@@ -255,22 +223,22 @@ export default function VerifiedCards() {
               </thead>
               <tbody>
                 {paginatedData.map((row, index) => {
-                  const globalIndex = startIndex + index;
+                  const srNo = (currentPage - 1) * itemsPerPage + index + 1;
                   return (
                     <tr
-                      key={index}
+                      key={getCardKey(row) || index}
                       className="border-b border-[#F3F4F6] hover:bg-[#F9FAFB] transition-colors"
                     >
                       <td className="py-2 px-4 text-center">
                         <input
                           type="checkbox"
-                          checked={selectedRows.includes(globalIndex)}
-                          onChange={() => handleSelectRow(globalIndex)}
+                          checked={isCardSelected(row)}
+                          onChange={() => handleSelectRow(row)}
                           className="w-4 h-3 rounded border-[#D1D5DB] text-[#22333B] focus:ring-[#111827]"
                         />
                       </td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B]">
-                        {globalIndex + 1}
+                        {srNo}
                       </td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">
                         {row.id}
@@ -320,7 +288,7 @@ export default function VerifiedCards() {
           setItemsPerPage(val);
           setCurrentPage(1);
         }}
-        totalItems={processedData.length}
+        totalItems={totalItems}
         pageSizeOptions={[50, 100, 150]}
       />
 
@@ -329,7 +297,7 @@ export default function VerifiedCards() {
         <ExportPrintModal
           isOpen={isExportModalOpen}
           onClose={() => setIsExportModalOpen(false)}
-          selectedData={selectedRows.map((idx) => processedData[idx])}
+          selectedData={exportRows}
           onExportSuccess={handleExportSuccess}
           markPrintedOnDownload={true}
         />

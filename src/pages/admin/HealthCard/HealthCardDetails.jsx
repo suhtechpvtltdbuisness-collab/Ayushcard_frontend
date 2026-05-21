@@ -3,6 +3,8 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, ChevronDown, Loader2, FileText, UploadCloud, Trash2 } from "lucide-react";
 import apiService from "../../../api/service";
 import AyushCardPreview from "../../../components/admin/AyushCardPreview";
+import { useToast } from "../../../components/ui/Toast";
+import { isVerifiedStatus } from "../../../utils/healthCardUtils";
 
 // Map API response fields → form fields
 const apiToForm = (card) => ({
@@ -89,7 +91,10 @@ const HealthCardDetails = () => {
   const { id } = useParams();          // MongoDB _id (from HealthCard list navigation)
   const navigate = useNavigate();
   const location = useLocation();
+  const { toastSuccess } = useToast();
   const docInputRef = useRef(null);
+  const isAdminRoute = location.pathname.startsWith("/admin");
+  const healthCardBase = isAdminRoute ? "/admin/health-card" : "/employee/health-card";
 
   const [isEditing, setIsEditing] = useState(location.state?.editMode || false);
   const [formData, setFormData] = useState(null);
@@ -247,13 +252,18 @@ const HealthCardDetails = () => {
       ]);
 
       setPendingFile(null);
-      // Remove pending flag from documents list
       setFormData((prev) => ({
         ...prev,
         documents: (prev.documents || []).map((d) => ({ ...d, pending: false })),
       }));
       setIsEditing(false);
-      navigate(".", { replace: true, state: { editMode: false } });
+
+      if (isVerifiedStatus(payload.status)) {
+        toastSuccess("Card verified. It is now listed under Verified Cards.");
+        navigate(`${healthCardBase}/verified`, { replace: true });
+      } else {
+        navigate(".", { replace: true, state: { editMode: false } });
+      }
     } catch (err) {
       console.error("[HealthCardDetails] save failed:", err?.response?.data || err?.message);
       setSaveError(
