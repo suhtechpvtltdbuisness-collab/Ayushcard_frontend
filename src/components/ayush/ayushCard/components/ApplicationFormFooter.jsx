@@ -3,8 +3,20 @@ import { useAyushCardForm } from "../AyushCardFormContext.jsx";
 
 export default function ApplicationFormFooter() {
   const {
-    currentStep, footerStepMax, handleBack, handleNext, submitting, skipPayment,
+    currentStep,
+    footerStepMax,
+    handleBack,
+    handleNext,
+    submitting,
+    skipPayment,
+    registrationCheckInProgress,
+    registrationBlocked,
   } = useAyushCardForm();
+
+  const continueDisabled =
+    submitting ||
+    registrationCheckInProgress ||
+    (registrationBlocked && (currentStep === 1 || currentStep === 3 || currentStep === 4));
   return (
               <div className="bg-[#F5F5F5] py-2 px-3 sm:py-2 sm:px-6 md:py-2 md:px-6 border-t border-gray-100 flex items-center justify-between shrink-0 z-10">
                 <div className="flex-1 flex justify-start min-w-0">
@@ -34,10 +46,12 @@ export default function ApplicationFormFooter() {
                 <div className="flex-1 flex justify-end">
                   <button
                     onClick={handleNext}
-                    disabled={submitting}
+                    disabled={continueDisabled}
                     className="flex items-center gap-1 sm:gap-1.5 bg-[#fa8112] hover:bg-[#e0720f] shadow-md active:scale-95 text-white font-medium text-[13px] sm:text-[14px] pl-3 pr-1 sm:pl-4 sm:pr-1.5 md:pl-5 py-1.5 rounded-full transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed"
                   >
-                    {submitting
+                    {registrationCheckInProgress
+                      ? "Checking..."
+                      : submitting
                       ? "Submitting..."
                       : skipPayment && currentStep === 3
                         ? "Submit"

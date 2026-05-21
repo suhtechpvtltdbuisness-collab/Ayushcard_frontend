@@ -15,6 +15,10 @@ import {
   startOcrProgressTicker,
 } from "../../../utils/aadhaarOcrApi";
 import {
+  prepareOcrUploadFile,
+  OCR_MAX_UPLOAD_BYTES,
+} from "../../../utils/ocrUploadImage.js";
+import {
   assessCaptureQuality,
   enhanceImageBlobForOcr,
 } from "../../../utils/aadhaarOcrImage";
@@ -37,6 +41,10 @@ import {
   extractCreatedCardRecord,
   generateApplicationId,
 } from "./utils.js";
+import {
+  runRegistrationDuplicateChecks,
+  hasBlockingDuplicateFromState,
+} from "./registrationValidation.js";
 
 export function useAyushCardApplicationForm({
   variant = "modal",
@@ -56,6 +64,9 @@ export function useAyushCardApplicationForm({
   const { toastWarn, toastError, toastSuccess } = useToast();
   const { todayCampId, todayCampName } = useAttendance();
   const [submitting, setSubmitting] = useState(false);
+  const [registrationCheckInProgress, setRegistrationCheckInProgress] =
+    useState(false);
+  const submissionCompletedRef = useRef(false);
   // Step 1 State
   const [docFront, setDocFront] = useState(null);
   /** 2nd identity document (separate supporting doc, no OCR) */
@@ -361,6 +372,7 @@ export function useAyushCardApplicationForm({
   };
 
   const resetForm = () => {
+    submissionCompletedRef.current = false;
     setCurrentStep(1);
     setApplicationId(generateApplicationId());
     setSubmissionReceipt(null);
@@ -397,6 +409,10 @@ export function useAyushCardApplicationForm({
     });
     setMembers([]);
     setActiveMemberTab(0);
+    setHeadPhoneDuplicate(HEAD_DUPLICATE_INITIAL);
+    setHeadAadhaarDuplicate(HEAD_DUPLICATE_INITIAL);
+    setHeadNameDuplicate(HEAD_DUPLICATE_INITIAL);
+    setRegistrationCheckInProgress(false);
   };
 
   const startStaffCashCamera = async () => {
@@ -730,9 +746,6 @@ export function useAyushCardApplicationForm({
     } catch (apiErr) {
       clearInterval(ticker);
       setOcrStatusMessage("");
-      if (!isOcrApiUnavailableError(apiErr)) {
-        toastWarn(getOcrApiErrorMessage(apiErr));
-      }
       throw apiErr;
     }
   };
@@ -751,9 +764,6 @@ export function useAyushCardApplicationForm({
     } catch (apiErr) {
       clearInterval(ticker);
       setBackOcrStatusMessage("");
-      if (!isOcrApiUnavailableError(apiErr)) {
-        toastWarn(getOcrApiErrorMessage(apiErr));
-      }
       throw apiErr;
     }
   };
@@ -781,51 +791,53 @@ export function useAyushCardApplicationForm({
     return true;
   };
 
+  const persistAadhaarBackPreview = async (dataUrl, fileMeta) => {
+    let storageBase64 = dataUrl;
+    try {
+      storageBase64 = await compressBase64Image(dataUrl, 1200, 1200, 0.7);
+    } catch {
+      /* keep original */
+    }
+    const fileData = fileMeta || {
+      name: "aadhaar_back.jpg",
+      size: "Live Capture",
+    };
+    setDocAadhaarBack({
+      ...fileData,
+      url: storageBase64,
+      base64: storageBase64,
+    });
+  };
+
   const processAadhaarBackOcrFromImage = async (
-    blob,
-    base64,
+    input,
     fileMeta = null,
     ocrOptions = {},
   ) => {
     setBackOcrLoading(true);
     setBackOcrProgress(0);
+    let prepared = null;
+    let previewDataUrl = ocrOptions.previewDataUrl || null;
+
     try {
-      let ocrBlob = blob;
-      if (!ocrOptions.preprocessed) {
-        try {
-          const optimized = await optimizeImageForOcr(blob, {
-            maxWidth: 1400,
-            maxHeight: 1400,
-            quality: 0.85,
-          });
-          ocrBlob = optimized.blob;
-          ocrOptions = { ...ocrOptions, preprocessed: true };
-        } catch {
-          /* use original file */
-        }
+      if (ocrOptions.preprocessed && input instanceof Blob) {
+        prepared = {
+          file: toOcrFile(input, "aadhaar_back.jpg"),
+          dataUrl: previewDataUrl,
+        };
+      } else {
+        prepared = await prepareOcrUploadFile(input, {
+          filename: "aadhaar_back.jpg",
+        });
+        previewDataUrl = prepared.dataUrl;
       }
-      const results = await runBackOcrForImage(ocrBlob, (p) =>
+
+      const results = await runBackOcrForImage(prepared.file, (p) =>
         setBackOcrProgress(p),
       );
       const filled = applyAadhaarBackOcrResults(results);
 
-      let storageBase64 = base64;
-      try {
-        storageBase64 = await compressBase64Image(base64, 1200, 1200, 0.7);
-      } catch {
-        /* keep original */
-      }
-
-      const fileData = fileMeta || {
-        name: "aadhaar_back.jpg",
-        size: "Live Capture",
-      };
-
-      setDocAadhaarBack({
-        ...fileData,
-        url: storageBase64,
-        base64: storageBase64,
-      });
+      await persistAadhaarBackPreview(previewDataUrl, fileMeta);
 
       if (filled && results?.valid) {
         toastSuccess("Address and pincode extracted from Aadhaar back.");
@@ -834,13 +846,14 @@ export function useAyushCardApplicationForm({
       }
     } catch (err) {
       console.error("Aadhaar back OCR error:", err);
-      toastWarn("Could not scan Aadhaar back. Image saved — enter address manually.");
-      setDocAadhaarBack({
-        name: fileMeta?.name || "aadhaar_back.jpg",
-        size: fileMeta?.size || "Live Capture",
-        url: base64,
-        base64: base64,
-      });
+      const ocrMsg = getOcrApiErrorMessage(err);
+      if (previewDataUrl) {
+        await persistAadhaarBackPreview(previewDataUrl, fileMeta);
+        toastError(ocrMsg);
+        toastWarn("Image saved — OCR failed. Enter address manually.");
+      } else {
+        toastError(ocrMsg);
+      }
     } finally {
       setBackOcrLoading(false);
       setBackOcrProgress(0);
@@ -881,29 +894,25 @@ export function useAyushCardApplicationForm({
     }
 
     stopAadhaarBackCamera();
-    await processAadhaarBackOcrFromImage(captureBlob, optimized.dataUrl, null, {
+    await processAadhaarBackOcrFromImage(captureBlob, null, {
       preprocessed: true,
+      previewDataUrl: optimized.dataUrl,
     });
   };
 
   const handleAadhaarBackScanImage = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
+    if (file.size > OCR_MAX_UPLOAD_BYTES) {
       toastWarn("Image size should be less than 5MB");
-      e.target.value = "";
       return;
     }
 
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      await processAadhaarBackOcrFromImage(file, reader.result, {
-        name: file.name,
-        size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
-      });
-      e.target.value = "";
-    };
-    reader.readAsDataURL(file);
+    await processAadhaarBackOcrFromImage(file, {
+      name: file.name,
+      size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
+    });
   };
 
   const startDocBackCamera = async () => {
@@ -1022,69 +1031,79 @@ export function useAyushCardApplicationForm({
   };
 
   const handleScanImage = async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toastWarn("Image size should be less than 5MB");
-        e.target.value = "";
-        return;
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > OCR_MAX_UPLOAD_BYTES) {
+      toastWarn("Image size should be less than 5MB");
+      return;
+    }
+
+    setOcrLoading(true);
+    setOcrProgress(0);
+    let prepared = null;
+
+    try {
+      prepared = await prepareOcrUploadFile(file, {
+        filename: "aadhaar_front.jpg",
+      });
+
+      const results = await runFrontOcrForImage(prepared.file, (p) =>
+        setOcrProgress(p),
+      );
+
+      let compressedBase64 = prepared.dataUrl;
+      try {
+        compressedBase64 = await compressBase64Image(
+          prepared.dataUrl,
+          1200,
+          1200,
+          0.7,
+        );
+      } catch (err) {
+        console.warn("Compression failed for gallery image", err);
       }
 
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64 = reader.result;
-        setOcrLoading(true);
-        setOcrProgress(0);
+      setDocFront({
+        name: file.name,
+        size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
+        url: prepared.dataUrl,
+        base64: compressedBase64,
+      });
 
+      if (applyFrontOcrToFamilyHead(results)) {
+        toastSuccess("Aadhaar details extracted successfully.");
+      }
+    } catch (err) {
+      console.error("Front gallery OCR failed", err);
+      const ocrMsg = getOcrApiErrorMessage(err);
+      if (prepared?.dataUrl) {
+        let compressedBase64 = prepared.dataUrl;
         try {
-          let ocrBlob = file;
-          try {
-            const optimized = await optimizeImageForOcr(file, {
-              maxWidth: 1400,
-              maxHeight: 1400,
-              quality: 0.85,
-            });
-            ocrBlob = optimized.blob;
-          } catch {
-            /* use original file */
-          }
-
-          const results = await runFrontOcrForImage(ocrBlob, (p) =>
-            setOcrProgress(p),
+          compressedBase64 = await compressBase64Image(
+            prepared.dataUrl,
+            1200,
+            1200,
+            0.7,
           );
-
-          let compressedBase64 = base64;
-          try {
-            compressedBase64 = await compressBase64Image(
-              base64,
-              1200,
-              1200,
-              0.7,
-            );
-          } catch (err) {
-            console.warn("Compression failed for gallery image", err);
-          }
-
-          setDocFront({
-            name: file.name,
-            size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
-            url: URL.createObjectURL(file),
-            base64: compressedBase64,
-          });
-
-          if (applyFrontOcrToFamilyHead(results)) {
-            toastSuccess("Aadhaar details extracted successfully.");
-          }
-        } catch (err) {
-          console.error("OCR failed", err);
-          toastWarn(AADHAAR_OCR_LOW_CONFIDENCE_MSG);
-        } finally {
-          setOcrLoading(false);
-          setOcrProgress(0);
-          e.target.value = "";
+        } catch {
+          /* keep */
         }
-      };
-      reader.readAsDataURL(file);
+        setDocFront({
+          name: file.name,
+          size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
+          url: prepared.dataUrl,
+          base64: compressedBase64,
+        });
+        toastError(ocrMsg);
+        toastWarn("Image saved — OCR failed. Enter Aadhaar details manually.");
+      } else {
+        toastError(ocrMsg);
+      }
+    } finally {
+      setOcrLoading(false);
+      setOcrProgress(0);
+      setOcrStatusMessage("");
     }
   };
 
@@ -1252,6 +1271,37 @@ export function useAyushCardApplicationForm({
       clearTimeout(t);
     };
   }, [familyHead.fullName]);
+
+  const applyRegistrationCheckResults = ({
+    phoneCheck,
+    aadhaarCheck,
+    nameCheck,
+  }) => {
+    setHeadPhoneDuplicate(phoneCheck);
+    setHeadAadhaarDuplicate(aadhaarCheck);
+    setHeadNameDuplicate(nameCheck);
+  };
+
+  /** Server-side uniqueness check — run before payment and before final create. */
+  const ensureRegistrationValid = async () => {
+    setRegistrationCheckInProgress(true);
+    try {
+      const result = await runRegistrationDuplicateChecks(familyHead);
+      applyRegistrationCheckResults(result);
+      if (!result.valid) {
+        result.errors.forEach((msg) => toastWarn(msg));
+        return false;
+      }
+      return true;
+    } finally {
+      setRegistrationCheckInProgress(false);
+    }
+  };
+
+  const registrationBlocked = hasBlockingDuplicateFromState(
+    headPhoneDuplicate,
+    headAadhaarDuplicate,
+  );
 
   const handleMemberChange = (index, e) => {
     let { name, value } = e.target;
@@ -1827,6 +1877,9 @@ export function useAyushCardApplicationForm({
   };
 
   const submitFinalApplication = async (resolvedTxnId = null) => {
+    if (submissionCompletedRef.current) return;
+    if (!(await ensureRegistrationValid())) return;
+
     const finalTxnId = resolvedTxnId || txnId || `MANUAL-${Date.now()}`;
 
     // Build the API payload
@@ -1936,18 +1989,29 @@ export function useAyushCardApplicationForm({
       setSubmitting(true);
       const apiRes = await apiService.submitCardApplication(payload);
       const created = extractCreatedCardRecord(apiRes);
+      submissionCompletedRef.current = true;
       setSubmissionReceipt(created);
       if (created?.applicationId) {
         setApplicationId(String(created.applicationId));
       }
       setCurrentStep(successStep);
+      toastSuccess("Ayush card application submitted successfully.");
     } catch (err) {
       console.error("Card application submission error:", err);
       const errMsg = err.response?.data?.message || err.message || "";
+      const isDuplicate = /already exists|duplicate|registered/i.test(errMsg);
 
-      if (errMsg.toLowerCase().includes("already exists")) {
-        toastWarn(
-          "Card already exists for this applicant. Receipt can be printed only after a new card is created.",
+      if (isDuplicate) {
+        await ensureRegistrationValid();
+        const payNote = finalTxnId
+          ? ` Payment reference: ${finalTxnId}. Contact support if payment was deducted.`
+          : "";
+        toastError(
+          (errMsg.includes("phone")
+            ? "Phone number already exists."
+            : errMsg.includes("aadhaar")
+              ? "Aadhaar number already registered."
+              : errMsg) + payNote,
         );
         return;
       }
@@ -2056,6 +2120,9 @@ export function useAyushCardApplicationForm({
   };
 
   const submitStaffApplication = async () => {
+    if (submissionCompletedRef.current) return;
+    if (!(await ensureRegistrationValid())) return;
+
     const payload = buildStaffHealthCardPayload();
     try {
       setSubmitting(true);
@@ -2066,6 +2133,7 @@ export function useAyushCardApplicationForm({
         apiRes = await apiService.createHealthCard(payload);
       }
       const created = extractCreatedCardRecord(apiRes);
+      submissionCompletedRef.current = true;
       setSubmissionReceipt(created);
       if (created?.applicationId) {
         setApplicationId(String(created.applicationId));
@@ -2075,9 +2143,19 @@ export function useAyushCardApplicationForm({
     } catch (err) {
       console.error("Staff card create error:", err);
       const errMsg = err.response?.data?.message || err.message || "";
-      if (errMsg.toLowerCase().includes("already exists")) {
-        toastWarn(
-          "Card already exists for this applicant. Receipt can be printed only after a new card is created.",
+      const isDuplicate = /already exists|duplicate|registered/i.test(errMsg);
+      if (isDuplicate) {
+        await ensureRegistrationValid();
+        const payNote =
+          staffPaymentMode === "online" && txnId
+            ? ` Payment reference: ${txnId}. Contact support if payment was deducted.`
+            : "";
+        toastError(
+          (errMsg.includes("phone")
+            ? "Phone number already exists."
+            : errMsg.includes("aadhaar")
+              ? "Aadhaar number already registered."
+              : errMsg) + payNote,
         );
         return;
       }
@@ -2088,6 +2166,14 @@ export function useAyushCardApplicationForm({
   };
 
   const handleInitiateCashfreePayment = async () => {
+    if (registrationBlocked || registrationCheckInProgress) {
+      toastWarn(
+        "This phone number or Aadhaar is already registered. Update details before paying.",
+      );
+      return;
+    }
+    if (!(await ensureRegistrationValid())) return;
+
     setOnlinePaymentLoading(true);
     setSaveError("");
     try {
@@ -2263,6 +2349,16 @@ export function useAyushCardApplicationForm({
         return;
       }
 
+      if (headPhoneDuplicate.exists === true) {
+        toastWarn("Phone number already exists.");
+        return;
+      }
+      if (headAadhaarDuplicate.exists === true) {
+        toastWarn("Aadhaar number already registered.");
+        return;
+      }
+      if (!(await ensureRegistrationValid())) return;
+
       // Logic to auto redirect to Member 1 on Step 3 if we add a member
       if (members.length > 0) {
         setActiveMemberTab(1);
@@ -2301,15 +2397,19 @@ export function useAyushCardApplicationForm({
         toastWarn("Please accept the declaration before continuing.");
         return;
       }
-    }
 
-    if (skipPayment && currentStep === 3) {
-      await submitStaffApplication();
-      return;
+      if (skipPayment) {
+        await submitStaffApplication();
+        return;
+      }
+
+      if (!(await ensureRegistrationValid())) return;
     }
 
     // Step 4: payment + submit
     if (!skipPayment && currentStep === 4) {
+      if (!(await ensureRegistrationValid())) return;
+
       if (staffPaymentFlow) {
         if (!staffPaymentMode) {
           toastWarn("Choose offline/cash or online payment.");
@@ -2449,6 +2549,7 @@ export function useAyushCardApplicationForm({
     handleMemberScanImage, submitFinalApplication, buildStaffHealthCardPayload,
     submitStaffApplication, handleInitiateCashfreePayment, handleVerifyCashfreePayment,
     handleNext, handleBack, cardPreviewData, renderHeadDuplicateHint,
+    registrationCheckInProgress, registrationBlocked, ensureRegistrationValid,
     thermalPaymentLabel, thermalPaymentRef, hasPrintableReceipt,
     captureHeadPhoto, stopHeadCamera, startHeadCamera,
     startCamera, stopCamera, capturePhoto, startAadhaarBackCamera, stopAadhaarBackCamera,
