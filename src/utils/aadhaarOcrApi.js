@@ -10,11 +10,33 @@ function unwrapApiBody(body) {
   return body;
 }
 
+/** HTML date inputs require YYYY-MM-DD; OCR API often returns DD/MM/YYYY. */
+export function normalizeOcrDobForDateInput(dob) {
+  const s = String(dob || "").trim();
+  if (!s) return "";
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+  const slashOrDash = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (slashOrDash) {
+    const [, day, month, year] = slashOrDash;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  const ymd = s.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
+  if (ymd) {
+    const [, year, month, day] = ymd;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  return "";
+}
+
 export function mapFrontOcrApiResponse(raw) {
   const data = unwrapApiBody(raw);
   const aadhaarNumber = String(data.aadhaarNumber || "").replace(/\D/g, "");
   const name = String(data.name || "").trim();
-  const dob = String(data.dob || "").trim();
+  const dob = normalizeOcrDobForDateInput(data.dob);
   const gender = String(data.gender || "").trim();
   const hasAll =
     aadhaarNumber.length === 12 && !!name && !!dob && !!gender;

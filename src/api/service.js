@@ -319,6 +319,14 @@ const apiService = {
         return response.data;
     },
 
+    /** Pending / unverified applications only (Ayush Card Applications list) */
+    getApplicationHealthCards: async (params = {}) => {
+        const response = await api.get('/api/cards', {
+            params: { ...params, status: 'pending' },
+        });
+        return response.data;
+    },
+
     // GET /api/cards/employee/:employeeId?page=&limit=&search=
     getHealthCardsByEmployee: async (employeeId, params = {}) => {
         const response = await api.get(`/api/cards/employee/${encodeURIComponent(employeeId)}`, { params });

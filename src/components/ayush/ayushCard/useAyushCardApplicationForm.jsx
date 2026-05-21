@@ -8,6 +8,7 @@ import {
 } from "../../../utils/ocr";
 import {
   mapFrontOcrApiResponse,
+  normalizeOcrDobForDateInput,
   mapBackOcrApiResponse,
   getOcrApiErrorMessage,
   isOcrApiUnavailableError,
@@ -1569,7 +1570,7 @@ export function useAyushCardApplicationForm({
           : "";
 
     const nextGender = results.gender || "";
-    const nextDob = results.dob || "";
+    const nextDob = normalizeOcrDobForDateInput(results.dob) || results.dob || "";
 
     if (results.source === "api") {
       if (!nextAadhaar && !nextName) {

@@ -204,6 +204,10 @@ export default function ExportPrintModal({ isOpen, onClose, selectedData, onExpo
       buildGridPdf([imgs], `Batch_${currentChunkIndex + 1}_${side.toUpperCase()}_Cards_${s}-${e}.pdf`);
       setDownloadedCount((p) => p + 1);
       toastSuccess(`${side === "front" ? "Front" : "Back"} sheet downloaded!`);
+      if (markPrintedOnDownload) {
+        await markAsPrinted();
+        if (onExportSuccess) onExportSuccess();
+      }
     } catch (err) {
       console.error("[ExportModal]", err);
       toastError("PDF failed: " + (err?.message || "Unknown error. Check console."));
@@ -226,6 +230,10 @@ export default function ExportPrintModal({ isOpen, onClose, selectedData, onExpo
       );
       setDownloadedCount((p) => p + 1);
       toastSuccess("Front & back PDF downloaded!");
+      if (markPrintedOnDownload) {
+        await markAsPrinted();
+        if (onExportSuccess) onExportSuccess();
+      }
     } catch (err) {
       console.error("[ExportModal]", err);
       toastError("PDF failed: " + (err?.message || "Unknown error. Check console."));
