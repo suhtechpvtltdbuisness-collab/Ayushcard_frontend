@@ -105,9 +105,7 @@ export default function ExportedCards() {
       if (search) params.search = search;
       const res = await apiService.getPrintedCards(params);
       const { raw, total, pages } = parseHealthCardsResponse(res);
-      const exportedOnly = raw
-        .map(normalizeHealthCard)
-        .filter(isExportedCard);
+      const exportedOnly = raw.map(normalizeHealthCard);
       setHealthCards(exportedOnly);
       setTotalItems(Number(total));
       setTotalPages(Number(pages ?? (Math.ceil(total / itemsPerPage) || 1)));
@@ -298,7 +296,7 @@ export default function ExportedCards() {
                         {row.phone}
                       </td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] text-center">
-                          {row.totalMembers ?? ((row.members?.length || 0) + 1)}
+                        {row.totalMembers ?? ((row.members?.length || 0) + 1)}
                       </td>
                       <td className="py-3 px-4 text-sm font-normal text-[#22333B] text-right whitespace-nowrap">
                         ₹{Number(row.payment?.totalPaid || 0).toFixed(2)}

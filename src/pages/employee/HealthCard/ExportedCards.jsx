@@ -99,7 +99,7 @@ export default function ExportedCards() {
       if (search) params.search = search;
       const res = await apiService.getPrintedCards(params);
       const { raw, total, pages } = parseHealthCardsResponse(res);
-      const exportedOnly = raw.map(normalizeHealthCard).filter(isExportedCard);
+      const exportedOnly = raw.map(normalizeHealthCard);
       setHealthCards(exportedOnly);
       setTotalItems(Number(total));
       setTotalPages(Number(pages ?? (Math.ceil(total / itemsPerPage) || 1)));

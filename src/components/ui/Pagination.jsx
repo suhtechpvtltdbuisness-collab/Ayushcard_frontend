@@ -66,11 +66,10 @@ const Pagination = ({
           key={page}
           type="button"
           onClick={() => handlePageChange(page)}
-          className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition-all ${
-            currentPage === page
+          className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition-all ${currentPage === page
               ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm transform scale-105"
               : "text-[#4B5563] hover:bg-orange-50 hover:text-[#F68E5F]"
-          }`}
+            }`}
         >
           {page}
         </button>
@@ -94,14 +93,13 @@ const Pagination = ({
               mobile={true}
             />
           </div>
-          
+
           <div className="flex items-center gap-3">
             <button
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage <= 1}
-              className={`p-1 flex items-center justify-center rounded-md ${
-                currentPage <= 1 ? "text-gray-300" : "text-[#4B5563] bg-gray-50 active:bg-gray-200"
-              }`}
+              className={`p-1 flex items-center justify-center rounded-md ${currentPage <= 1 ? "text-gray-300" : "text-[#4B5563] bg-gray-50 active:bg-gray-200"
+                }`}
             >
               <ChevronLeft size={18} />
             </button>
@@ -111,15 +109,14 @@ const Pagination = ({
             <button
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage >= totalPages}
-              className={`p-1 flex items-center justify-center rounded-md ${
-                currentPage >= totalPages ? "text-gray-300" : "text-[#4B5563] bg-gray-50 active:bg-gray-200"
-              }`}
+              className={`p-1 flex items-center justify-center rounded-md ${currentPage >= totalPages ? "text-gray-300" : "text-[#4B5563] bg-gray-50 active:bg-gray-200"
+                }`}
             >
               <ChevronRight size={18} />
             </button>
           </div>
         </div>
-        
+
         <div className="flex justify-center w-full">
           <span className="text-xs font-medium text-[#6B7280]">
             Showing <span className="text-[#22333B]">{totalItems > 0 ? startIndex + 1 : 0}</span> to{" "}
@@ -153,11 +150,10 @@ const Pagination = ({
         <button
           onClick={() => handlePageChange(currentPage - 1)}
           disabled={currentPage <= 1}
-          className={`px-3 py-1.5 flex items-center gap-1 rounded-lg transition-all ${
-            currentPage <= 1
+          className={`px-3 py-1.5 flex items-center gap-1 rounded-lg transition-all ${currentPage <= 1
               ? "text-gray-300 cursor-not-allowed"
               : "text-[#4B5563] hover:bg-gray-100 hover:text-[#F68E5F]"
-          }`}
+            }`}
           title="Previous Page"
         >
           <ChevronLeft size={20} />
@@ -171,11 +167,10 @@ const Pagination = ({
         <button
           onClick={() => handlePageChange(currentPage + 1)}
           disabled={currentPage >= totalPages}
-          className={`px-3 py-1.5 flex items-center gap-1 rounded-lg transition-all ${
-            currentPage >= totalPages
+          className={`px-3 py-1.5 flex items-center gap-1 rounded-lg transition-all ${currentPage >= totalPages
               ? "text-gray-300 cursor-not-allowed"
               : "text-[#4B5563] hover:bg-gray-100 hover:text-[#F68E5F]"
-          }`}
+            }`}
           title="Next Page"
         >
           <span className="hidden xl:inline text-sm font-semibold pl-1">Next</span>
@@ -193,9 +188,8 @@ const CustomSelect = ({ value, onChange, options, mobile = false }) => {
     <div className="relative inline-block text-left">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`bg-[#F9FAFB] border border-[#E5E7EB] text-[#374151] font-medium rounded-md focus:ring-1 focus:ring-[#F68E5F] focus:border-[#F68E5F] outline-none cursor-pointer flex items-center justify-between gap-1 hover:bg-gray-50 transition-colors ${
-          mobile ? "text-xs px-1.5 py-1 min-w-[50px]" : "text-sm px-2.5 py-1.5 min-w-[60px]"
-        }`}
+        className={`bg-[#F9FAFB] border border-[#E5E7EB] text-[#374151] font-medium rounded-md focus:ring-1 focus:ring-[#F68E5F] focus:border-[#F68E5F] outline-none cursor-pointer flex items-center justify-between gap-1 hover:bg-gray-50 transition-colors ${mobile ? "text-xs px-1.5 py-1 min-w-[50px]" : "text-sm px-2.5 py-1.5 min-w-[60px]"
+          }`}
       >
         <span>{value}</span>
         <ChevronDown size={mobile ? 12 : 14} className="text-gray-500" />
@@ -212,9 +206,8 @@ const CustomSelect = ({ value, onChange, options, mobile = false }) => {
                   onChange(Number(opt));
                   setIsOpen(false);
                 }}
-                className={`px-3 py-1.5 text-xs md:text-sm cursor-pointer hover:bg-orange-50 transition-colors ${
-                  value === opt ? "bg-orange-50 text-[#F68E5F] font-bold" : "text-gray-700 font-medium"
-                }`}
+                className={`px-3 py-1.5 text-xs md:text-sm cursor-pointer hover:bg-orange-50 transition-colors ${value === opt ? "bg-orange-50 text-[#F68E5F] font-bold" : "text-gray-700 font-medium"
+                  }`}
               >
                 {opt}
               </div>

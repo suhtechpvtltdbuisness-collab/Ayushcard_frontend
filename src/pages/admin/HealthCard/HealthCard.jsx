@@ -39,6 +39,8 @@ const StatusBadge = ({ status, onStatusChange, isLoading }) => {
     case "Verified":
     case "approved":
     case "active":
+    case "Exported":
+    case "exported":
       bg = "bg-[#76DB1E33]";
       dot = "bg-[#76DB1E]";
       text = "text-[#76DB1E]";
@@ -107,8 +109,8 @@ const ActionButtons = ({ item, navigate, onDelete }) => {
           })
         }
         className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${isExpired
-            ? "bg-[#F68E5F] text-white hover:bg-[#ff7535]"
-            : "bg-[#2C2C2C] text-[#FFFCFB] hover:bg-[#1F2937]"
+          ? "bg-[#F68E5F] text-white hover:bg-[#ff7535]"
+          : "bg-[#2C2C2C] text-[#FFFCFB] hover:bg-[#1F2937]"
           }`}
       >
         {isExpired ? "Renew" : "Edit"}
@@ -174,7 +176,7 @@ const HealthCard = () => {
 
   useEffect(() => {
     fetchCards();
-  }, [currentPage, itemsPerPage, search, location.key]);
+  }, [currentPage, itemsPerPage, search, activeFilter, location.key]);
 
   const fetchCards = async () => {
     try {
@@ -185,21 +187,25 @@ const HealthCard = () => {
         limit: itemsPerPage,
       };
       if (search) params.search = search;
+      if (activeFilter === "Not Verified") {
+        params.status = "pending";
+      } else if (activeFilter === "Verified") {
+        params.status = "approved";
+      } else if (activeFilter === "Exported") {
+        params.status = "exported";
+      } else if (activeFilter === "Rejected") {
+        params.status = "rejected";
+      } else if (activeFilter === "Expired") {
+        params.status = "expired";
+      }
+
       const res = await apiService.getHealthCards(params);
       const { raw, total, pages } = parseHealthCardsResponse(res);
-      const applicationsOnly = raw
-        .map(normalizeHealthCard)
-        .filter(isApplicationCard);
+      const allCards = raw.map(normalizeHealthCard);
 
-      setHealthCards(applicationsOnly);
-
-      if (applicationsOnly.length === raw.length) {
-        setTotalItems(Number(total));
-        setTotalPages(Number(pages ?? (Math.ceil(total / itemsPerPage) || 1)));
-      } else {
-        setTotalItems(applicationsOnly.length);
-        setTotalPages(Math.max(1, Math.ceil(applicationsOnly.length / itemsPerPage)));
-      }
+      setHealthCards(allCards);
+      setTotalItems(Number(total));
+      setTotalPages(Number(pages ?? (Math.ceil(total / itemsPerPage) || 1)));
     } catch (err) {
       console.error(
         "[HealthCard] GET /api/cards failed:",
@@ -283,12 +289,7 @@ const HealthCard = () => {
   };
 
   const processedData = useMemo(() => {
-    let result = [...healthCards].filter((item) => {
-      const status = item.status || "";
-
-      if (activeFilter === "All") return true;
-      return status.toLowerCase() === activeFilter.toLowerCase();
-    });
+    let result = [...healthCards];
 
     if (sortConfig.key) {
       result.sort((a, b) => {
@@ -325,7 +326,7 @@ const HealthCard = () => {
     }
 
     return result;
-  }, [healthCards, activeFilter, sortConfig]);
+  }, [healthCards, sortConfig]);
 
   // totalPages is now managed via state from backend response
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -452,8 +453,8 @@ const HealthCard = () => {
                   setCurrentPage(1);
                 }}
                 className={`px-3 sm:px-4 py-2 whitespace-nowrap text-[15px] rounded-lg text-sm font-medium transition-colors text-center shrink-0 ${activeFilter === filter
-                    ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
-                    : "text-[#6B7280] hover:text-[#22333B]"
+                  ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
+                  : "text-[#6B7280] hover:text-[#22333B]"
                   }`}
               >                {filter}
               </button>
@@ -592,10 +593,10 @@ const HealthCard = () => {
                         {formatCardCreatedAt(getCardCreatedAt(row))}
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
-                        <StatusBadge 
-                          status={row.status} 
+                        <StatusBadge
+                          status={row.status}
                           isLoading={statusUpdateLoading === row._id}
-                          onStatusChange={(newStatus) => handleStatusChange(row._id, newStatus)} 
+                          onStatusChange={(newStatus) => handleStatusChange(row._id, newStatus)}
                         />
                       </td>
                       <td className="py-3 px-4">

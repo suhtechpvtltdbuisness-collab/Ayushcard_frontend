@@ -121,9 +121,7 @@ export default function VerifiedCards() {
       if (search) params.search = search;
       const res = await apiService.getVerifiedNotPrintedCards(params);
       const { raw, total, pages } = parseHealthCardsResponse(res);
-      const verifiedOnly = raw
-        .map(normalizeHealthCard)
-        .filter(isVerifiedCard);
+      const verifiedOnly = raw.map(normalizeHealthCard);
       setHealthCards(verifiedOnly);
       setTotalItems(Number(total));
       setTotalPages(Number(pages ?? (Math.ceil(total / itemsPerPage) || 1)));

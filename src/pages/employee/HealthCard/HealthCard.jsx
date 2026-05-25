@@ -29,16 +29,24 @@ const StatusBadge = ({ status }) => {
 
   switch (status) {
     case "Not verified":
+    case "pending":
       bg = "bg-[#FFA10033]";
       dot = "bg-[#FFA100]";
       text = "text-[#FFA100]";
       break;
     case "Verified":
+    case "approved":
+    case "active":
+    case "Exported":
+    case "exported":
       bg = "bg-[#76DB1E33]";
       dot = "bg-[#76DB1E]";
       text = "text-[#76DB1E]";
       break;
     case "Expired":
+    case "expired":
+    case "Rejected":
+    case "rejected":
       bg = "bg-[#FF383C33]";
       dot = "bg-[#FF383C]";
       text = "text-[#FF383C]";
@@ -98,25 +106,50 @@ const HealthCard = () => {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput.trim());
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   useEffect(() => {
     fetchCards();
-  }, [location.key]);
+  }, [currentPage, itemsPerPage, search, activeFilter, location.key]);
 
   const fetchCards = async () => {
     try {
       setLoading(true);
       setFetchError("");
-      const res = await apiService.getHealthCards();
-      const { raw } = parseHealthCardsResponse(res);
-      const applicationsOnly = raw
-        .map(normalizeHealthCard)
-        .filter(isApplicationCard);
-      setHealthCards(applicationsOnly);
+      const params = {
+        page: currentPage,
+        limit: itemsPerPage,
+      };
+      if (search) params.search = search;
+      if (activeFilter === "Not Verified") {
+        params.status = "pending";
+      } else if (activeFilter === "Verified") {
+        params.status = "approved";
+      } else if (activeFilter === "Exported") {
+        params.status = "exported";
+      } else if (activeFilter === "Expired") {
+        params.status = "expired";
+      }
+      const res = await apiService.getHealthCards(params);
+      const { raw, total, pages } = parseHealthCardsResponse(res);
+      const allCards = raw.map(normalizeHealthCard);
+      setHealthCards(allCards);
+      setTotalItems(Number(total));
+      setTotalPages(Number(pages ?? (Math.ceil(total / itemsPerPage) || 1)));
     } catch (err) {
       console.error("[HealthCard] API fetch failed:", err);
       setFetchError("Could not load cards from server.");
@@ -134,23 +167,7 @@ const HealthCard = () => {
   };
 
   const processedData = useMemo(() => {
-    let result = [...healthCards].filter((item) => {
-      const applicant = (item.applicant || "").toLowerCase();
-      const id = (item.id || "").toLowerCase();
-      const phone = item.phone || "";
-      const status = item.status || "";
-      const query = searchQuery.toLowerCase();
-
-      const matchesSearch =
-        applicant.includes(query) ||
-        id.includes(query) ||
-        phone.includes(searchQuery);
-
-      if (activeFilter === "All") return matchesSearch;
-      return (
-        matchesSearch && status.toLowerCase() === activeFilter.toLowerCase()
-      );
-    });
+    let result = [...healthCards];
 
     if (sortConfig.key) {
       result.sort((a, b) => {
@@ -187,16 +204,12 @@ const HealthCard = () => {
     }
 
     return result;
-  }, [healthCards, searchQuery, activeFilter, sortConfig]);
+  }, [healthCards, sortConfig]);
 
-  const totalPages = Math.ceil(processedData.length / itemsPerPage) || 1;
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedData = processedData.slice(
-    startIndex,
-    startIndex + itemsPerPage,
-  );
+  const paginatedData = processedData;
 
-  const isFiltered = searchQuery !== "" || activeFilter !== "All";
+  const isFiltered = search !== "" || activeFilter !== "All";
 
   const renderSortableHeader = (
     title,
@@ -252,11 +265,8 @@ const HealthCard = () => {
             <input
               type="text"
               placeholder="Search by name, id, phone"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1);
-              }}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               className="w-full pl-4 pr-10 py-2.5 text-[16px] border border-[#E5E7EB] bg-white rounded-full text-sm placeholder:text-[#9CA3AF] shadow-sm focus:outline-none focus:ring-1 focus:ring-[#F68E5F] focus:border-[#F68E5F]"
             />
             <Search
@@ -277,11 +287,10 @@ const HealthCard = () => {
                   setActiveFilter(filter);
                   setCurrentPage(1);
                 }}
-                className={`px-3 sm:px-4 py-2 whitespace-nowrap text-[15px] rounded-lg text-sm font-medium transition-colors text-center ${
-                  activeFilter === filter
+                className={`px-3 sm:px-4 py-2 whitespace-nowrap text-[15px] rounded-lg text-sm font-medium transition-colors text-center ${activeFilter === filter
                     ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
                     : "text-[#6B7280] hover:text-[#22333B]"
-                }`}
+                  }`}
               >
                 {filter}
               </button>
@@ -442,7 +451,7 @@ const HealthCard = () => {
           setItemsPerPage(val);
           setCurrentPage(1);
         }}
-        totalItems={processedData.length}
+        totalItems={totalItems}
       />
     </div>
   );
