@@ -5,6 +5,7 @@ import apiService from "../../../api/service";
 import ExportPrintModal from "../../../components/admin/ExportPrintModal";
 import { useToast } from "../../../components/ui/Toast";
 import Pagination from "../../../components/ui/Pagination";
+import ThemedDatePicker from "../../../components/ui/ThemedDatePicker";
 import {
   normalizeHealthCard,
   isVerifiedCard,
@@ -90,6 +91,8 @@ export default function VerifiedCards() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState("");
 
+  const [createdAt, setCreatedAt] = useState("");
+
   const [itemsPerPage, setItemsPerPage] = useState(50);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -105,7 +108,7 @@ export default function VerifiedCards() {
 
   useEffect(() => {
     fetchCards();
-  }, [currentPage, itemsPerPage, search, location.key]);
+  }, [currentPage, itemsPerPage, search, createdAt, location.key]);
 
   useEffect(() => {
     setSelectedRows([]);
@@ -119,6 +122,8 @@ export default function VerifiedCards() {
         limit: itemsPerPage,
       };
       if (search) params.search = search;
+      if (createdAt) params.createdAt = createdAt;
+      params.sort = "createdAt";
       const res = await apiService.getVerifiedNotPrintedCards(params);
       const { raw, total, pages } = parseHealthCardsResponse(res);
       const verifiedOnly = raw.map(normalizeHealthCard);
@@ -218,7 +223,7 @@ export default function VerifiedCards() {
       </div>
 
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-4 shrink-0">
-        <div className="relative w-full xl:w-70">
+        <div className="relative w-full sm:max-w-[320px] lg:max-w-[300px]">
           <input
             type="text"
             placeholder="Search by name, id, phone"
@@ -231,6 +236,17 @@ export default function VerifiedCards() {
             className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1E1E1E] pointer-events-none"
           />
         </div>
+
+        <ThemedDatePicker
+          value={createdAt}
+          onChange={(iso) => {
+            setCreatedAt(iso);
+            setCurrentPage(1);
+            setSelectedRows([]);
+          }}
+          className="w-full sm:w-auto"
+          aria-label="Filter by created date"
+        />
       </div>
 
       <div className="bg-white border border-[#D9D9D9] rounded-2xl overflow-hidden flex flex-col flex-1 min-h-0">
