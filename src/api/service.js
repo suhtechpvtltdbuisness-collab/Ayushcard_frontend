@@ -32,6 +32,67 @@ const ocrApi = axios.create({
     timeout: 120000,
 });
 
+// ─── IN-FLIGHT GET DEDUPE (prevents StrictMode double-fetch in dev) ─────────
+
+const inFlightGet = new Map();
+const recentGet = new Map();
+const RECENT_GET_TTL_MS = 500;
+
+function sortForStableStringify(value) {
+    if (value == null) return value;
+    if (value instanceof Date) return value.toISOString();
+    if (Array.isArray(value)) return value.map(sortForStableStringify);
+    if (typeof value === 'object') {
+        const out = {};
+        for (const key of Object.keys(value).sort()) {
+            const v = value[key];
+            if (v === undefined) continue;
+            out[key] = sortForStableStringify(v);
+        }
+        return out;
+    }
+    return value;
+}
+
+function stableStringify(value) {
+    try {
+        return JSON.stringify(sortForStableStringify(value));
+    } catch {
+        return String(value);
+    }
+}
+
+async function dedupedGetJson(instanceName, instance, url, config = {}) {
+    const paramsKey = stableStringify(config?.params || {});
+    const key = `${instanceName}|GET|${url}|${paramsKey}`;
+
+    if (config?.dedupe === false) {
+        const response = await instance.get(url, config);
+        return response.data;
+    }
+
+    const cached = recentGet.get(key);
+    if (cached && Date.now() - cached.ts < RECENT_GET_TTL_MS) {
+        return cached.data;
+    }
+
+    if (inFlightGet.has(key)) return inFlightGet.get(key);
+
+    const promise = instance
+        .get(url, config)
+        .then((response) => {
+            const data = response.data;
+            recentGet.set(key, { ts: Date.now(), data });
+            return data;
+        })
+        .finally(() => {
+            inFlightGet.delete(key);
+        });
+
+    inFlightGet.set(key, promise);
+    return promise;
+}
+
 /** Normalize GET /api/cards/check/* envelope: { data: { exists, cardId } } or flat { exists } */
 function normalizeCardCheckResponse(body) {
     if (!body || typeof body !== 'object') return null;
@@ -295,17 +356,16 @@ const apiService = {
 
     // GET /api/users/profile
     getProfile: async () => {
-        const response = await api.get('/api/users/profile');
+        const data = await dedupedGetJson('api', api, '/api/users/profile');
         if (import.meta.env.DEV) {
-            console.log('[getProfile] raw response:', response.data);
+            console.log('[getProfile] raw response:', data);
         }
-        return response.data;
+        return data;
     },
 
     // GET /api/users
     getEmployees: async (params = {}) => {
-        const response = await api.get('/api/users', { params });
-        return response.data;
+        return dedupedGetJson('api', api, '/api/users', { params });
     },
 
     // POST /api/users
@@ -322,8 +382,7 @@ const apiService = {
 
     // GET /api/users/:id
     getEmployeeById: async (id) => {
-        const response = await api.get(`/api/users/${id}`);
-        return response.data;
+        return dedupedGetJson('api', api, `/api/users/${id}`);
     },
 
     // DELETE /api/users/:id
@@ -367,34 +426,34 @@ const apiService = {
 
     // GET /api/cards
     getHealthCards: async (params = {}) => {
-        const response = await api.get('/api/cards', { params });
-        return response.data;
+        return dedupedGetJson('api', api, '/api/cards', { params });
     },
 
     /** Pending / unverified applications only (Ayush Card Applications list) */
     getApplicationHealthCards: async (params = {}) => {
-        const response = await api.get('/api/cards', {
+        return dedupedGetJson('api', api, '/api/cards', {
             params: { ...params, status: 'pending' },
         });
-        return response.data;
     },
 
     // GET /api/cards/employee/:employeeId?page=&limit=&search=
     getHealthCardsByEmployee: async (employeeId, params = {}) => {
-        const response = await api.get(`/api/cards/employee/${encodeURIComponent(employeeId)}`, { params });
-        return response.data;
+        return dedupedGetJson(
+            'api',
+            api,
+            `/api/cards/employee/${encodeURIComponent(employeeId)}`,
+            { params },
+        );
     },
 
     // GET /api/cards/:id
     getHealthCardById: async (id) => {
-        const response = await api.get(`/api/cards/${id}`);
-        return response.data;
+        return dedupedGetJson('api', api, `/api/cards/${id}`);
     },
 
     // GET /api/cards/card/:cardNo  (public QR verify lookup by card number)
     getHealthCardByCardNo: async (cardNo) => {
-        const response = await api.get(`/api/cards/card/${encodeURIComponent(cardNo)}`);
-        return response.data;
+        return dedupedGetJson('api', api, `/api/cards/card/${encodeURIComponent(cardNo)}`);
     },
 
     // PUT /api/cards/:id
@@ -430,8 +489,7 @@ const apiService = {
 
     // GET /api/cards/verified/not-printed
     getVerifiedNotPrintedCards: async (params = {}) => {
-        const response = await api.get('/api/cards/verified/not-printed', { params });
-        return response.data;
+        return dedupedGetJson('api', api, '/api/cards/verified/not-printed', { params });
     },
 
     // PUT /api/cards/print-status
@@ -442,18 +500,16 @@ const apiService = {
 
     // GET /api/cards/printed
     getPrintedCards: async (params = {}) => {
-        const response = await api.get('/api/cards/printed', {
+        return dedupedGetJson('api', api, '/api/cards/printed', {
             params: { ...params, allowDiskUse: true },
         });
-        return response.data;
     },
 
     // ─── CARD MEMBERS ─────────────────────────────────────────────────────
 
     // GET /api/card-members/card/:cardId
     getCardMembers: async (cardId) => {
-        const response = await api.get(`/api/card-members/card/${cardId}`);
-        return response.data;
+        return dedupedGetJson('api', api, `/api/card-members/card/${cardId}`);
     },
 
     // ─── ORGANIZATIONS ────────────────────────────────────────────────────
@@ -466,14 +522,12 @@ const apiService = {
 
     // GET /api/organizations
     getOrganizations: async (params = {}) => {
-        const response = await api.get('/api/organizations', { params });
-        return response.data;
+        return dedupedGetJson('api', api, '/api/organizations', { params });
     },
 
     // GET /api/organizations/:id
     getOrganizationById: async (id) => {
-        const response = await api.get(`/api/organizations/${id}`);
-        return response.data;
+        return dedupedGetJson('api', api, `/api/organizations/${id}`);
     },
 
     // PUT /api/organizations/:id
@@ -490,8 +544,7 @@ const apiService = {
 
     // GET /api/organizations/dashboard/stats
     getDashboardStats: async () => {
-        const response = await api.get('/api/organizations/dashboard/stats');
-        return response.data;
+        return dedupedGetJson('api', api, '/api/organizations/dashboard/stats');
     },
 
     // ─── DOCTORS ──────────────────────────────────────────────────────────
@@ -508,8 +561,7 @@ const apiService = {
         const url = organizationId
             ? `/api/doctors/organization/${organizationId}`
             : '/api/doctors';
-        const response = await api.get(url);
-        return response.data;
+        return dedupedGetJson('api', api, url);
     },
 
     // PUT /api/doctors/:id
@@ -542,30 +594,30 @@ const apiService = {
 
     /** GET /api/cards/check/phone?contact= — returns { exists, cardId } | null */
     checkCardPhoneExists: async (contact) => {
-        const response = await cardCheckApi.get('/api/cards/check/phone', {
+        const data = await dedupedGetJson('cardCheckApi', cardCheckApi, '/api/cards/check/phone', {
             params: { contact: String(contact).replace(/\D/g, '') },
         });
-        return normalizeCardCheckResponse(response.data);
+        return normalizeCardCheckResponse(data);
     },
 
     /** GET /api/cards/check/aadhaar?aadhaarNumber= */
     checkCardAadhaarExists: async (aadhaarNumber) => {
-        const response = await cardCheckApi.get('/api/cards/check/aadhaar', {
+        const data = await dedupedGetJson('cardCheckApi', cardCheckApi, '/api/cards/check/aadhaar', {
             params: { aadhaarNumber: String(aadhaarNumber).replace(/\D/g, '') },
         });
-        return normalizeCardCheckResponse(response.data);
+        return normalizeCardCheckResponse(data);
     },
 
     /** GET /api/cards/check/name?firstName=&middleName=&lastName= */
     checkCardNameExists: async ({ firstName = '', middleName = '', lastName = '' } = {}) => {
-        const response = await cardCheckApi.get('/api/cards/check/name', {
+        const data = await dedupedGetJson('cardCheckApi', cardCheckApi, '/api/cards/check/name', {
             params: {
                 firstName: firstName || '',
                 middleName: middleName || '',
                 lastName: lastName || '',
             },
         });
-        return normalizeCardCheckResponse(response.data);
+        return normalizeCardCheckResponse(data);
     },
 
     // ─── PUBLIC DONATION (home page) ──────────────────────────────
@@ -578,64 +630,54 @@ const apiService = {
 
     // GET /api/donations (authenticated)
     getDonations: async (params = {}) => {
-        const response = await api.get('/api/donations', { params });
-        return response.data;
+        return dedupedGetJson('api', api, '/api/donations', { params });
     },
 
     // ─── REPORTS ──────────────────────────────────────────────────────────
 
     // GET /api/reports/summary
     getReportsSummary: async () => {
-        const response = await api.get('/api/reports/summary');
-        return response.data;
+        return dedupedGetJson('api', api, '/api/reports/summary');
     },
 
     // GET /api/reports/monthly-trend
     getReportsMonthlyTrend: async () => {
-        const response = await api.get('/api/reports/monthly-trend');
-        return response.data;
+        return dedupedGetJson('api', api, '/api/reports/monthly-trend');
     },
 
     // GET /api/reports/cards/status
     getReportsCardsStatus: async () => {
-        const response = await api.get('/api/reports/cards/status');
-        return response.data;
+        return dedupedGetJson('api', api, '/api/reports/cards/status');
     },
 
     // GET /api/reports/cards/age-groups
     getReportsCardsAgeGroups: async () => {
-        const response = await api.get('/api/reports/cards/age-groups');
-        return response.data;
+        return dedupedGetJson('api', api, '/api/reports/cards/age-groups');
     },
 
     // GET /api/reports/cards/location
     getReportsCardsLocation: async () => {
-        const response = await api.get('/api/reports/cards/location');
-        return response.data;
+        return dedupedGetJson('api', api, '/api/reports/cards/location');
     },
 
     // GET /api/reports/employee-performance
     getReportsEmployeePerformance: async () => {
-        const response = await api.get('/api/reports/employee-performance');
-        return response.data;
+        return dedupedGetJson('api', api, '/api/reports/employee-performance');
     },
 
     // GET /api/reports/daily
     getReportsDaily: async (params = {}) => {
-        const response = await api.get('/api/reports/daily', { params });
-        return response.data;
+        return dedupedGetJson('api', api, '/api/reports/daily', { params });
     },
 
     // GET /api/reports/monthly
     getReportsMonthly: async (params = {}) => {
-        const response = await api.get('/api/reports/monthly', { params });
-        return response.data;
+        return dedupedGetJson('api', api, '/api/reports/monthly', { params });
     },
 
     // GET /api/reports/yearly
     getReportsYearly: async (params = {}) => {
-        const response = await api.get('/api/reports/yearly', { params });
-        return response.data;
+        return dedupedGetJson('api', api, '/api/reports/yearly', { params });
     },
 
     // ─── CAMPS ────────────────────────────────────────────────────────────
@@ -648,14 +690,12 @@ const apiService = {
 
     // GET /api/camps
     getCamps: async (params = {}) => {
-        const response = await api.get('/api/camps', { params });
-        return response.data;
+        return dedupedGetJson('api', api, '/api/camps', { params });
     },
 
     // GET /api/camps/:id
     getCampById: async (id) => {
-        const response = await api.get(`/api/camps/${id}`);
-        return response.data;
+        return dedupedGetJson('api', api, `/api/camps/${id}`);
     },
 
     // PUT /api/camps/:id
@@ -691,14 +731,12 @@ const apiService = {
     // GET /api/payments/verify/:orderId
     // Body (as params): { amount, customerName, customerEmail, customerPhone }
     verifyPayment: async (orderId, data = {}) => {
-        const response = await api.get(`/api/payments/verify/${orderId}`, { params: data });
-        return response.data;
+        return dedupedGetJson('api', api, `/api/payments/verify/${orderId}`, { params: data });
     },
 
     // GET /api/payments/verify/:orderId (public)
     verifyPublicPayment: async (orderId, data = {}) => {
-        const response = await publicApi.get(`/api/payments/verify/${orderId}`, { params: data });
-        return response.data;
+        return dedupedGetJson('publicApi', publicApi, `/api/payments/verify/${orderId}`, { params: data });
     },
 
     // POST /api/payments/webhook
@@ -723,14 +761,12 @@ const apiService = {
 
     // GET /api/attendance  (admin — all employees, filterable by date)
     getAttendance: async (params = {}) => {
-        const response = await api.get('/api/attendance', { params });
-        return response.data;
+        return dedupedGetJson('api', api, '/api/attendance', { params });
     },
 
     // GET /api/attendance/users/:id?date=&fromDate=&toDate=
     getUserAttendance: async (userId, params = {}) => {
-        const response = await api.get(`/api/attendance/users/${userId}`, { params });
-        return response.data;
+        return dedupedGetJson('api', api, `/api/attendance/users/${userId}`, { params });
     },
 
     // ─── AADHAAR OCR (multipart field `image`, JPEG File, auth required) ─────
