@@ -14,6 +14,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "../../../components/ui/Toast";
 import apiService from "../../../api/service";
 import Pagination from "../../../components/ui/Pagination";
+import ThemedDatePicker from "../../../components/ui/ThemedDatePicker";
 import {
   normalizeHealthCard,
   isApplicationCard,
@@ -108,6 +109,7 @@ const HealthCard = () => {
   const [activeFilter, setActiveFilter] = useState("All");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  const [createdAt, setCreatedAt] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -124,7 +126,7 @@ const HealthCard = () => {
 
   useEffect(() => {
     fetchCards();
-  }, [currentPage, itemsPerPage, search, activeFilter, location.key]);
+  }, [currentPage, itemsPerPage, search, activeFilter, createdAt, location.key]);
 
   const fetchCards = async () => {
     try {
@@ -135,6 +137,7 @@ const HealthCard = () => {
         limit: itemsPerPage,
       };
       if (search) params.search = search;
+      if (createdAt) params.createdAt = createdAt;
       if (activeFilter === "Not Verified") {
         params.status = "pending";
       } else if (activeFilter === "Verified") {
@@ -209,7 +212,7 @@ const HealthCard = () => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedData = processedData;
 
-  const isFiltered = search !== "" || activeFilter !== "All";
+  const isFiltered = search !== "" || activeFilter !== "All" || createdAt !== "";
 
   const renderSortableHeader = (
     title,
@@ -274,6 +277,16 @@ const HealthCard = () => {
               className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1E1E1E]"
             />
           </div>
+
+          <ThemedDatePicker
+            value={createdAt}
+            onChange={(iso) => {
+              setCreatedAt(iso);
+              setCurrentPage(1);
+            }}
+            className="w-full sm:w-auto"
+            aria-label="Filter by created date"
+          />
 
           {/* Status Tabs */}
           <div
