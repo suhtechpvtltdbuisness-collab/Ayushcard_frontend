@@ -23,6 +23,7 @@ import {
 } from "../../../utils/healthCardUtils";
 import { useToast } from "../../../components/ui/Toast";
 import Pagination from "../../../components/ui/Pagination";
+import ThemedDatePicker from "../../../components/ui/ThemedDatePicker";
 
 const StatusBadge = ({ status, onStatusChange, isLoading }) => {
   let bg = "";
@@ -161,6 +162,8 @@ const HealthCard = () => {
   const [deleteError, setDeleteError] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  const [createdAt, setCreatedAt] = useState("");
+
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -176,7 +179,7 @@ const HealthCard = () => {
 
   useEffect(() => {
     fetchCards();
-  }, [currentPage, itemsPerPage, search, activeFilter, location.key]);
+  }, [currentPage, itemsPerPage, search, activeFilter, createdAt, location.key]);
 
   const fetchCards = async () => {
     try {
@@ -187,6 +190,8 @@ const HealthCard = () => {
         limit: itemsPerPage,
       };
       if (search) params.search = search;
+      if (createdAt) params.createdAt = createdAt;
+      params.sort = "-createdAt";
       if (activeFilter === "Not Verified") {
         params.status = "pending";
       } else if (activeFilter === "Verified") {
@@ -426,7 +431,7 @@ const HealthCard = () => {
       <div className="flex items-center justify-between lg:flex-row flex-col gap-3 mb-4 shrink-0">
         <div className="flex items-stretch sm:items-center gap-3 sm:gap-4 flex-col sm:flex-row flex-wrap flex-1 lg:flex-nowrap w-full">
           {/* Search */}
-          <div className="relative w-full lg:max-w-[360px]">
+          <div className="relative w-full lg:max-w-[300px]">
             <input
               type="text"
               placeholder="Search by name, id, phone"
@@ -440,9 +445,21 @@ const HealthCard = () => {
             />
           </div>
 
+          {/* Date */}
+          <ThemedDatePicker
+            value={createdAt}
+            onChange={(iso) => {
+              setCreatedAt(iso);
+              setCurrentPage(1);
+              setSelectedRows([]);
+            }}
+            className="w-full lg:w-auto"
+            aria-label="Filter by created date"
+          />
+
           {/* Status Tabs */}
           <div
-            className="grid grid-cols-2 lg:flex lg:flex-nowrap gap-1.5 p-1.5 bg-[#F7F7F7] rounded-xl w-full lg:w-auto overflow-x-auto custom-scrollbar"
+            className="grid grid-cols-2 sm:grid-cols-4 lg:flex lg:flex-nowrap gap-1.5 p-1.5 bg-[#F7F7F7] rounded-xl w-full lg:w-auto"
             style={{ fontFamily: "ABeeZee, sans-serif" }}
           >
             {["All", "Not Verified", "Rejected", "Expired"].map((filter) => (
@@ -456,7 +473,8 @@ const HealthCard = () => {
                   ? "bg-[#F68E5F] text-[#FFFCFB] shadow-sm"
                   : "text-[#6B7280] hover:text-[#22333B]"
                   }`}
-              >                {filter}
+              >
+                {filter}
               </button>
             ))}
           </div>
