@@ -40,6 +40,7 @@ const normalizeCard = (card) => {
     phone: card.contact || "",
     pincode: card.pincode || "",
     totalMembers: totalCount,
+    profileImage: card.profilePic || "",
     members: Array.isArray(card.members)
       ? card.members
       : Array.from({ length: totalCount }, (_, i) => ({ id: i })),
