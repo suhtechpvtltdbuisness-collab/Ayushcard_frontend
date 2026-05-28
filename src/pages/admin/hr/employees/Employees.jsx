@@ -5,6 +5,7 @@ import { exportToCSV } from "../../../../utils/exportUtils";
 import apiService from "../../../../api/service";
 import { useToast } from "../../../../components/ui/Toast";
 import Pagination from "../../../../components/ui/Pagination";
+import ThemedDatePicker from "../../../../components/ui/ThemedDatePicker";
 
 import { getEmployees } from "../../../../data/mockData";
 import {
@@ -380,6 +381,7 @@ const Employees = () => {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [dateOfJoining, setDateOfJoining] = useState(""); // ISO: YYYY-MM-DD
   const [activeFilter, setActiveFilter] = useState("All"); // Keep for logic but UI removed
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
@@ -390,9 +392,19 @@ const Employees = () => {
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
+  const toIsoDate = (value) => {
+    if (!value) return "";
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) return "";
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, "0");
+    const d = String(dt.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+
   useEffect(() => {
     fetchEmployees();
-  }, [currentPage, itemsPerPage]);
+  }, [currentPage, itemsPerPage, dateOfJoining]);
 
   const fetchEmployees = async () => {
     try {
@@ -400,6 +412,7 @@ const Employees = () => {
       const res = await apiService.getEmployees({
         page: currentPage,
         limit: itemsPerPage,
+        ...(dateOfJoining ? { dateOfJoining } : {}),
       });
       const rawData = res.data || res;
 
@@ -414,6 +427,7 @@ const Employees = () => {
         phone: u.contact || "N/A",
         email: u.email || "N/A",
         dateOfJoining: u.dateOfJoining ? new Date(u.dateOfJoining).toLocaleDateString() : "N/A",
+        _dateOfJoiningISO: toIsoDate(u.dateOfJoining),
         location: u.location || "Unknown",
         pincode: u.pincode || "",
         status: u.status || "Verified",
@@ -475,8 +489,16 @@ const Employees = () => {
         item.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.phone.includes(searchQuery);
 
-      if (activeFilter === "All") return matchesSearch;
-      return matchesSearch && item.status.toLowerCase() === activeFilter.toLowerCase();
+      const matchesJoinDate = dateOfJoining
+        ? item?._dateOfJoiningISO === dateOfJoining
+        : true;
+
+      if (activeFilter === "All") return matchesSearch && matchesJoinDate;
+      return (
+        matchesSearch &&
+        matchesJoinDate &&
+        item.status.toLowerCase() === activeFilter.toLowerCase()
+      );
     });
 
     if (sortConfig.key) {
@@ -579,6 +601,16 @@ const Employees = () => {
             />
             <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1E1E1E]" />
           </div>
+
+          <ThemedDatePicker
+            value={dateOfJoining}
+            onChange={(iso) => {
+              setDateOfJoining(iso);
+              setCurrentPage(1);
+            }}
+            className="w-full sm:w-auto"
+            aria-label="Filter employees by joining date"
+          />
 
           {/* Filter Tabs Removed per user request */}
         </div>
