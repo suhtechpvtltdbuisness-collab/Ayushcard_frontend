@@ -256,20 +256,49 @@ const HealthCardDetails = () => {
     setSaveError("");
     try {
       const mongoId = formData._id || id;
-      const payload = formToApi(formData);
-      console.log("[HealthCardDetails] saving:", { mongoId, status: payload.status, file: pendingFile?.name });
+
+      // 1. Upload any base64 documents first
+      const uploadedDocs = await Promise.all(
+        (formData.documents || []).map(async (doc) => {
+          if (doc.path && doc.path.startsWith("data:")) {
+            try {
+              const res = await apiService.uploadBase64(doc.path, doc.name || "document.jpg", "card-documents");
+              return {
+                name: doc.name,
+                path: res.data?.path || res.data?.url || res.data || "",
+                type: doc.type || "supporting_document",
+              };
+            } catch (err) {
+              console.error("Failed to upload document", doc.name, err);
+              throw new Error(`Failed to upload ${doc.name || "document"}.`);
+            }
+          }
+          return {
+            name: doc.name,
+            path: doc.path,
+            type: doc.type || "supporting_document",
+          };
+        })
+      );
+
+      const payload = {
+        ...formToApi(formData),
+        documents: uploadedDocs,
+      };
+
+      console.log("[HealthCardDetails] saving:", { mongoId, status: payload.status });
 
       await Promise.all([
         // Status via PATCH
         apiService.updateHealthCardStatus(mongoId, payload.status),
-        // All other fields (+ document) via JSON PUT
-        apiService.updateHealthCard(mongoId, { ...payload, status: undefined }, pendingFile || null),
+        // All other fields (+ documents) via JSON PUT
+        apiService.updateHealthCard(mongoId, { ...payload, status: undefined }, null),
       ]);
 
       setPendingFile(null);
       setFormData((prev) => ({
         ...prev,
-        documents: (prev.documents || []).map((d) => ({ ...d, pending: false })),
+        documents: uploadedDocs.map((d) => ({ ...d, pending: false })),
       }));
       setIsEditing(false);
 
