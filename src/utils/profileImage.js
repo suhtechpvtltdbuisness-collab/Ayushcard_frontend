@@ -55,6 +55,16 @@ export function resolveProfileImageFromCard(card) {
   const profileDoc = findProfileDocument(card.documents);
   if (profileDoc) return profileDoc.path || profileDoc.url || "";
 
+  // Fallback if no explicit profile photo/family head photo is found
+  const docs = Array.isArray(card.documents) ? card.documents : [];
+  if (docs.length === 5) {
+    const doc = docs[3]; // 4th document
+    if (doc) return doc.path || doc.url || "";
+  } else if (docs.length === 4) {
+    const doc = docs[2]; // 3rd document
+    if (doc) return doc.path || doc.url || "";
+  }
+
   return "";
 }
 
