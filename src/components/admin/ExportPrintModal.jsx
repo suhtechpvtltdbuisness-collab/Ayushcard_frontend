@@ -6,6 +6,23 @@ import { captureAyushCardPreview } from "../../utils/ayushCardCapture";
 import { useToast } from "../ui/Toast";
 import apiService from "../../api/service";
 
+const prepareImageDataUrls = (imgs, side) => {
+  const padded = [...imgs];
+  while (padded.length < 25) {
+    padded.push(null);
+  }
+  if (side === "back") {
+    const reversed = [];
+    for (let r = 0; r < 5; r++) {
+      const row = padded.slice(r * 5, (r + 1) * 5);
+      row.reverse();
+      reversed.push(...row);
+    }
+    return reversed;
+  }
+  return padded;
+};
+
 const drawGridPage = (pdf, imageDataUrls) => {
   const PAGE_W = 457.2;
   const PAGE_H = 304.8;
@@ -21,28 +38,26 @@ const drawGridPage = (pdf, imageDataUrls) => {
   const startX = (PAGE_W - totalGridW) / 2;
   const startY = (PAGE_H - totalGridH) / 2;
 
-  imageDataUrls.forEach((img, idx) => {
-    const col = idx % COLS;
-    const row = Math.floor(idx / COLS);
-    const x = startX + col * (cardW + gapX);
-    const y = startY + row * (cardH + gapY);
-    pdf.addImage(img, "JPEG", x, y, cardW, cardH);
-  });
-
-  for (let i = imageDataUrls.length; i < COLS * ROWS; i++) {
+  for (let i = 0; i < COLS * ROWS; i++) {
     const col = i % COLS;
     const row = Math.floor(i / COLS);
     const x = startX + col * (cardW + gapX);
     const y = startY + row * (cardH + gapY);
-    pdf.setFillColor(248, 250, 252);
-    pdf.rect(x, y, cardW, cardH, "F");
+    const img = imageDataUrls[i];
+
+    if (img) {
+      pdf.addImage(img, "JPEG", x, y, cardW, cardH);
+    } else {
+      pdf.setFillColor(248, 250, 252);
+      pdf.rect(x, y, cardW, cardH, "F");
+    }
   }
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Build a grid PDF from up to 25 card images per page.
    Format: 12 x 18 inch landscape (457.2 x 304.8 mm) -> cards are exactly 88 x 54 mm.
-───────────────────────────────────────────────────────────────────────────── */
+ ───────────────────────────────────────────────────────────────────────────── */
 const buildGridPdf = (pages, filename) => {
   const PAGE_W = 457.2;
   const PAGE_H = 304.8;
@@ -59,41 +74,57 @@ const buildGridPdf = (pages, filename) => {
 
 /* ─────────────────────────────────────────────────────────────────────────────
    5×5 visible preview grid using tiny AyushCardPreview thumbnails
-───────────────────────────────────────────────────────────────────────────── */
-const PreviewGrid = ({ cards, side, total }) => (
-  <div className="flex-1 bg-white rounded border border-gray-200 p-2 overflow-hidden">
-    <div className="grid grid-cols-5 gap-1 w-full h-full">
-      {[...Array(25)].map((_, i) => {
-        const card  = cards[i];
-        const empty = i >= total;
-        return (
-          <div
-            key={i}
-            className={`relative rounded overflow-hidden border flex items-center justify-center ${
-              empty
-                ? "border-dashed border-gray-200 bg-gray-50 opacity-30"
-                : "border-gray-200 bg-gray-50"
-            }`}
-            style={{ minHeight: "80px" }}
-          >
-            {card && !empty && (
-              <div
-                style={{
-                  transform: "scale(0.12)",
-                  transformOrigin: "center",
-                  pointerEvents: "none",
-                  position: "absolute",
-                }}
-              >
-                <AyushCardPreview data={card} side={side} exportMode={true} />
-              </div>
-            )}
-          </div>
-        );
-      })}
+ ───────────────────────────────────────────────────────────────────────────── */
+const PreviewGrid = ({ cards, side, total }) => {
+  let displayCards = [...cards];
+  while (displayCards.length < 25) {
+    displayCards.push(null);
+  }
+
+  if (side === "back") {
+    const reversed = [];
+    for (let r = 0; r < 5; r++) {
+      const row = displayCards.slice(r * 5, (r + 1) * 5);
+      row.reverse();
+      reversed.push(...row);
+    }
+    displayCards = reversed;
+  }
+
+  return (
+    <div className="flex-1 bg-white rounded border border-gray-200 p-2 overflow-hidden">
+      <div className="grid grid-cols-5 gap-1 w-full h-full">
+        {displayCards.map((card, i) => {
+          const empty = !card;
+          return (
+            <div
+              key={i}
+              className={`relative rounded overflow-hidden border flex items-center justify-center ${
+                empty
+                  ? "border-dashed border-gray-200 bg-gray-50 opacity-30"
+                  : "border-gray-200 bg-gray-50"
+              }`}
+              style={{ minHeight: "80px" }}
+            >
+              {card && (
+                <div
+                  style={{
+                    transform: "scale(0.12)",
+                    transformOrigin: "center",
+                    pointerEvents: "none",
+                    position: "absolute",
+                  }}
+                >
+                  <AyushCardPreview data={card} side={side} exportMode={true} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Main Modal
@@ -144,7 +175,8 @@ export default function ExportPrintModal({ isOpen, onClose, selectedData, onExpo
       setProgress("Building PDF…");
       const s = currentChunkIndex * 25 + 1;
       const e = Math.min((currentChunkIndex + 1) * 25, selectedData.length);
-      buildGridPdf([imgs], `Batch_${currentChunkIndex + 1}_${side.toUpperCase()}_Cards_${s}-${e}.pdf`);
+      const finalImgs = prepareImageDataUrls(imgs, side);
+      buildGridPdf([finalImgs], `Batch_${currentChunkIndex + 1}_${side.toUpperCase()}_Cards_${s}-${e}.pdf`);
       setDownloadedCount((p) => p + 1);
       toastSuccess(`${side === "front" ? "Front" : "Back"} sheet downloaded!`);
       if (markPrintedOnDownload) {
@@ -167,8 +199,10 @@ export default function ExportPrintModal({ isOpen, onClose, selectedData, onExpo
       const s = currentChunkIndex * 25 + 1;
       const e = Math.min((currentChunkIndex + 1) * 25, selectedData.length);
       setProgress("Building PDF…");
+      const finalFront = prepareImageDataUrls(frontImgs, "front");
+      const finalBack  = prepareImageDataUrls(backImgs, "back");
       buildGridPdf(
-        [frontImgs, backImgs],
+        [finalFront, finalBack],
         `Batch_${currentChunkIndex + 1}_Cards_${s}-${e}.pdf`,
       );
       setDownloadedCount((p) => p + 1);
@@ -194,7 +228,9 @@ export default function ExportPrintModal({ isOpen, onClose, selectedData, onExpo
         const s = ci * 25 + 1;
         const e = Math.min((ci + 1) * 25, selectedData.length);
         setProgress(`Saving Batch ${ci + 1} PDF…`);
-        buildGridPdf([frontImgs, backImgs], `Batch_${ci + 1}_Cards_${s}-${e}.pdf`);
+        const finalFront = prepareImageDataUrls(frontImgs, "front");
+        const finalBack  = prepareImageDataUrls(backImgs, "back");
+        buildGridPdf([finalFront, finalBack], `Batch_${ci + 1}_Cards_${s}-${e}.pdf`);
         setDownloadedCount((p) => p + 1);
       }
       // After successful completion of all batches, update print status in backend (if enabled)
