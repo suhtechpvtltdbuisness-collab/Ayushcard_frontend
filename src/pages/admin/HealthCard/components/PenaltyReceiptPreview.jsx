@@ -13,7 +13,7 @@ const PenaltyReceiptPreview = ({ card, receiptRecord }) => {
           <img src={LOGO_BASE64} alt="BKBS Logo" className="h-10 w-auto object-contain" />
         </div>
         <h2 className="text-sm font-extrabold underline text-center" style={{ fontFamily: "serif" }}>
-          Penelty Recept
+          Penalty Recept
         </h2>
       </div>
 
@@ -42,7 +42,7 @@ const PenaltyReceiptPreview = ({ card, receiptRecord }) => {
 
       {/* Penalty Box */}
       <div className="text-center font-black text-[11px] my-3 border-t border-b border-black py-2">
-        Penelty Amount :- Rs. {PENALTY_AMOUNT}.00
+        Penalty Amount :- Rs. {PENALTY_AMOUNT}.00
       </div>
 
       {/* Payment Method if present */}
