@@ -254,7 +254,7 @@ const PenaltyReceiptPreview = ({ card, receiptRecord }) => {
 
 // ─── STAT TILE ────────────────────────────────────────────────────────────────
 const StatTile = ({ icon: Icon, label, value, color, bg }) => (
-  <div className={`rounded-xl border ${bg} p-4 flex items-center gap-3 shadow-sm`}>
+  <div className={`rounded-xl border ${bg} p-4 flex items-center gap-3 shadow-sm flex-1 shrink-0 min-w-[170px] sm:min-w-0`}>
     <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
       <Icon size={18} />
     </div>
@@ -612,37 +612,39 @@ const DuplicateReceiptModal = ({ card, onClose, onIssued }) => {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-gray-100 flex items-center gap-3 shrink-0">
+        <div className="px-5 py-4 border-t border-gray-100 flex flex-wrap sm:flex-nowrap items-center gap-2.5 shrink-0">
           {step === 1 && (
             <>
-              <button onClick={onClose} className="flex-1 py-2 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
-              <button onClick={() => setStep(2)} className="flex-1 py-2 bg-[#F68E5F] text-white rounded-xl text-xs font-black hover:bg-[#ff7637] transition-colors flex items-center justify-center gap-1.5">
+              <button onClick={onClose} className="flex-1 py-2 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 bg-white hover:bg-gray-50 transition-colors">Cancel</button>
+              <button onClick={() => setStep(2)} className="flex-1 py-2 bg-[#F68E5F] text-white rounded-xl text-xs font-black hover:bg-[#ff7637] transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap">
                 Proceed to Payment <ChevronRight size={13} />
               </button>
             </>
           )}
           {step === 2 && (
             <>
-              <button onClick={() => setStep(1)} className="flex items-center gap-1 py-2 px-3 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors">
+              <button onClick={() => setStep(1)} className="flex items-center gap-1 py-2 px-3 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 bg-white hover:bg-gray-50 transition-colors whitespace-nowrap">
                 <ChevronLeft size={13} /> Back
               </button>
-              <button onClick={handleGenerate} className="flex-1 py-2 bg-[#F68E5F] text-white rounded-xl text-xs font-black hover:bg-[#ff7637] transition-colors flex items-center justify-center gap-1.5">
+              <button onClick={handleGenerate} className="flex-1 py-2 bg-[#F68E5F] text-white rounded-xl text-xs font-black hover:bg-[#ff7637] transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap">
                 Generate Receipt <ChevronRight size={13} />
               </button>
             </>
           )}
           {step === 3 && (
-            <>
-              <button onClick={handleSaveAndClose} className="py-2 px-4 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors">
+            <div className="flex flex-col sm:flex-row w-full gap-2">
+              <button onClick={handleSaveAndClose} className="w-full sm:w-auto py-2 px-4 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 bg-white hover:bg-gray-50 transition-colors text-center whitespace-nowrap">
                 {isPrinted ? "Close" : "Save & Close"}
               </button>
-              <button onClick={handlePrint} className="flex-1 py-2 bg-[#22333B] text-white rounded-xl text-xs font-black hover:bg-[#1a2830] transition-colors flex items-center justify-center gap-1.5">
-                <Printer size={13} /> Print
-              </button>
-              <button onClick={handleRawBtPrint} className="flex-1 py-2 bg-[#F68E5F] text-white rounded-xl text-xs font-black hover:bg-[#ff7637] transition-colors flex items-center justify-center gap-1.5">
-                RawBT Print
-              </button>
-            </>
+              <div className="flex flex-1 gap-2 w-full">
+                <button onClick={handlePrint} className="flex-1 py-2 bg-[#22333B] text-white rounded-xl text-xs font-black hover:bg-[#1a2830] transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap">
+                  <Printer size={13} /> Print
+                </button>
+                <button onClick={handleRawBtPrint} className="flex-1 py-2 bg-[#F68E5F] text-white rounded-xl text-xs font-black hover:bg-[#ff7637] transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap">
+                  RawBT Print
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -807,14 +809,16 @@ const ViewPenaltyModal = ({ record, onClose }) => {
         <div className="flex-1 overflow-y-auto bg-gray-50 p-5 flex justify-center">
           <PenaltyReceiptPreview card={record.card} receiptRecord={record} />
         </div>
-        <div className="px-5 py-4 border-t border-gray-100 flex gap-2 shrink-0">
-          <button onClick={onClose} className="py-2 px-4 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50">Close</button>
-          <button onClick={handlePrint} className="flex-1 py-2 bg-[#22333B] text-white rounded-xl text-xs font-black hover:bg-[#1a2830] flex items-center justify-center gap-1.5">
-            <Printer size={13} /> Print
-          </button>
-          <button onClick={handleRawBtPrint} className="flex-1 py-2 bg-[#F68E5F] text-white rounded-xl text-xs font-black hover:bg-[#ff7637] flex items-center justify-center gap-1.5">
-            RawBT Print
-          </button>
+        <div className="px-5 py-4 border-t border-gray-100 flex flex-col sm:flex-row items-center gap-2 shrink-0 w-full">
+          <button onClick={onClose} className="w-full sm:w-auto py-2 px-4 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 bg-white hover:bg-gray-50 text-center whitespace-nowrap">Close</button>
+          <div className="flex flex-1 gap-2 w-full">
+            <button onClick={handlePrint} className="flex-1 py-2 bg-[#22333B] text-white rounded-xl text-xs font-black hover:bg-[#1a2830] flex items-center justify-center gap-1.5 whitespace-nowrap">
+              <Printer size={13} /> Print
+            </button>
+            <button onClick={handleRawBtPrint} className="flex-1 py-2 bg-[#F68E5F] text-white rounded-xl text-xs font-black hover:bg-[#ff7637] flex items-center justify-center gap-1.5 whitespace-nowrap">
+              RawBT Print
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -947,24 +951,61 @@ const AyushVitran = () => {
   const fetchEmployeesList = useCallback(async () => {
     setLoading(true);
     try {
+      // 1. Fetch employees list
       const res = await apiService.getEmployees({ page: currentPage, limit: itemsPerPage });
       const rawData = res.data || res;
       let list = Array.isArray(rawData) ? rawData : [];
       if (!list.length && rawData?.data && Array.isArray(rawData.data)) list = rawData.data;
       if (!list.length && rawData?.users && Array.isArray(rawData.users)) list = rawData.users;
       if (!list.length && rawData?.employees && Array.isArray(rawData.employees)) list = rawData.employees;
+      
+      // 2. Fetch employee performance for actual card counts
+      let performanceMap = {};
+      try {
+        const perfRes = await apiService.getReportsEmployeePerformance();
+        const perfData = perfRes?.data || perfRes || [];
+        if (Array.isArray(perfData)) {
+          perfData.forEach(p => {
+            const count = Number(p.cardsIssued || p.count || p.totalCards || 0);
+            if (p.employeeId) {
+              performanceMap[p.employeeId.toString().toLowerCase()] = count;
+            }
+            if (p.name) {
+              performanceMap[p.name.toString().toLowerCase()] = count;
+            }
+            if (p._id) {
+              performanceMap[p._id.toString().toLowerCase()] = count;
+            }
+          });
+        }
+      } catch (perfErr) {
+        console.warn("[AyushVitran] Failed to fetch employee performance for card counts:", perfErr);
+      }
+
       const todayStr = getFormattedCurrentDate();
       if (list && list.length > 0) {
-        const mapped = list.map((u, i) => ({
-          id: u.employeeId || u._id || `EMP-${2000 + i}`,
-          name: u.name || "Unknown Staff",
-          email: u.email || "N/A",
-          date: todayStr,
-          location: u.location || "Mangla Vihar",
-          totalCards: ((u.name || "").length * 4 + i * 9) % 50 + 35,
-          pincode: u.pincode || "208015",
-          _rawId: u._id,
-        }));
+        const mapped = list.map((u, i) => {
+          const rawId = u._id ? u._id.toString().toLowerCase() : "";
+          const empId = u.employeeId ? u.employeeId.toString().toLowerCase() : "";
+          const userName = u.name ? u.name.toString().toLowerCase() : "";
+
+          // Fetch correct count from API mapping or fallback
+          const totalCards = performanceMap[rawId] 
+            || performanceMap[empId] 
+            || performanceMap[userName] 
+            || Number(u.totalCards || u.cardsCount || u.cardsIssued || 0);
+
+          return {
+            id: u.employeeId || u._id || `EMP-${2000 + i}`,
+            name: u.name || "Unknown Staff",
+            email: u.email || "N/A",
+            date: todayStr,
+            location: u.location || "Mangla Vihar",
+            totalCards,
+            pincode: u.pincode || "208015",
+            _rawId: u._id,
+          };
+        });
         setEmployees(mapped);
         setTotalItems(mapped.length);
         setTotalPages(Math.ceil(mapped.length / itemsPerPage) || 1);
@@ -1221,10 +1262,10 @@ const AyushVitran = () => {
 
       {/* Tabs */}
       {userRole !== "Employee" && (
-        <div className="flex items-center gap-1 mb-4 bg-gray-100 p-1 rounded-xl shrink-0 no-print w-fit">
+        <div className="flex items-center gap-1 mb-4 bg-gray-100 p-1 rounded-xl shrink-0 no-print w-full sm:w-fit overflow-x-auto scrollbar-none flex-nowrap">
           {TABS.map(({ id, label, Icon }) => (
             <button key={id} onClick={() => setActiveTab(id)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all shrink-0
                 ${activeTab === id ? "bg-white text-[#22333B] shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
               <Icon size={13} />
               {label}
@@ -1236,13 +1277,13 @@ const AyushVitran = () => {
       {/* ═══ TAB 1: EMPLOYEE LIST ═══ */}
       {(userRole === "Employee" || activeTab === "employees") && userRole !== "Employee" && (
         <>
-          <div className="flex items-center justify-between gap-4 mb-4 shrink-0 no-print">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 shrink-0 no-print">
             <div className="relative w-full sm:w-80">
               <input type="text" placeholder="Search by name, email, or ID..." value={empSearch} onChange={e => setEmpSearch(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-full placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#F68E5F] focus:border-[#F68E5F]" />
               <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
             </div>
-            <div className="text-xs text-gray-500 bg-white border border-gray-200 px-3 py-1.5 rounded-lg font-semibold shadow-sm flex items-center gap-1.5">
+            <div className="text-xs text-gray-500 bg-white border border-gray-200 px-3 py-1.5 rounded-lg font-semibold shadow-sm flex items-center gap-1.5 w-fit">
               <Calendar size={13} className="text-[#F68E5F]" />
               {getFormattedCurrentDate()}
             </div>
@@ -1270,21 +1311,21 @@ const AyushVitran = () => {
                   </thead>
                   <tbody className="text-sm">
                     {filteredEmployees.map((row, i) => (
-                      <tr key={row.id} className="border-b border-gray-50 hover:bg-orange-50/30 transition-colors">
-                        <td className="py-3.5 px-5 text-center font-mono text-xs text-gray-300 font-medium">{String(i + 1).padStart(2, "0")}</td>
-                        <td className="py-3.5 px-4 font-mono font-bold text-xs text-gray-500">{row.id}</td>
-                        <td className="py-3.5 px-4 whitespace-nowrap">
+                      <tr key={row.id} className="border-b border-[#F3F4F6] hover:bg-[#F9FAFB] transition-colors">
+                        <td className="py-3 px-5 text-center text-sm font-normal text-[#22333B]">{String(i + 1).padStart(2, "0")}</td>
+                        <td className="py-3 px-4 font-mono text-sm font-normal text-[#22333B] whitespace-nowrap">{row.id}</td>
+                        <td className="py-3 px-4 whitespace-nowrap">
                           <div className="flex items-center gap-2">
                             <div className="w-7 h-7 rounded-full bg-orange-100 text-[#F68E5F] flex items-center justify-center font-black text-xs uppercase">{row.name.charAt(0)}</div>
-                            <span className="font-bold text-[#22333B] text-sm">{row.name}</span>
+                            <span className="text-sm font-normal text-[#22333B]">{row.name}</span>
                           </div>
                         </td>
-                        <td className="py-3.5 px-4 text-gray-400 font-mono text-xs">{row.email}</td>
-                        <td className="py-3.5 px-4 text-center">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 border border-gray-100 text-xs font-medium text-gray-500">{row.date}</span>
+                        <td className="py-3 px-4 text-sm font-normal text-[#22333B] whitespace-nowrap">{row.email}</td>
+                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 border border-gray-100 text-xs font-normal text-[#22333B]">{row.date}</span>
                         </td>
-                        <td className="py-3.5 px-4 text-center font-mono font-black text-[#22333B]">{row.totalCards}</td>
-                        <td className="py-3.5 px-5 text-center">
+                        <td className="py-3 px-4 text-center text-sm font-normal text-[#22333B] whitespace-nowrap">{row.totalCards}</td>
+                        <td className="py-3 px-5 text-center">
                           <button onClick={() => setSelectedEmployee(row)}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-orange-50 text-[#F68E5F] border border-orange-100 hover:bg-[#F68E5F] hover:text-white transition-all shadow-sm">
                             <FileText size={12} /> Settlement
@@ -1338,7 +1379,7 @@ const AyushVitran = () => {
       {activeTab === "exported" && userRole !== "Employee" && (
         <div className="flex flex-col flex-1 min-h-0 no-print">
           {/* Stat tiles */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4 shrink-0">
+          <div className="flex overflow-x-auto scrollbar-none flex-nowrap sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4 pb-1 shrink-0 w-full">
             <StatTile icon={CreditCard} label="Total Exported" value={exportedTotalItems || exportedCards.length} color="bg-blue-100 text-blue-600" bg="bg-blue-50 border-blue-100" />
             <StatTile icon={Receipt} label="Dup. Receipts Issued" value={dupReceipts.length} color="bg-orange-100 text-[#F68E5F]" bg="bg-orange-50 border-orange-100" />
             <StatTile icon={Check} label="Payments Collected" value={`₹${paidCount * PENALTY_AMOUNT}`} color="bg-green-100 text-green-600" bg="bg-green-50 border-green-100" />
@@ -1347,30 +1388,32 @@ const AyushVitran = () => {
 
           {/* Filters */}
           <div className="flex flex-wrap items-center gap-3 mb-4 shrink-0">
-            <div className="relative flex-1 min-w-[180px]">
+            <div className="relative w-full sm:flex-1 sm:min-w-[180px]">
               <input type="text" placeholder="Search by card no., name, mobile, employee..."
                 value={cardSearch} onChange={e => setCardSearch(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#F68E5F] focus:border-[#F68E5F]" />
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             </div>
-            <select value={cardFilterEmployee} onChange={e => setCardFilterEmployee(e.target.value)}
-              className="text-xs border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#F68E5F] text-gray-600 bg-white">
-              <option value="">All Employees</option>
-              {uniqueEmployeesForFilter.map(emp => (
-                <option key={emp.id} value={emp.id}>{emp.name}</option>
-              ))}
-            </select>
-            <button onClick={fetchExportedCards} disabled={exportedLoading}
-              className="flex items-center gap-1 text-xs border border-gray-200 rounded-xl px-3 py-2 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50">
-              <RefreshCw size={12} className={exportedLoading ? "animate-spin text-[#F68E5F]" : ""} /> Refresh
-            </button>
-            {(cardSearch || cardFilterEmployee) && (
-              <button onClick={() => { setCardSearch(""); setCardFilterEmployee(""); }}
-                className="text-xs text-gray-400 hover:text-gray-600 px-2 py-2 border border-gray-200 rounded-xl bg-white flex items-center gap-1">
-                <X size={12} /> Clear
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <select value={cardFilterEmployee} onChange={e => setCardFilterEmployee(e.target.value)}
+                className="flex-1 sm:flex-initial text-xs border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#F68E5F] text-gray-600 bg-white">
+                <option value="">All Employees</option>
+                {uniqueEmployeesForFilter.map(emp => (
+                  <option key={emp.id} value={emp.id}>{emp.name}</option>
+                ))}
+              </select>
+              <button onClick={fetchExportedCards} disabled={exportedLoading}
+                className="shrink-0 flex items-center gap-1 text-xs border border-gray-200 rounded-xl px-3 py-2 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50">
+                <RefreshCw size={12} className={exportedLoading ? "animate-spin text-[#F68E5F]" : ""} /> Refresh
               </button>
-            )}
-            <span className="text-xs text-gray-400 font-semibold ml-auto">{exportedTotalItems > 0 ? `${exportedTotalItems} total` : `${filteredCards.length} cards`}</span>
+              {(cardSearch || cardFilterEmployee) && (
+                <button onClick={() => { setCardSearch(""); setCardFilterEmployee(""); }}
+                  className="shrink-0 text-xs text-gray-400 hover:text-gray-600 px-2 py-2 border border-gray-200 rounded-xl bg-white flex items-center gap-1">
+                  <X size={12} /> Clear
+                </button>
+              )}
+            </div>
+            <span className="text-xs text-gray-400 font-semibold sm:ml-auto w-full sm:w-auto text-right">{exportedTotalItems > 0 ? `${exportedTotalItems} total` : `${filteredCards.length} cards`}</span>
           </div>
 
           {/* Exported Cards Table */}
@@ -1445,29 +1488,29 @@ const AyushVitran = () => {
       {activeTab === "duplicates" && userRole !== "Employee" && (
         <div className="flex flex-col flex-1 min-h-0 no-print">
           {/* Mini stats */}
-          <div className="grid grid-cols-3 gap-3 mb-4 shrink-0">
+          <div className="flex overflow-x-auto scrollbar-none flex-nowrap sm:grid sm:grid-cols-3 gap-3 mb-4 pb-1 shrink-0 w-full">
             <StatTile icon={ClipboardList} label="Total Issued" value={dupReceipts.length} color="bg-purple-100 text-purple-600" bg="bg-purple-50 border-purple-100" />
             <StatTile icon={Check} label="Paid" value={paidCount} color="bg-green-100 text-green-600" bg="bg-green-50 border-green-100" />
             <StatTile icon={Clock} label="Pending" value={pendingCount} color="bg-amber-100 text-amber-600" bg="bg-amber-50 border-amber-100" />
           </div>
 
           {/* Filters */}
-          <div className="flex items-center gap-3 mb-4 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 mb-4 shrink-0">
             <select value={dupFilterStatus} onChange={e => setDupFilterStatus(e.target.value)}
-              className="text-xs border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#F68E5F] text-gray-600 bg-white">
+              className="flex-1 sm:flex-initial text-xs border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#F68E5F] text-gray-600 bg-white">
               <option value="">All Statuses</option>
               <option value="paid">Paid</option>
               <option value="pending">Pending</option>
             </select>
             <select value={dupFilterMethod} onChange={e => setDupFilterMethod(e.target.value)}
-              className="text-xs border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#F68E5F] text-gray-600 bg-white">
+              className="flex-1 sm:flex-initial text-xs border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#F68E5F] text-gray-600 bg-white">
               <option value="">All Methods</option>
               <option value="online">Online</option>
               <option value="offline">Offline (Cash)</option>
             </select>
             {(dupFilterStatus || dupFilterMethod) && (
               <button onClick={() => { setDupFilterStatus(""); setDupFilterMethod(""); }}
-                className="text-xs text-gray-400 hover:text-gray-600 px-2 py-2 border border-gray-200 rounded-xl bg-white flex items-center gap-1">
+                className="shrink-0 text-xs text-gray-400 hover:text-gray-600 px-2 py-2 border border-gray-200 rounded-xl bg-white flex items-center gap-1">
                 <X size={12} /> Clear
               </button>
             )}
@@ -1556,14 +1599,16 @@ const AyushVitran = () => {
             <div className="flex-1 overflow-y-auto bg-gray-100/50 p-6 flex items-start justify-center">
               <SettlementSlipPreview employee={selectedEmployee} date={getFormattedCurrentDate()} />
             </div>
-            <div className="px-5 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex items-center gap-2 shrink-0">
-              <button onClick={() => setSelectedEmployee(null)} className="px-4 py-2 border border-gray-200 rounded-lg text-xs font-semibold text-gray-600 bg-white hover:bg-gray-50 transition-colors">Close</button>
-              <button onClick={() => handlePrintSlip(selectedEmployee)} className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#22333B] text-white text-xs font-black rounded-lg hover:bg-[#1a2830] transition-all shadow-sm">
-                <Printer size={14} /> Print
-              </button>
-              <button onClick={() => handleRawBtPrintSlip(selectedEmployee)} className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#F68E5F] text-white text-xs font-black rounded-lg hover:bg-[#ff7637] transition-all shadow-sm">
-                RawBT Print
-              </button>
+            <div className="px-5 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex flex-col sm:flex-row items-center gap-2 shrink-0 w-full">
+              <button onClick={() => setSelectedEmployee(null)} className="w-full sm:w-auto px-4 py-2 border border-gray-200 rounded-lg text-xs font-semibold text-gray-600 bg-white hover:bg-gray-50 transition-colors text-center whitespace-nowrap">Close</button>
+              <div className="flex flex-1 gap-2 w-full">
+                <button onClick={() => handlePrintSlip(selectedEmployee)} className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#22333B] text-white text-xs font-black rounded-lg hover:bg-[#1a2830] transition-all shadow-sm whitespace-nowrap">
+                  <Printer size={14} /> Print
+                </button>
+                <button onClick={() => handleRawBtPrintSlip(selectedEmployee)} className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#F68E5F] text-white text-xs font-black rounded-lg hover:bg-[#ff7637] transition-all shadow-sm whitespace-nowrap">
+                  RawBT Print
+                </button>
+              </div>
             </div>
           </div>
         </div>
