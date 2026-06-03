@@ -33,7 +33,7 @@ const ViewPenaltyModal = ({ record, onClose }) => {
 </style></head><body>
 <div class="container">
   <div class="logo-circle"><img src="${LOGO_BASE64}" alt="Logo"/></div>
-  <div class="title">Penelty Recept</div>
+  <div class="title">Penalty Recept</div>
   <div class="trust-header">
     <div class="trust-name">Baijnaath Kesar Bai Sewa Trust</div>
     <div class="address-line">1-A Mangla Vihar New PAC Line</div>
@@ -48,7 +48,7 @@ const ViewPenaltyModal = ({ record, onClose }) => {
     <div class="field-row"><span><b>District :-</b> ${c?.district || "Kanpur Nagar"}</span></div>
     <div class="field-row"><span><b>Pin Code :-</b> ${c?.pincode || "208015"}</span><span><b>Total Member :-</b> ${c?.totalMember || 1}</span></div>
   </div>
-  <div class="penalty-box">Penelty Amount :- Rs. ${PENALTY_AMOUNT}.00</div>
+  <div class="penalty-box">Penalty Amount :- Rs. ${PENALTY_AMOUNT}.00</div>
   <div class="dup-info">
     Receipt No :- ${record.receiptNo}<br/>
     Payment Method :- ${record.paymentMethod === "online" ? "Online (UPI/Net Banking)" : "Offline (Cash)"}<br/>

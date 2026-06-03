@@ -46,7 +46,7 @@ const SettlementSlipPreview = ({ employee, date }) => {
           <tr className="border-b border-dashed border-gray-100"><td className="py-1.5">200 x {calc.off200} = {Number(calc.amt200).toFixed(2)}</td><td className="py-1.5 text-right">{calc.on200} = {Number(calc.onAmt200).toFixed(0)}</td></tr>
           <tr className="border-b border-dashed border-gray-100"><td className="py-1.5">240 x {calc.off240} = {Number(calc.amt240).toFixed(2)}</td><td className="py-1.5 text-right">{calc.on240} = {Number(calc.onAmt240).toFixed(0)}</td></tr>
           <tr className="border-b border-dashed border-gray-100"><td className="py-1.5">280 x {calc.off280} = {Number(calc.amt280).toFixed(2)}</td><td className="py-1.5 text-right">{calc.on280} = {Number(calc.onAmt280).toFixed(0)}</td></tr>
-          <tr className="border-b border-dashed border-gray-100"><td className="py-1.5">Penelty x {calc.penaltyCount} = {Number(calc.penaltyAmount).toFixed(2)}</td><td className="py-1.5 text-right">{calc.onPenaltyCount} = {Number(calc.onPenaltyAmount).toFixed(0)}</td></tr>
+          <tr className="border-b border-dashed border-gray-100"><td className="py-1.5">Penalty x {calc.penaltyCount} = {Number(calc.penaltyAmount).toFixed(2)}</td><td className="py-1.5 text-right">{calc.onPenaltyCount} = {Number(calc.onPenaltyAmount).toFixed(0)}</td></tr>
           <tr className="border-t border-black font-extrabold text-[10.5px]">
             <td className="py-2">Total = {calc.offlineCount} = {Number(calc.offlineTotalWithPenalty).toFixed(2)}</td>
             <td className="py-2 text-right">{calc.onlineCount} = {Number(calc.onlineTotalWithPenalty).toFixed(2)}</td>

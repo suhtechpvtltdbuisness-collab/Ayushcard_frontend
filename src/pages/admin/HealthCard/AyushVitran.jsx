@@ -300,7 +300,7 @@ const AyushVitran = () => {
   <div class="table-row"><span>200 x ${calc.off200} = ${Number(calc.amt200).toFixed(2)}</span><span>${calc.on200} = ${Number(calc.onAmt200).toFixed(0)}</span></div>
   <div class="table-row"><span>240 x ${calc.off240} = ${Number(calc.amt240).toFixed(2)}</span><span>${calc.on240} = ${Number(calc.onAmt240).toFixed(0)}</span></div>
   <div class="table-row"><span>280 x ${calc.off280} = ${Number(calc.amt280).toFixed(2)}</span><span>${calc.on280} = ${Number(calc.onAmt280).toFixed(0)}</span></div>
-  <div class="table-row"><span>Penelty x ${calc.penaltyCount} = ${Number(calc.penaltyAmount).toFixed(2)}</span><span>${calc.onPenaltyCount} = ${Number(calc.onPenaltyAmount).toFixed(0)}</span></div>
+  <div class="table-row"><span>Penalty x ${calc.penaltyCount} = ${Number(calc.penaltyAmount).toFixed(2)}</span><span>${calc.onPenaltyCount} = ${Number(calc.onPenaltyAmount).toFixed(0)}</span></div>
   <div class="table-total"><span>Total = ${calc.offlineCount} = ${Number(calc.offlineTotalWithPenalty).toFixed(2)}</span><span>${calc.onlineCount} = ${Number(calc.onlineTotalWithPenalty).toFixed(2)}</span></div>
   <div class="grand-total-box">
     <div class="grand-total-title">Calculated Revenue Equation</div>
@@ -371,7 +371,7 @@ const AyushVitran = () => {
   <div class="table-row"><span>200 x ${calc.off200} = ${Number(calc.amt200).toFixed(0)}</span><span>${calc.on200} = ${Number(calc.onAmt200).toFixed(0)}</span></div>
   <div class="table-row"><span>240 x ${calc.off240} = ${Number(calc.amt240).toFixed(0)}</span><span>${calc.on240} = ${Number(calc.onAmt240).toFixed(0)}</span></div>
   <div class="table-row"><span>280 x ${calc.off280} = ${Number(calc.amt280).toFixed(0)}</span><span>${calc.on280} = ${Number(calc.onAmt280).toFixed(0)}</span></div>
-  <div class="table-row"><span>Penelty x ${calc.penaltyCount} = ${Number(calc.penaltyAmount).toFixed(0)}</span><span>${calc.onPenaltyCount} = ${Number(calc.onPenaltyAmount).toFixed(0)}</span></div>
+  <div class="table-row"><span>Penalty x ${calc.penaltyCount} = ${Number(calc.penaltyAmount).toFixed(0)}</span><span>${calc.onPenaltyCount} = ${Number(calc.onPenaltyAmount).toFixed(0)}</span></div>
   <div class="table-total"><span>Total = ${calc.offlineCount} = ${Number(calc.offlineTotalWithPenalty).toFixed(0)}</span><span>${calc.onlineCount} = ${Number(calc.onlineTotalWithPenalty).toFixed(0)}</span></div>
   <div class="grand-total-box">
     <div class="grand-total-title">Calculated Revenue Equation</div>

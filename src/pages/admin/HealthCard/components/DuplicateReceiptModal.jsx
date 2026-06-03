@@ -74,7 +74,7 @@ const DuplicateReceiptModal = ({ card, onClose, onIssued }) => {
 </style></head><body>
 <div class="container">
   <div class="logo-circle"><img src="${LOGO_BASE64}" alt="Logo"/></div>
-  <div class="title">Penelty Recept</div>
+  <div class="title">Penalty Recept</div>
   <div class="trust-header">
     <div class="trust-name">Baijnaath Kesar Bai Sewa Trust</div>
     <div class="address-line">1-A Mangla Vihar New PAC Line</div>
