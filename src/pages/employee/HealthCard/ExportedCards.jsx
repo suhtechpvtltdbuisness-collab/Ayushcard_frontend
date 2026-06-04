@@ -95,7 +95,7 @@ export default function ExportedCards() {
   const fetchCards = async () => {
     try {
       setLoading(true);
-      const params = { page: currentPage, limit: itemsPerPage };
+      const params = { page: currentPage, limit: itemsPerPage, sort: "-createdAt" };
       if (search) params.search = search;
       const res = await apiService.getPrintedCards(params);
       const { raw, total, pages } = parseHealthCardsResponse(res);

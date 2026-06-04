@@ -162,3 +162,103 @@ export function normalizeHealthCard(card) {
     createdAt: getCardCreatedAt(card),
   };
 }
+
+export function resolveCreatedById(raw) {
+  if (!raw) return "";
+  if (typeof raw === "string") return raw;
+  return raw?._id || raw?.id || raw?.userId || "";
+}
+
+export function extractEmployeeFromResponse(res) {
+  if (!res || typeof res !== "object") return null;
+  const candidate =
+    res?.data?.user ||
+    res?.user ||
+    res?.data?.data?.user ||
+    res?.data?.data ||
+    res?.data ||
+    res;
+
+  if (
+    candidate &&
+    typeof candidate === "object" &&
+    !Array.isArray(candidate) &&
+    candidate.user &&
+    (candidate.user._id || candidate.user.employeeId || candidate.user.name)
+  ) {
+    return candidate.user;
+  }
+
+  if (
+    candidate &&
+    typeof candidate === "object" &&
+    !Array.isArray(candidate) &&
+    (candidate._id ||
+      candidate.employeeId ||
+      candidate.name ||
+      candidate.email ||
+      candidate.contact)
+  ) {
+    return candidate;
+  }
+
+  return null;
+}
+
+export function getEmployeeDisplayLabel(user, fallbackId = "") {
+  const name =
+    user?.name ||
+    [user?.firstName, user?.middleName, user?.lastName]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+  return (
+    name ||
+    user?.employeeId ||
+    user?.email ||
+    user?.contact ||
+    fallbackId ||
+    "—"
+  );
+}
+
+export function collectCreatedByIds(cards) {
+  return Array.from(
+    new Set(
+      (cards || [])
+        .map((c) => resolveCreatedById(c?.createdBy))
+        .filter(Boolean),
+    ),
+  );
+}
+
+export async function fetchCreatedByLabels(ids, getEmployeeById, existingMap = {}) {
+  const missing = (ids || []).filter((id) => !existingMap[id]);
+  if (missing.length === 0) return { ...existingMap };
+
+  const results = await Promise.all(
+    missing.map(async (id) => {
+      try {
+        const res = await getEmployeeById(String(id));
+        const user = extractEmployeeFromResponse(res);
+        return [id, getEmployeeDisplayLabel(user, String(id))];
+      } catch {
+        return [id, String(id)];
+      }
+    }),
+  );
+
+  const next = { ...existingMap };
+  for (const [id, label] of results) next[id] = label;
+  return next;
+}
+
+export function resolveCreatedByLabel(card, createdByMap = {}) {
+  const raw = card?.createdBy;
+  if (!raw) return "—";
+  if (typeof raw === "object" && raw != null) {
+    return getEmployeeDisplayLabel(raw, raw._id || "—");
+  }
+  const id = resolveCreatedById(raw);
+  return createdByMap[id] || "—";
+}

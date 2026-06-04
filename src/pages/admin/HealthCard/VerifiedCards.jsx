@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Search, Eye, Trash2, Plus, Loader2 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import apiService from "../../../api/service";
@@ -12,6 +12,10 @@ import {
   parseHealthCardsResponse,
   formatCardCreatedAt,
   getCardCreatedAt,
+  collectCreatedByIds,
+  fetchCreatedByLabels,
+  resolveCreatedByLabel,
+  resolveCreatedById,
 } from "../../../utils/healthCardUtils";
 
 const StatusBadge = ({ status }) => {
@@ -94,61 +98,7 @@ export default function VerifiedCards() {
   const [createdAt, setCreatedAt] = useState("");
 
   const [createdByMap, setCreatedByMap] = useState(() => ({}));
-
-  const extractEmployeeFromResponse = (res) => {
-    if (!res || typeof res !== "object") return null;
-    const candidate =
-      res?.data?.user ||
-      res?.user ||
-      res?.data?.data?.user ||
-      res?.data?.user ||
-      res?.data?.data ||
-      res?.data ||
-      res;
-
-    if (
-      candidate &&
-      typeof candidate === "object" &&
-      !Array.isArray(candidate) &&
-      candidate.user &&
-      (candidate.user._id || candidate.user.employeeId || candidate.user.name)
-    ) {
-      return candidate.user;
-    }
-
-    if (
-      candidate &&
-      typeof candidate === "object" &&
-      !Array.isArray(candidate) &&
-      (candidate._id || candidate.employeeId || candidate.name || candidate.email || candidate.contact)
-    ) {
-      return candidate;
-    }
-
-    return null;
-  };
-
-  const resolveCreatedById = (raw) => {
-    if (!raw) return "";
-    if (typeof raw === "string") return raw;
-    return raw?._id || raw?.id || raw?.userId || "";
-  };
-
-  const resolveCreatedByLabel = (card) => {
-    const raw = card?.createdBy;
-    if (!raw) return "—";
-    if (typeof raw === "object" && raw != null) {
-      const name =
-        raw.name ||
-        [raw.firstName, raw.middleName, raw.lastName]
-          .filter(Boolean)
-          .join(" ")
-          .trim();
-      return name || raw.employeeId || raw.email || raw.contact || raw._id || "—";
-    }
-    const id = resolveCreatedById(raw);
-    return createdByMap[id] || id || "—";
-  };
+  const createdByCacheRef = useRef({});
 
   const [itemsPerPage, setItemsPerPage] = useState(50);
   const [totalItems, setTotalItems] = useState(0);
@@ -168,56 +118,6 @@ export default function VerifiedCards() {
   }, [currentPage, itemsPerPage, search, createdAt, location.key]);
 
   useEffect(() => {
-    const ids = Array.from(
-      new Set(
-        (healthCards || [])
-          .map((c) => resolveCreatedById(c?.createdBy))
-          .filter(Boolean),
-      ),
-    );
-
-    const missing = ids.filter((id) => !createdByMap[id]);
-    if (missing.length === 0) return;
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const results = await Promise.all(
-          missing.map(async (id) => {
-            try {
-              const res = await apiService.getEmployeeById(String(id));
-              const user = extractEmployeeFromResponse(res);
-              const name =
-                user?.name ||
-                [user?.firstName, user?.middleName, user?.lastName]
-                  .filter(Boolean)
-                  .join(" ")
-                  .trim();
-              const label =
-                name || user?.employeeId || user?.email || user?.contact || String(id);
-              return [id, label];
-            } catch {
-              return [id, String(id)];
-            }
-          }),
-        );
-        if (cancelled) return;
-        setCreatedByMap((prev) => {
-          const next = { ...prev };
-          for (const [id, label] of results) next[id] = label;
-          return next;
-        });
-      } catch {
-        // ignore
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [healthCards, createdByMap]);
-
-  useEffect(() => {
     setSelectedRows([]);
   }, [currentPage, itemsPerPage]);
 
@@ -228,11 +128,20 @@ export default function VerifiedCards() {
         page: currentPage,
         limit: itemsPerPage,
       };
+      if (search) params.search = search;
       if (createdAt) params.createdAt = createdAt;
-      params.sort = "createdAt";
+      params.sort = "-createdAt";
       const res = await apiService.getVerifiedNotPrintedCards(params);
       const { raw, total, pages } = parseHealthCardsResponse(res);
       const verifiedOnly = raw.map(normalizeHealthCard);
+
+      const labels = await fetchCreatedByLabels(
+        collectCreatedByIds(verifiedOnly),
+        (id) => apiService.getEmployeeById(id),
+        createdByCacheRef.current,
+      );
+      createdByCacheRef.current = labels;
+      setCreatedByMap(labels);
       setHealthCards(verifiedOnly);
       setTotalItems(Number(total));
       setTotalPages(Number(pages ?? (Math.ceil(total / itemsPerPage) || 1)));
@@ -266,51 +175,8 @@ export default function VerifiedCards() {
     }
   };
 
-  const processedData = useMemo(() => {
-    const term = String(search || "").trim().toLowerCase();
-    if (!term) return healthCards;
-
-    const start = (currentPage - 1) * itemsPerPage;
-
-    const normalize = (v) => (v == null ? "" : String(v)).toLowerCase();
-
-    return (healthCards || []).filter((row, idx) => {
-      const srNo = start + idx + 1;
-      const membersCount = row.totalMembers ?? ((row.members?.length || 0) + 1);
-      const amountPaid = Number(row.payment?.totalPaid || 0);
-      const createdAtRaw = getCardCreatedAt(row);
-      const createdAtFormatted = formatCardCreatedAt(createdAtRaw);
-      const createdByLabel = resolveCreatedByLabel(row);
-      const createdById = resolveCreatedById(row?.createdBy);
-
-      const haystack = [
-        srNo,
-        row.id,
-        row.applicationId,
-        row.cardNo,
-        row._id,
-        row.applicant,
-        row.phone,
-        row.pincode,
-        row.address,
-        membersCount,
-        amountPaid,
-        `₹${amountPaid}`,
-        createdAtRaw,
-        createdAtFormatted,
-        createdByLabel,
-        createdById,
-      ]
-        .map(normalize)
-        .join(" |");
-
-      return haystack.includes(term);
-    });
-  }, [healthCards, search, currentPage, itemsPerPage, createdByMap]);
-
-  // totalPages is now managed via state from backend response
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedData = processedData;
+  const paginatedData = healthCards;
 
   const getCardKey = (card) =>
     String(card._id || card.applicationId || card.id || "");
@@ -516,7 +382,7 @@ export default function VerifiedCards() {
                         }
                       >
                         <div className="max-w-[180px] truncate">
-                          {resolveCreatedByLabel(row)}
+                          {resolveCreatedByLabel(row, createdByMap)}
                         </div>
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">

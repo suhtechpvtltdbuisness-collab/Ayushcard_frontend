@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Search,
   Plus,
@@ -20,6 +20,10 @@ import {
   parseHealthCardsResponse,
   formatCardCreatedAt,
   getCardCreatedAt,
+  collectCreatedByIds,
+  fetchCreatedByLabels,
+  resolveCreatedByLabel,
+  resolveCreatedById,
 } from "../../../utils/healthCardUtils";
 import { useToast } from "../../../components/ui/Toast";
 import Pagination from "../../../components/ui/Pagination";
@@ -178,65 +182,11 @@ const HealthCard = () => {
   const [createdAt, setCreatedAt] = useState("");
 
   const [createdByMap, setCreatedByMap] = useState(() => ({}));
-
-  const extractEmployeeFromResponse = (res) => {
-    if (!res || typeof res !== "object") return null;
-    const candidate =
-      res?.data?.user ||
-      res?.user ||
-      res?.data?.data?.user ||
-      res?.data?.user ||
-      res?.data?.data ||
-      res?.data ||
-      res;
-
-    if (
-      candidate &&
-      typeof candidate === "object" &&
-      !Array.isArray(candidate) &&
-      candidate.user &&
-      (candidate.user._id || candidate.user.employeeId || candidate.user.name)
-    ) {
-      return candidate.user;
-    }
-
-    if (
-      candidate &&
-      typeof candidate === "object" &&
-      !Array.isArray(candidate) &&
-      (candidate._id || candidate.employeeId || candidate.name || candidate.email || candidate.contact)
-    ) {
-      return candidate;
-    }
-
-    return null;
-  };
+  const createdByCacheRef = useRef({});
 
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-
-  const resolveCreatedById = (raw) => {
-    if (!raw) return "";
-    if (typeof raw === "string") return raw;
-    return raw?._id || raw?.id || raw?.userId || "";
-  };
-
-  const resolveCreatedByLabel = (card) => {
-    const raw = card?.createdBy;
-    if (!raw) return "—";
-    if (typeof raw === "object" && raw != null) {
-      const name =
-        raw.name ||
-        [raw.firstName, raw.middleName, raw.lastName]
-          .filter(Boolean)
-          .join(" ")
-          .trim();
-      return name || raw.employeeId || raw.email || raw.contact || raw._id || "—";
-    }
-    const id = resolveCreatedById(raw);
-    return createdByMap[id] || id || "—";
-  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -249,56 +199,7 @@ const HealthCard = () => {
 
   useEffect(() => {
     fetchCards();
-  }, [currentPage, itemsPerPage, search, activeFilter, createdAt, location.key]);
-
-  useEffect(() => {
-    const ids = Array.from(
-      new Set(
-        (healthCards || [])
-          .map((c) => resolveCreatedById(c?.createdBy))
-          .filter(Boolean),
-      ),
-    );
-
-    const missing = ids.filter((id) => !createdByMap[id]);
-    if (missing.length === 0) return;
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const results = await Promise.all(
-          missing.map(async (id) => {
-            try {
-              const res = await apiService.getEmployeeById(String(id));
-              const user = extractEmployeeFromResponse(res);
-              const name =
-                user?.name ||
-                [user?.firstName, user?.middleName, user?.lastName]
-                  .filter(Boolean)
-                  .join(" ")
-                  .trim();
-              const label = name || user?.employeeId || user?.email || user?.contact || String(id);
-              return [id, label];
-            } catch {
-              return [id, String(id)];
-            }
-          }),
-        );
-        if (cancelled) return;
-        setCreatedByMap((prev) => {
-          const next = { ...prev };
-          for (const [id, label] of results) next[id] = label;
-          return next;
-        });
-      } catch {
-        // ignore
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [healthCards, createdByMap]);
+  }, [currentPage, itemsPerPage, search, activeFilter, createdAt, sortConfig, location.key]);
 
   const fetchCards = async () => {
     try {
@@ -308,8 +209,16 @@ const HealthCard = () => {
         page: currentPage,
         limit: itemsPerPage,
       };
+      if (search) params.search = search;
       if (createdAt) params.createdAt = createdAt;
-      params.sort = "-createdAt";
+      if (sortConfig.key) {
+        params.sort =
+          sortConfig.direction === "desc"
+            ? `-${sortConfig.key}`
+            : sortConfig.key;
+      } else {
+        params.sort = "-createdAt";
+      }
       if (activeFilter === "Not Verified") {
         params.status = "pending";
       } else if (activeFilter === "Verified") {
@@ -326,6 +235,13 @@ const HealthCard = () => {
       const { raw, total, pages } = parseHealthCardsResponse(res);
       const allCards = raw.map(normalizeHealthCard);
 
+      const labels = await fetchCreatedByLabels(
+        collectCreatedByIds(allCards),
+        (id) => apiService.getEmployeeById(id),
+        createdByCacheRef.current,
+      );
+      createdByCacheRef.current = labels;
+      setCreatedByMap(labels);
       setHealthCards(allCards);
       setTotalItems(Number(total));
       setTotalPages(Number(pages ?? (Math.ceil(total / itemsPerPage) || 1)));
@@ -409,47 +325,11 @@ const HealthCard = () => {
       direction = "desc";
     }
     setSortConfig({ key, direction });
+    setCurrentPage(1);
+    setSelectedRows([]);
   };
 
-  const processedData = useMemo(() => {
-    let result = [...healthCards];
-
-    if (sortConfig.key) {
-      result.sort((a, b) => {
-        let aValue = a[sortConfig.key];
-        let bValue = b[sortConfig.key];
-
-        if (sortConfig.key === "members") {
-          aValue = Number(a.totalMembers) || (a.members || []).length;
-          bValue = Number(b.totalMembers) || (b.members || []).length;
-        } else if (sortConfig.key === "amount") {
-          aValue = a.payment.totalPaid;
-          bValue = b.payment.totalPaid;
-        } else if (sortConfig.key === "createdAt") {
-          aValue = new Date(getCardCreatedAt(a) || 0).getTime() || 0;
-          bValue = new Date(getCardCreatedAt(b) || 0).getTime() || 0;
-        }
-
-        if (aValue === undefined) aValue = "";
-        if (bValue === undefined) bValue = "";
-
-        let comparison = 0;
-        if (typeof aValue === "string" && typeof bValue === "string") {
-          comparison = aValue.localeCompare(bValue, undefined, {
-            numeric: true,
-            sensitivity: "base",
-          });
-        } else {
-          if (aValue < bValue) comparison = -1;
-          else if (aValue > bValue) comparison = 1;
-        }
-
-        return sortConfig.direction === "asc" ? comparison : -comparison;
-      });
-    }
-
-    return result;
-  }, [healthCards, sortConfig]);
+  const processedData = useMemo(() => healthCards, [healthCards]);
 
   const getCardKey = (card) =>
     String(card?._id || card?.applicationId || card?.id || "");
@@ -460,52 +340,11 @@ const HealthCard = () => {
   // totalPages is now managed via state from backend response
   const startIndex = (currentPage - 1) * itemsPerPage;
 
-  const searchedData = useMemo(() => {
-    const term = String(search || "").trim().toLowerCase();
-    if (!term) return processedData;
-
-    const normalize = (v) => (v == null ? "" : String(v)).toLowerCase();
-
-    return (processedData || []).filter((row, idx) => {
-      const srNo = startIndex + idx + 1;
-      const membersCount = row.totalMembers ?? ((row.members?.length || 0) + 1);
-      const amountPaid = Number(row.payment?.totalPaid || 0);
-      const createdAtRaw = getCardCreatedAt(row);
-      const createdAtFormatted = formatCardCreatedAt(createdAtRaw);
-      const createdByLabel = resolveCreatedByLabel(row);
-      const createdById = resolveCreatedById(row?.createdBy);
-
-      const haystack = [
-        srNo,
-        row.id,
-        row.applicationId,
-        row.cardNo,
-        row._id,
-        row.applicant,
-        row.phone,
-        row.pincode,
-        row.address,
-        membersCount,
-        amountPaid,
-        `₹${amountPaid}`,
-        createdAtRaw,
-        createdAtFormatted,
-        createdByLabel,
-        createdById,
-      ]
-        .map(normalize)
-        .join(" |");
-
-      return haystack.includes(term);
-    });
-  }, [processedData, search, startIndex, createdByMap]);
-
-  // We only slice if the server returned more items than the limit (fallback).
-  const paginatedData = searchedData;
+  const paginatedData = processedData;
 
   // renderPaginationButtons removed as it's now handled by the Pagination component.
 
-  const isFiltered = search !== "" || activeFilter !== "All";
+  const isFiltered = search !== "" || activeFilter !== "All" || createdAt !== "";
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
@@ -793,7 +632,7 @@ const HealthCard = () => {
                         title={row?.createdBy ? String(resolveCreatedById(row.createdBy) || "") : undefined}
                       >
                         <div className="max-w-[180px] truncate">
-                          {resolveCreatedByLabel(row)}
+                          {resolveCreatedByLabel(row, createdByMap)}
                         </div>
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
