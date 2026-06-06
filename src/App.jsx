@@ -51,6 +51,7 @@ import CreateHealthCard from "./pages/admin/HealthCard/CreateHealthCard";
 import AdminVerifiedCards from "./pages/admin/HealthCard/VerifiedCards";
 import AdminExportedCards from "./pages/admin/HealthCard/ExportedCards";
 import AyushVitran from "./pages/admin/HealthCard/AyushVitran";
+import SettlementCard from "./pages/admin/HealthCard/SettlementCard";
 import Partners from "./pages/admin/Partners/Partners";
 import PartnerDetails from "./pages/admin/Partners/PartnerDetails";
 import CreatePartner from "./pages/admin/Partners/CreatePartner";
@@ -192,6 +193,7 @@ function App() {
               />
               <Route path="health-card/create" element={<CreateHealthCard />} />
               <Route path="health-card/vitran" element={<AyushVitran />} />
+              <Route path="health-card/settlement" element={<SettlementCard />} />
               <Route path="health-card/:id" element={<HealthCardDetails />} />
               <Route path="partners" element={<Partners />} />
               <Route path="partners/create" element={<CreatePartner />} />
@@ -229,6 +231,7 @@ function App() {
                 element={<EmployeeHealthCardDetails />}
               />
               <Route path="health-card/vitran" element={<AyushVitran />} />
+              <Route path="health-card/settlement" element={<SettlementCard />} />
               <Route path="partners" element={<EmployeePartners />} />
               <Route path="partners/create" element={<EmployeeCreatePartner />} />
               <Route path="partners/:id" element={<EmployeePartnerDetails />} />

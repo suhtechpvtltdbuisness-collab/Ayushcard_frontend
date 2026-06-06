@@ -2,13 +2,22 @@ import { formatCardCreatedAt, getCardCreatedAt } from "../../../../utils/healthC
 
 export const PENALTY_AMOUNT = 50;
 
-export const getFormattedCurrentDate = () => {
+export const getTodayISO = () => {
   const d = new Date();
   const day = String(d.getDate()).padStart(2, "0");
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const year = d.getFullYear();
+  return `${year}-${month}-${day}`;
+};
+
+export const formatISOToDisplay = (iso) => {
+  if (!iso) return getFormattedCurrentDate();
+  const [year, month, day] = iso.split("-");
+  if (!year || !month || !day) return getFormattedCurrentDate();
   return `${day}-${month}-${year}`;
 };
+
+export const getFormattedCurrentDate = () => formatISOToDisplay(getTodayISO());
 
 export const getDateTime = () => {
   const d = new Date();

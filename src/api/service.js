@@ -660,9 +660,9 @@ const apiService = {
         return dedupedGetJson('api', api, '/api/reports/cards/location');
     },
 
-    // GET /api/reports/employee-performance
-    getReportsEmployeePerformance: async () => {
-        return dedupedGetJson('api', api, '/api/reports/employee-performance');
+    // GET /api/reports/employee-performance?date=YYYY-MM-DD
+    getReportsEmployeePerformance: async (params = {}) => {
+        return dedupedGetJson('api', api, '/api/reports/employee-performance', { params });
     },
 
     // GET /api/reports/daily
