@@ -68,10 +68,13 @@ export const calculateSettlement = (totalCards) => {
 // ─── HELPER: map a normalized health card to the shape used by the duplicate receipt flow ─
 export const toDupCardShape = (card, createdByMap = {}) => {
   const empRaw = card.createdBy;
-  const empId = typeof empRaw === "object" ? (empRaw?._id || empRaw?.employeeId || "") : (empRaw || "");
+  const mapped = typeof empRaw === "string" ? createdByMap[empRaw] : null;
+  const empId = typeof empRaw === "object"
+    ? (empRaw?.employeeId || empRaw?._id || "")
+    : (mapped?.employeeId || empRaw || "");
   const empName = typeof empRaw === "object"
     ? (empRaw?.name || [empRaw?.firstName, empRaw?.lastName].filter(Boolean).join(" ") || empRaw?.email || empRaw?.employeeId || "")
-    : (createdByMap[empRaw] || empRaw || "");
+    : (mapped?.name || empRaw || "");
 
   return {
     id: card.id || card.applicationId || card._id || "",

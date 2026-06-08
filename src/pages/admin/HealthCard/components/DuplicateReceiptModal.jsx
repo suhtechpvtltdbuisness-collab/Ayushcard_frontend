@@ -143,7 +143,11 @@ const DuplicateReceiptModal = ({ card, onClose, onIssued }) => {
         paymentStatus: doc.paymentStatus || paymentStatus,
         issuedAt: getFormattedCurrentDate(),
         issuedDateTime: getDateTime(),
-        card,
+        card: {
+          ...card,
+          employeeId: doc.employeeId || card.employeeId,
+          employeeName: doc.employeeName || card.employeeName,
+        },
         offlineImage,
       };
       setGeneratedRecord(record);

@@ -120,8 +120,8 @@ const AyushVitran = () => {
             const empRes = await apiService.getEmployeeById(String(id));
             const u = empRes?.data?.user || empRes?.user || empRes?.data?.data || empRes?.data || empRes;
             const name = u?.name || [u?.firstName, u?.lastName].filter(Boolean).join(" ") || u?.email || String(id);
-            return [id, name];
-          } catch { return [id, String(id)]; }
+            return [id, { name, employeeId: u?.employeeId || String(id) }];
+          } catch { return [id, { name: String(id), employeeId: String(id) }]; }
         }));
         setCreatedByMap(prev => { const next = { ...prev }; results.forEach(([id, n]) => { next[id] = n; }); return next; });
       }
