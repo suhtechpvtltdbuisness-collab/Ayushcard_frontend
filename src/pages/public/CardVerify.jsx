@@ -1,24 +1,25 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import axios from "axios";
 import { MapPin, Phone, Mail, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { resolveProfileImageFromCard } from "../../utils/profileImage";
 import {
   buildCardVerifyUrl,
-  fetchPublicCardByVerifyId,
   getCardDisplayId,
+  isValidCardRecord,
 } from "../../utils/cardVerify";
 import { isPublicCardVerified, getDisplayStatus } from "../../utils/healthCardUtils";
+import apiService from "../../api/service";
 
-const apiBase = import.meta.env.DEV
-  ? ""
-  : (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "");
+const unwrapCard = (res) => {
+  const c = res?.data?.card || res?.data || res?.card || res;
+  return Array.isArray(c) ? c[0] : c;
+};
 
-const publicApi = axios.create({
-  baseURL: apiBase,
-  headers: { "Content-Type": "application/json" },
-  timeout: 15000,
-});
+const unwrapMembers = (res) =>
+  Array.isArray(res?.data?.members) ? res.data.members :
+  Array.isArray(res?.data) ? res.data :
+  Array.isArray(res?.members) ? res.members :
+  Array.isArray(res) ? res : [];
 
 const Row = ({ label, value }) => (
   <div className="flex gap-1.5 sm:gap-2 min-w-0">
@@ -45,9 +46,15 @@ export default function CardVerify() {
       setLoading(true);
       setError("");
 
-      const raw = await fetchPublicCardByVerifyId(publicApi, cardId);
+      let raw;
+      try {
+        const res = await apiService.getHealthCardById(cardId);
+        raw = unwrapCard(res);
+      } catch {
+        raw = null;
+      }
 
-      if (!raw || (!raw._id && !raw.cardNo && !raw.applicationId)) {
+      if (!isValidCardRecord(raw)) {
         setError("Card not found or not accessible. Please check the QR code.");
         setLoading(false);
         return;
@@ -56,13 +63,8 @@ export default function CardVerify() {
       setCard(raw);
 
       try {
-        const mId = raw._id;
-        if (!mId) throw new Error("missing mongo id");
-        const mRes = await publicApi.get(`/api/card-members/card/${mId}`);
-        const mArr =
-          Array.isArray(mRes.data?.data) ? mRes.data.data :
-          Array.isArray(mRes.data?.data?.members) ? mRes.data.data.members :
-          Array.isArray(mRes.data) ? mRes.data : [];
+        const mRes = await apiService.getCardMembers(raw._id);
+        const mArr = unwrapMembers(mRes);
         setMembers(mArr.length > 0 ? mArr : (Array.isArray(raw.members) ? raw.members : []));
       } catch {
         setMembers(Array.isArray(raw.members) ? raw.members : []);
