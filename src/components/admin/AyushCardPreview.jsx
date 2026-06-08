@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { MapPin, Phone, Mail } from "lucide-react";
 import { resolveProfileImageFromCard } from "../../utils/profileImage";
+import { buildCardVerifyUrl, getCardDisplayId } from "../../utils/cardVerify";
+
+const MAX_CARD_MEMBERS = 7;
 
 const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) => {
   const BASE_WIDTH = 580;
   const BASE_HEIGHT = 340;
 
-  const displayCardId =
-    data?.applicationId || data?.id || data?.cardNo || data?._id || data?.card_id || "—";
+  const displayCardId = getCardDisplayId(data);
 
   const [isFlipped, setIsFlipped] = useState(side === "back");
   const [previewScale, setPreviewScale] = useState(1);
@@ -181,9 +183,8 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
 
             <div className="w-[115px] bg-white rounded-xl p-2 flex items-center justify-center">
               {(() => {
-                const cardId =
-                  data?.applicationId || data?.id || data?.cardNo || data?._id || "unknown";
-                const verifyUrl = `${window.location.origin}/verify/${encodeURIComponent(cardId)}`;
+                const verifyUrl = buildCardVerifyUrl(data);
+                if (!verifyUrl) return null;
                 return (
                   <img
                     src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(verifyUrl)}`}
@@ -221,6 +222,9 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
   );
 
   /* ================= BACK ================= */
+
+  const cardMembers = (data?.members || []).slice(0, MAX_CARD_MEMBERS);
+  const compactMemberTable = cardMembers.length > 5;
 
   const Back = () => (
     <div
@@ -287,42 +291,88 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
 
             {/* Body */}
             {/* Table */}
-            <div className="text-white text-center font-bold py-1 text-[12px] tracking-wide">
+            <div
+              className={`text-white text-center font-bold tracking-wide ${
+                compactMemberTable ? "py-0.5 text-[10px]" : "py-1 text-[12px]"
+              }`}
+            >
               Family Details
             </div>
 
-            <div className="w-full bg-white mb-4 text-black shrink-0 border border-gray-300 rounded-xs overflow-hidden self-start">
+            <div
+              className={`w-full bg-white text-black shrink-0 border border-gray-300 rounded-xs overflow-hidden self-start ${
+                compactMemberTable ? "mb-2" : "mb-4"
+              }`}
+            >
               <table className="w-full text-center border-collapse">
                 <thead>
-                  <tr className="bg-white text-[8px] font-bold border-b border-gray-200 text-[#1e293b]">
-                    <th className="py-1.5 px-1 border-r border-gray-200 w-8">
+                  <tr
+                    className={`bg-white font-bold border-b border-gray-200 text-[#1e293b] ${
+                      compactMemberTable ? "text-[7px]" : "text-[8px]"
+                    }`}
+                  >
+                    <th
+                      className={`px-1 border-r border-gray-200 w-8 ${
+                        compactMemberTable ? "py-0.5" : "py-1.5"
+                      }`}
+                    >
                       Sr No
                     </th>
-                    <th className="py-1.5 px-1 border-r border-gray-200">
+                    <th
+                      className={`px-1 border-r border-gray-200 ${
+                        compactMemberTable ? "py-0.5" : "py-1.5"
+                      }`}
+                    >
                       Name
                     </th>
-                    <th className="py-1.5 px-1 border-r border-gray-200 w-8">
+                    <th
+                      className={`px-1 border-r border-gray-200 w-8 ${
+                        compactMemberTable ? "py-0.5" : "py-1.5"
+                      }`}
+                    >
                       Age
                     </th>
-                    <th className="py-1.5 px-1">Relation</th>
+                    <th className={`px-1 ${compactMemberTable ? "py-0.5" : "py-1.5"}`}>
+                      Relation
+                    </th>
                   </tr>
                 </thead>
-                <tbody className="text-[8px] font-medium text-black">
-                  {(data?.members || []).slice(0, 5).map((m, i) => (
+                <tbody
+                  className={`font-medium text-black ${
+                    compactMemberTable ? "text-[7px]" : "text-[8px]"
+                  }`}
+                >
+                  {cardMembers.map((m, i) => (
                     <tr
                       key={i}
                       className="border-b border-gray-200 last:border-0 hover:bg-slate-50"
                     >
-                      <td className="py-1.5 px-1 border-r border-gray-200">
+                      <td
+                        className={`px-1 border-r border-gray-200 ${
+                          compactMemberTable ? "py-0.5" : "py-1.5"
+                        }`}
+                      >
                         {i + 1}
                       </td>
-                      <td className="py-1.5 px-1 border-r border-gray-200 text-left truncate max-w-13.75 font-semibold">
+                      <td
+                        className={`px-1 border-r border-gray-200 text-left truncate max-w-13.75 font-semibold ${
+                          compactMemberTable ? "py-0.5" : "py-1.5"
+                        }`}
+                      >
                         {m.name}
                       </td>
-                      <td className="py-1.5 px-1 border-r border-gray-200">
+                      <td
+                        className={`px-1 border-r border-gray-200 ${
+                          compactMemberTable ? "py-0.5" : "py-1.5"
+                        }`}
+                      >
                         {m.age}
                       </td>
-                      <td className="py-1.5 px-1 truncate max-w-11.25">
+                      <td
+                        className={`px-1 truncate max-w-11.25 ${
+                          compactMemberTable ? "py-0.5" : "py-1.5"
+                        }`}
+                      >
                         {m.relation}
                       </td>
                     </tr>
@@ -331,12 +381,20 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
               </table>
             </div>
             {/* Instructions & Dates */}
-            <div className="flex-1 flex flex-col self-stretch pb-6">
+            <div className={`flex-1 flex flex-col self-stretch ${compactMemberTable ? "pb-3" : "pb-6"}`}>
               <div>
-                <h3 className="font-semibold text-[11px] uppercase mb-1.5 text-center tracking-wide drop-shadow-sm">
+                <h3
+                  className={`font-semibold uppercase text-center tracking-wide drop-shadow-sm ${
+                    compactMemberTable ? "text-[9px] mb-1" : "text-[11px] mb-1.5"
+                  }`}
+                >
                   Important Information / Instructions
                 </h3>
-                <ol className="text-[10px] list-decimal list-inside ml-0.5 text-white/95 font-medium">
+                <ol
+                  className={`list-decimal list-inside ml-0.5 text-white/95 font-medium ${
+                    compactMemberTable ? "text-[8px]" : "text-[10px]"
+                  }`}
+                >
                   <li>Carry this card during every hospital visit.</li>
                   <li>Inform NGO staff if the card is lost.</li>
                   <li>This card is non-transferable.</li>

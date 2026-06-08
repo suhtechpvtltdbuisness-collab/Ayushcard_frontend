@@ -28,6 +28,16 @@ export function isVerifiedStatus(status) {
   return s === "approved" || s === "active" || s === "verified";
 }
 
+/** Valid on public QR verify page — includes printed/exported cards. */
+export function isPublicCardVerified(card) {
+  if (!card) return false;
+  const s = getRawStatus(card);
+  if (isVerifiedStatus(s) || s === "exported") return true;
+  if (isPrintedCard(card)) return true;
+  if (card.verificationDate || card.verifiedAt || card.isVerified === true) return true;
+  return false;
+}
+
 /** Which section this card belongs in */
 export function getStatusBucket(card) {
   if (isPrintedCard(card)) return "exported";

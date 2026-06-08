@@ -9,6 +9,7 @@ import {
   resolveDocumentFrontFromCard,
   resolveProfileImageFromCard,
 } from "../../../utils/profileImage";
+import { buildCardVerifyUrl } from "../../../utils/cardVerify";
 
 // Map API response fields → form fields
 const apiToForm = (card) => ({
@@ -679,7 +680,7 @@ const HealthCardDetails = () => {
             <p className="text-[13px] text-[#6D6D6D] mb-5">A Unique QR code of your Ayush Card</p>
             <div className="flex-1 flex items-center justify-center">
               <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`${window.location.origin}/verify/${formData.id}`)}`}
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(buildCardVerifyUrl(formData))}`}
                 alt="QR"
                 className="w-45 h-45 object-contain border-4 border-black rounded-lg p-1"
               />
