@@ -67,6 +67,9 @@ export const toDupCardShape = (card, createdByMap = {}) => {
     employeeName: empName,
     receiptNo: card.applicationId || card.id || card._id || "",
     address: card.address || "",
-    _rawCard: card,
+    _apiRaw: card._apiRaw || null,
+    _rawCard: card._apiRaw || card,
+    payment: card.payment || card._apiRaw?.payment,
+    cardNo: card.cardNo || card._apiRaw?.cardNo,
   };
 };

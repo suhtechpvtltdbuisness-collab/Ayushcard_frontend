@@ -4,26 +4,15 @@ import { useToast } from "../../../../components/ui/Toast";
 import apiService from "../../../../api/service";
 import AyushCardReceiptPreview from "./AyushCardReceiptPreview";
 import { getDateTime, getFormattedCurrentDate } from "./vitranUtils";
-import { fetchFullReceiptCard } from "./receiptLoader";
-
 const VitranModal = ({ card, onClose, onDistributed }) => {
   const { toastWarn, toastSuccess, toastError } = useToast();
   const [recipientImage, setRecipientImage] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const [receiptCard, setReceiptCard] = useState(card);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [cameraError, setCameraError] = useState("");
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const fileInputRef = useRef(null);
-
-  useEffect(() => {
-    let active = true;
-    fetchFullReceiptCard(card).then((enriched) => {
-      if (active) setReceiptCard(enriched);
-    });
-    return () => { active = false; };
-  }, [card]);
 
   useEffect(() => {
     return () => {
@@ -95,7 +84,7 @@ const VitranModal = ({ card, onClose, onDistributed }) => {
       toastWarn("Please capture or upload the recipient's photo before confirming distribution.");
       return;
     }
-    const distributeId = card._id || card.id;
+    const distributeId = card._id || card._rawCard?._id || card._apiRaw?._id;
     if (!distributeId) {
       toastError("Card reference missing. Cannot distribute.");
       return;
@@ -106,11 +95,11 @@ const VitranModal = ({ card, onClose, onDistributed }) => {
       const doc = res?.data || res;
       const record = {
         cardId: card.id,
-        clientName: receiptCard.clientName || card.clientName,
-        mobile: receiptCard.mobile || card.mobile,
+        clientName: card.clientName,
+        mobile: card.mobile,
         employeeId: card.employeeId,
         employeeName: card.employeeName,
-        card: receiptCard,
+        card,
         recipientImage,
         distributedAt: getFormattedCurrentDate(),
         distributedDateTime: getDateTime(),
@@ -142,10 +131,10 @@ const VitranModal = ({ card, onClose, onDistributed }) => {
 
         <div className="flex-1 overflow-y-auto p-5">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <div>
+            <div className="min-w-0">
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Application Receipt</p>
-              <div className="bg-gray-50 rounded-xl p-4 flex justify-center overflow-auto max-h-[520px]">
-                <AyushCardReceiptPreview card={receiptCard} />
+              <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 overflow-y-auto overflow-x-hidden max-h-[min(75vh,680px)]">
+                <AyushCardReceiptPreview card={card} previewScale={1.55} />
               </div>
             </div>
 

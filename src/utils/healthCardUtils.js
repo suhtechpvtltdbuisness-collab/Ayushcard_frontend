@@ -186,11 +186,28 @@ export function normalizeHealthCard(card) {
         ? card.documents.find((d) => d.name === "documentBack" || d.name === "secondDocument" || d.name === "second_document")?.path
         : "") ||
       "",
-    payment: {
-      applicationFee: 160,
-      memberAddOns: Math.max(0, totalCount - 4) * 40,
-      totalPaid: totalCount <= 4 ? 160 : 160 + (totalCount - 4) * 40,
-    },
+    payment: (() => {
+      const apiPayment =
+        card.payment && typeof card.payment === "object" ? card.payment : {};
+      const computedTotal =
+        apiPayment.totalPaid ??
+        apiPayment.totalAmount ??
+        card.totalAmount ??
+        (totalCount <= 4 ? 160 : 160 + (totalCount - 4) * 40);
+      return {
+        ...apiPayment,
+        method: apiPayment.method ?? card.paymentMethod ?? card.paymentMode,
+        transactionId:
+          apiPayment.transactionId ??
+          apiPayment.txnId ??
+          card.transactionId ??
+          card.txnId,
+        orderId: apiPayment.orderId ?? card.orderId,
+        applicationFee: 160,
+        memberAddOns: Math.max(0, totalCount - 4) * 40,
+        totalPaid: computedTotal,
+      };
+    })(),
     status: getDisplayStatus(card),
     statusBucket: getStatusBucket(card),
     rawStatus: getRawStatus(card),
