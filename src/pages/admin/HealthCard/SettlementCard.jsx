@@ -12,8 +12,11 @@ import SettlementSlipPreview from "./components/SettlementSlipPreview";
 import {
   getTodayISO,
   formatISOToDisplay,
-  calculateSettlement,
 } from "./components/vitranUtils";
+import {
+  calculateSettlementFromCards,
+  EMPTY_SETTLEMENT,
+} from "./components/settlementCalc";
 import {
   getStoredUser,
   getStoredUserRole,
@@ -124,6 +127,55 @@ const SettlementStatusBadge = ({ status }) => {
   );
 };
 
+async function fetchEmployeeDailyCards(employeeMongoId, dateISO) {
+  if (!employeeMongoId || String(employeeMongoId).startsWith("EMP-")) return [];
+  const cards = [];
+  let page = 1;
+  let totalPages = 1;
+
+  do {
+    const res = await apiService.getHealthCardsByEmployee(employeeMongoId, {
+      createdAt: dateISO,
+      page,
+      limit: 100,
+    });
+    const envelope = res?.data && typeof res.data === "object" ? res.data : res;
+    const raw = Array.isArray(envelope?.cards)
+      ? envelope.cards
+      : Array.isArray(res?.data?.cards)
+        ? res.data.cards
+        : [];
+    const pagination = envelope?.pagination || res?.data?.pagination || {};
+    totalPages = Number(pagination.pages ?? 1);
+    cards.push(...raw.filter((c) => isCardOnDate(c, dateISO)));
+    page += 1;
+  } while (page <= totalPages);
+
+  return cards;
+}
+
+async function fetchPenaltiesForEmployee(employee, dateISO) {
+  try {
+    const res = await apiService.getDuplicateReceipts({ page: 1, limit: 500 });
+    const body = res?.data || {};
+    const items = Array.isArray(body.items) ? body.items : Array.isArray(body) ? body : [];
+    const empKeys = new Set(
+      [employee?.id, employee?._rawId, employee?._mongoId]
+        .filter(Boolean)
+        .map((v) => String(v).toLowerCase()),
+    );
+
+    return items.filter((p) => {
+      const rawDate = p.issuedDate ?? p.createdAt ?? p.issuedAt;
+      if (!isCardOnDate({ createdAt: rawDate }, dateISO)) return false;
+      const pid = String(p.employeeId ?? "").toLowerCase();
+      return empKeys.has(pid);
+    });
+  } catch {
+    return [];
+  }
+}
+
 async function fetchEmployeeDailyCount(employeeMongoId, dateISO) {
   if (!employeeMongoId || String(employeeMongoId).startsWith("EMP-")) return 0;
   try {
@@ -177,6 +229,8 @@ const SettlementCard = () => {
   const [employeeLocation, setEmployeeLocation] = useState("Mangla Vihar");
   const [employeePincode, setEmployeePincode] = useState("208015");
   const [selfLoading, setSelfLoading] = useState(false);
+  const [settlementCalc, setSettlementCalc] = useState(EMPTY_SETTLEMENT);
+  const [calcLoading, setCalcLoading] = useState(false);
 
   useEffect(() => {
     const applyUser = (u) => {
@@ -298,13 +352,42 @@ const SettlementCard = () => {
     }
   }, [currentPage, itemsPerPage, selectedDate, selectedDateDisplay]);
 
+  const loadSettlementForEmployee = useCallback(async (employee) => {
+    if (!employee) {
+      setSettlementCalc(EMPTY_SETTLEMENT);
+      return EMPTY_SETTLEMENT;
+    }
+    setCalcLoading(true);
+    try {
+      const mongoId = employee._rawId || employee._mongoId || employee.id;
+      const [cards, penalties] = await Promise.all([
+        fetchEmployeeDailyCards(mongoId, selectedDate),
+        fetchPenaltiesForEmployee(employee, selectedDate),
+      ]);
+      const calc = calculateSettlementFromCards(cards, penalties);
+      setSettlementCalc(calc);
+      return calc;
+    } catch (err) {
+      console.warn("[SettlementCard] settlement calc failed:", err);
+      setSettlementCalc(EMPTY_SETTLEMENT);
+      return EMPTY_SETTLEMENT;
+    } finally {
+      setCalcLoading(false);
+    }
+  }, [selectedDate]);
+
+  useEffect(() => {
+    if (selectedEmployee) loadSettlementForEmployee(selectedEmployee);
+  }, [selectedEmployee, loadSettlementForEmployee]);
+
   useEffect(() => {
     if (userRole !== "Employee") fetchEmployeesList();
   }, [currentPage, itemsPerPage, userRole, selectedDate, fetchEmployeesList]);
 
-  const handlePrintSlip = (employee) => {
+  const handlePrintSlip = (employee, calc = settlementCalc) => {
     if (!employee) return;
-    const calc = calculateSettlement(employee.totalCards);
+    const slipCalc = calc || EMPTY_SETTLEMENT;
+    const totalPenalty = slipCalc.penaltyAmount + slipCalc.onPenaltyAmount;
     const dateStr = employee.date || selectedDateDisplay;
     const pw = window.open("", "_blank", "width=380,height=750,status=no,toolbar=no,menubar=no");
     if (!pw) { toastError("Pop-up blocked! Allow pop-ups for this site."); return; }
@@ -353,19 +436,19 @@ const SettlementCard = () => {
     <div class="metadata-row"><span>Ayush Mitra ID No :-</span><span>${employee.id}</span></div>
     <div class="metadata-double"><span>District :- Kanpur Nagar</span><span>Pin Code :- ${employee.pincode || "208015"}</span></div>
     <div class="dashed-divider" style="margin-top:6px"></div>
-    <div style="margin-top:5px">Total Apply Ayush Card - ${employee.totalCards}</div>
+    <div style="margin-top:5px">Total Apply Ayush Card - ${slipCalc.totalCards ?? employee.totalCards}</div>
   </div>
   <div class="dashed-border-top-bottom uppercase">Apply Ayush Card</div>
   <div class="table-heading"><span>Card Detail - Amount</span><span>Online - Amount</span></div>
-  <div class="table-row"><span>160 x ${calc.off160} = ${Number(calc.amt160).toFixed(2)}</span><span>${calc.on160} = ${Number(calc.onAmt160).toFixed(0)}</span></div>
-  <div class="table-row"><span>200 x ${calc.off200} = ${Number(calc.amt200).toFixed(2)}</span><span>${calc.on200} = ${Number(calc.onAmt200).toFixed(0)}</span></div>
-  <div class="table-row"><span>240 x ${calc.off240} = ${Number(calc.amt240).toFixed(2)}</span><span>${calc.on240} = ${Number(calc.onAmt240).toFixed(0)}</span></div>
-  <div class="table-row"><span>280 x ${calc.off280} = ${Number(calc.amt280).toFixed(2)}</span><span>${calc.on280} = ${Number(calc.onAmt280).toFixed(0)}</span></div>
-  <div class="table-row"><span>Penalty x ${calc.penaltyCount} = ${Number(calc.penaltyAmount).toFixed(2)}</span><span>${calc.onPenaltyCount} = ${Number(calc.onPenaltyAmount).toFixed(0)}</span></div>
-  <div class="table-total"><span>Total = ${calc.offlineCount} = ${Number(calc.offlineTotalWithPenalty).toFixed(2)}</span><span>${calc.onlineCount} = ${Number(calc.onlineTotalWithPenalty).toFixed(2)}</span></div>
+  <div class="table-row"><span>160 x ${slipCalc.off160} = ${Number(slipCalc.amt160).toFixed(2)}</span><span>${slipCalc.on160} = ${Number(slipCalc.onAmt160).toFixed(0)}</span></div>
+  <div class="table-row"><span>200 x ${slipCalc.off200} = ${Number(slipCalc.amt200).toFixed(2)}</span><span>${slipCalc.on200} = ${Number(slipCalc.onAmt200).toFixed(0)}</span></div>
+  <div class="table-row"><span>240 x ${slipCalc.off240} = ${Number(slipCalc.amt240).toFixed(2)}</span><span>${slipCalc.on240} = ${Number(slipCalc.onAmt240).toFixed(0)}</span></div>
+  <div class="table-row"><span>280 x ${slipCalc.off280} = ${Number(slipCalc.amt280).toFixed(2)}</span><span>${slipCalc.on280} = ${Number(slipCalc.onAmt280).toFixed(0)}</span></div>
+  <div class="table-row"><span>Penalty x ${slipCalc.penaltyCount} = ${Number(slipCalc.penaltyAmount).toFixed(2)}</span><span>${slipCalc.onPenaltyCount} = ${Number(slipCalc.onPenaltyAmount).toFixed(0)}</span></div>
+  <div class="table-total"><span>Total = ${slipCalc.offlineCount} = ${Number(slipCalc.offlineTotalWithPenalty).toFixed(2)}</span><span>${slipCalc.onlineCount} = ${Number(slipCalc.onlineTotalWithPenalty).toFixed(2)}</span></div>
   <div class="grand-total-box">
     <div class="grand-total-title">Calculated Revenue Equation</div>
-    <div class="grand-total-value">Grand Total = ${calc.offlineBaseTotal} + ${calc.onlineTotalWithPenalty} + ${calc.penaltyAmount} = <span class="grand-total-highlight">₹${calc.grandTotal}</span></div>
+    <div class="grand-total-value">Grand Total = ${slipCalc.offlineBaseTotal} + ${slipCalc.onlineBaseTotal} + ${totalPenalty} = <span class="grand-total-highlight">₹${slipCalc.grandTotal}</span></div>
   </div>
   <div class="signatures"><div>Cash Receiver Name : __________________</div><div>Cash Receiver ID No :- __________________</div></div>
   <div class="sig-box-container"><div class="sig-box"><span class="sig-text">Signature</span></div></div>
@@ -376,9 +459,10 @@ const SettlementCard = () => {
     toastSuccess("Settlement slip sent to printer!");
   };
 
-  const handleRawBtPrintSlip = (employee) => {
+  const handleRawBtPrintSlip = (employee, calc = settlementCalc) => {
     if (!employee) return;
-    const calc = calculateSettlement(employee.totalCards);
+    const slipCalc = calc || EMPTY_SETTLEMENT;
+    const totalPenalty = slipCalc.penaltyAmount + slipCalc.onPenaltyAmount;
     const dateStr = employee.date || selectedDateDisplay;
     const htmlContent = `
 <!DOCTYPE html><html><head><meta charset="utf-8">
@@ -424,19 +508,19 @@ const SettlementCard = () => {
     <div class="metadata-row"><span>Mitra ID No :-</span><span>${employee.id}</span></div>
     <div class="metadata-double"><span>District :- Kanpur</span><span>Pin Code :- ${employee.pincode || "208015"}</span></div>
     <div class="dashed-divider" style="margin-top:4px"></div>
-    <div style="margin-top:3px">Total Apply Ayush Card - ${employee.totalCards}</div>
+    <div style="margin-top:3px">Total Apply Ayush Card - ${slipCalc.totalCards ?? employee.totalCards}</div>
   </div>
   <div class="dashed-border-top-bottom uppercase">Apply Ayush Card</div>
   <div class="table-heading"><span>Card Detail - Amount</span><span>Online - Amount</span></div>
-  <div class="table-row"><span>160 x ${calc.off160} = ${Number(calc.amt160).toFixed(0)}</span><span>${calc.on160} = ${Number(calc.onAmt160).toFixed(0)}</span></div>
-  <div class="table-row"><span>200 x ${calc.off200} = ${Number(calc.amt200).toFixed(0)}</span><span>${calc.on200} = ${Number(calc.onAmt200).toFixed(0)}</span></div>
-  <div class="table-row"><span>240 x ${calc.off240} = ${Number(calc.amt240).toFixed(0)}</span><span>${calc.on240} = ${Number(calc.onAmt240).toFixed(0)}</span></div>
-  <div class="table-row"><span>280 x ${calc.off280} = ${Number(calc.amt280).toFixed(0)}</span><span>${calc.on280} = ${Number(calc.onAmt280).toFixed(0)}</span></div>
-  <div class="table-row"><span>Penalty x ${calc.penaltyCount} = ${Number(calc.penaltyAmount).toFixed(0)}</span><span>${calc.onPenaltyCount} = ${Number(calc.onPenaltyAmount).toFixed(0)}</span></div>
-  <div class="table-total"><span>Total = ${calc.offlineCount} = ${Number(calc.offlineTotalWithPenalty).toFixed(0)}</span><span>${calc.onlineCount} = ${Number(calc.onlineTotalWithPenalty).toFixed(0)}</span></div>
+  <div class="table-row"><span>160 x ${slipCalc.off160} = ${Number(slipCalc.amt160).toFixed(0)}</span><span>${slipCalc.on160} = ${Number(slipCalc.onAmt160).toFixed(0)}</span></div>
+  <div class="table-row"><span>200 x ${slipCalc.off200} = ${Number(slipCalc.amt200).toFixed(0)}</span><span>${slipCalc.on200} = ${Number(slipCalc.onAmt200).toFixed(0)}</span></div>
+  <div class="table-row"><span>240 x ${slipCalc.off240} = ${Number(slipCalc.amt240).toFixed(0)}</span><span>${slipCalc.on240} = ${Number(slipCalc.onAmt240).toFixed(0)}</span></div>
+  <div class="table-row"><span>280 x ${slipCalc.off280} = ${Number(slipCalc.amt280).toFixed(0)}</span><span>${slipCalc.on280} = ${Number(slipCalc.onAmt280).toFixed(0)}</span></div>
+  <div class="table-row"><span>Penalty x ${slipCalc.penaltyCount} = ${Number(slipCalc.penaltyAmount).toFixed(0)}</span><span>${slipCalc.onPenaltyCount} = ${Number(slipCalc.onPenaltyAmount).toFixed(0)}</span></div>
+  <div class="table-total"><span>Total = ${slipCalc.offlineCount} = ${Number(slipCalc.offlineTotalWithPenalty).toFixed(0)}</span><span>${slipCalc.onlineCount} = ${Number(slipCalc.onlineTotalWithPenalty).toFixed(0)}</span></div>
   <div class="grand-total-box">
     <div class="grand-total-title">Calculated Revenue Equation</div>
-    <div class="grand-total-value">Grand Total = ${calc.offlineBaseTotal} + ${calc.onlineTotalWithPenalty} + ${calc.penaltyAmount} = <span class="grand-total-highlight">₹${calc.grandTotal}</span></div>
+    <div class="grand-total-value">Grand Total = ${slipCalc.offlineBaseTotal} + ${slipCalc.onlineBaseTotal} + ${totalPenalty} = <span class="grand-total-highlight">₹${slipCalc.grandTotal}</span></div>
   </div>
   <div class="signatures"><div>Cash Receiver Name : __________________</div><div>Cash Receiver ID No :- __________________</div></div>
   <div class="sig-box-container"><div class="sig-box"><span class="sig-text">Signature</span></div></div>
@@ -473,10 +557,16 @@ const SettlementCard = () => {
         totalCards: employeeCardCount,
         pincode: currentUser.pincode || employeePincode || "208015",
         date: selectedDateDisplay,
+        _mongoId: currentUser._mongoId,
+        _rawId: currentUser._mongoId,
       };
     }
     return null;
   }, [userRole, currentUser, employeeCardCount, employeeLocation, employeePincode, selectedDateDisplay]);
+
+  useEffect(() => {
+    if (selfEmployee) loadSettlementForEmployee(selfEmployee);
+  }, [selfEmployee, loadSettlementForEmployee]);
 
   const handleDateChange = (iso) => {
     setSelectedDate(iso || getTodayISO());
@@ -493,7 +583,7 @@ const SettlementCard = () => {
     }
     setSavingSettle(true);
     try {
-      const calc = calculateSettlement(employee.totalCards);
+      const calc = settlementCalc?.grandTotal != null ? settlementCalc : await loadSettlementForEmployee(employee);
       await apiService.settleEmployeeDay({
         employeeId: employee._settlementEmployeeId,
         date: selectedDate,
@@ -557,7 +647,7 @@ const SettlementCard = () => {
       {userRole === "Employee" && selfEmployee && (
         <div className="flex-1 overflow-y-auto no-print flex items-start justify-center py-4">
           <div className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm max-w-md w-full flex flex-col items-center">
-            {selfLoading ? (
+            {selfLoading || calcLoading ? (
               <div className="py-16 flex flex-col items-center text-gray-500">
                 <div className="w-8 h-8 border-4 border-[#F68E5F] border-t-transparent rounded-full animate-spin mb-3" />
                 <p className="text-sm font-semibold">Loading daily settlement...</p>
@@ -569,9 +659,9 @@ const SettlementCard = () => {
             </div>
             <h3 className="text-base font-black text-[#22333B]">{selfEmployee.name}</h3>
             <p className="text-xs text-gray-400 mt-0.5">{selfEmployee.id} · {selfEmployee.email}</p>
-            <p className="text-[11px] text-[#F68E5F] font-bold mt-1">{selectedDateDisplay} · {employeeCardCount} cards</p>
+            <p className="text-[11px] text-[#F68E5F] font-bold mt-1">{selectedDateDisplay} · {settlementCalc.totalCards ?? employeeCardCount} cards</p>
             <div className="w-full border-t border-gray-100 my-5" />
-            <SettlementSlipPreview employee={selfEmployee} date={selectedDateDisplay} />
+            <SettlementSlipPreview employee={selfEmployee} date={selectedDateDisplay} calc={settlementCalc} />
             <div className="w-full border-t border-gray-100 my-5" />
             <div className="w-full flex gap-3 mt-3">
               <button
@@ -703,7 +793,18 @@ const SettlementCard = () => {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto bg-gray-100/50 p-6 flex items-start justify-center">
-              <SettlementSlipPreview employee={selectedEmployee} date={selectedEmployee.date || selectedDateDisplay} />
+              {calcLoading ? (
+                <div className="py-16 flex flex-col items-center text-gray-500">
+                  <div className="w-8 h-8 border-4 border-[#F68E5F] border-t-transparent rounded-full animate-spin mb-3" />
+                  <p className="text-sm font-semibold">Calculating settlement...</p>
+                </div>
+              ) : (
+                <SettlementSlipPreview
+                  employee={selectedEmployee}
+                  date={selectedEmployee.date || selectedDateDisplay}
+                  calc={settlementCalc}
+                />
+              )}
             </div>
             <div className="px-5 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex flex-col gap-2.5 shrink-0 w-full">
               <div className="flex items-center justify-between w-full">
