@@ -52,8 +52,8 @@ const ViewVitranModal = ({ record, onClose }) => {
               </div>
             </div>
           ) : (
-            <div className="flex justify-center bg-gray-50 rounded-2xl p-4 border border-gray-100">
-              <AyushCardReceiptPreview card={record.card} />
+            <div className="flex justify-center bg-white rounded-2xl p-3 sm:p-4 border border-gray-200 overflow-y-auto max-h-[min(75vh,680px)]">
+              <AyushCardReceiptPreview card={record.card} previewScale={1.55} />
             </div>
           )}
         </div>

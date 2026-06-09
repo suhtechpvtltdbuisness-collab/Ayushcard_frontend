@@ -103,7 +103,7 @@ const AyushVitran = () => {
       if (debouncedCardSearch) params.search = debouncedCardSearch;
       const res = await apiService.getPrintedCards(params);
       const { raw, total, pages } = parseHealthCardsResponse(res);
-      const normalized = raw.map(normalizeHealthCard);
+      const normalized = raw.map((c) => ({ ...normalizeHealthCard(c), _apiRaw: c }));
       setExportedCards(normalized);
       setExportedTotalItems(Number(total));
       setExportedTotalPages(Number((pages ?? Math.ceil(total / exportedItemsPerPage)) || 1));
