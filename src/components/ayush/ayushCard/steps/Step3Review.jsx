@@ -23,6 +23,7 @@ function Step3ReviewView(form) {
                           <AyushCardPreview
                             data={cardPreviewData}
                             side="front"
+                            dummyQr
                           />
                         </div>
                       </div>

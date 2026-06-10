@@ -1,11 +1,28 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { MapPin, Phone, Mail } from "lucide-react";
+import QRCode from "react-qr-code";
 import { resolveProfileImageFromCard } from "../../utils/profileImage";
 import { buildCardVerifyUrl, getCardDisplayId } from "../../utils/cardVerify";
 
 const MAX_CARD_MEMBERS = 7;
 
-const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) => {
+/** Preview-only QR (no card id yet) — encodes plain text, not a verify URL. */
+const DummyQrPlaceholder = () => (
+  <div className="flex h-full w-full min-h-0 items-center justify-center bg-white">
+    <QRCode
+      value="AYUSH-CARD-PREVIEW"
+      level="M"
+      size={512}
+      bgColor="#FFFFFF"
+      fgColor="#000000"
+      className="block h-full w-full"
+      style={{ height: "100%", width: "100%", maxHeight: "100%", maxWidth: "100%" }}
+      preserveAspectRatio="xMidYMid meet"
+    />
+  </div>
+);
+
+const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false, dummyQr = false }) => {
   const BASE_WIDTH = 580;
   const BASE_HEIGHT = 340;
 
@@ -101,8 +118,8 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
           </div>
 
           {/* Body */}
-          <div className="flex gap-4 flex-1 h-2/3">
-            <div className="w-[110px] bg-white rounded-xl overflow-hidden border-2 border-black">
+          <div className="flex gap-4 flex-1 h-2/3 items-stretch">
+            <div className="w-[110px] shrink-0 self-stretch bg-white rounded-xl overflow-hidden border-2 border-black">
               {(() => {
                 const getImageUrl = (url) => {
                   if (!url) return null;
@@ -181,19 +198,23 @@ const AyushCardPreview = ({ data, side = "front", onFlip, exportMode = false }) 
               <Row label="Reg Date" value={data?.dateApplied || data?.applicationDate || "—"} />
             </div>
 
-            <div className="w-[115px] bg-white rounded-xl p-2 flex items-center justify-center">
-              {(() => {
-                const verifyUrl = buildCardVerifyUrl(data);
-                if (!verifyUrl) return null;
-                return (
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(verifyUrl)}`}
-                    alt="qr"
-                    className="w-full h-full border-2 border-black rounded"
-                    crossOrigin="anonymous"
-                  />
-                );
-              })()}
+            <div className="w-[115px] shrink-0 self-stretch bg-white rounded-xl overflow-hidden border-2 border-black">
+              {dummyQr ? (
+                <DummyQrPlaceholder />
+              ) : (
+                (() => {
+                  const verifyUrl = buildCardVerifyUrl(data);
+                  if (!verifyUrl) return null;
+                  return (
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(verifyUrl)}`}
+                      alt="qr"
+                      className="block h-full w-full object-contain"
+                      crossOrigin="anonymous"
+                    />
+                  );
+                })()
+              )}
             </div>
           </div>
         </div>
